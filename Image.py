@@ -133,12 +133,15 @@ class Stack:
 	    
 	    settings = loadcam(camFile)
 	    self._settings = []
-	    print "REMINDER: need to do error checking on cam file vs img file"
 	    for (setting, value) in settings.iteritems():
 		setting = setting.lower()
 		if not hasattr(self,setting):
 		    setattr(self, setting, value)
 		    self._settings += [setting]
+
+	    # check cam and img file correspondence
+	    if self._img.shape != (settings.frames,settings.height,settings.width):
+		raise StackError, ".img file and .cam file dimensions do not agree"
 
 	    self._origin = (self.roileft,self.roibottom)
 
