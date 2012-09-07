@@ -1,5 +1,5 @@
 from __future__ import with_statement
-#from numpy import dtype, fromfile
+from useful import toNum, dotdict
 import numpy as np
 from datetime import datetime
 import re
@@ -52,7 +52,6 @@ def loadimg(filename, datatype='>h', **kwargs):
     data = np.fromfile(filename, datatype)
 
     img_size = data[:3]
-    #frames, height, width = img_size
 
     img = np.delete( data, np.r_[:3, np.prod(img_size)+3:data.size] )
 
@@ -81,5 +80,30 @@ def loadcam(filename):
 		value = datetime.strptime(value,'%m/%d/%Y %I:%M %p')
 
 	    settings[key.lower()] = value
+
+    return settings
+
+
+def loadsettings(filename, **kwargs):
+    "Load key/value objects from LabView-style configuration file"
+
+    cast = kwargs.get('cast') or str
+
+    settings = dotdict()
+    with open(filename) as f:
+	header = None
+	for line in f:
+	    line = line.strip()
+	    if line == '':
+		continue
+
+	    m = re.match(r'\[(\w+)\]',line)
+	    if m:
+		header = m.group(1).lower()
+		if not settings.has_key(header):
+		    settings[header] = dotdict()
+	    else:
+		key,value = line.split('=')
+		settings[header][key.lower()] = cast(value)
 
     return settings

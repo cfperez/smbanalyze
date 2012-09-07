@@ -1,8 +1,7 @@
+from __future__ import with_statement
 import numpy as np
 import matplotlib.pyplot as plt
-from FileIO import loadimg,loadcam,savedat
-import os.path
-import copy
+import os.path, copy, useful, FileIO
 
 class StackError(Exception):
     pass
@@ -12,6 +11,7 @@ class ROIError(Exception):
 
 def setDefaultROI(*args):
     Stack.setDefaultROI(*args)
+    return Stack
 
 def fromBackground(filename, filter='median'):
     bg = Stack(filename)
@@ -54,33 +54,40 @@ Usage:
     ROI( roi, name='', origin='relative' )
     """
 
-    def __init__(self, left, right=None, bottom=None, top=None, name='', origin='relative'):
+    def __init__(self, left=None, right=None, bottom=None, top=None, name='', origin='relative'):
 
 	#################################################
 	## If the first argument is another ROI, make a copy
 	#################################################
-	if isinstance(left, ROI):
+	try:
 	    roi=left
+	    if name:
+		roi.name = name
+	    if not hasattr(roi, 'origin'):
+		roi.origin = origin
+
 	    self.__myinit__( roi.left, roi.right, roi.bottom, roi.top, roi.name, roi.origin )
+	except AttributeError:
+	    
+	    #################################################
+	    ## If the first argument is a tuple, assume
+	    ## bottomleft and topright (bounding box) usage
+	    #################################################
+	    try:
+		self.__myinit__(left[0], right[0], left[1], right[1], name, origin)
+	    except TypeError, IndexError:
 
-	#################################################
-	## If the first argument is a tuple, assume
-	## bottomleft and topright (bounding box) usage
-	#################################################
-	elif isinstance(left, tuple):
-	    self.__myinit__(left[0], right[0], left[1], right[1], name, origin)
-
-	#################################################
-	## Otherwise, use all the corners
-	#################################################
-	else:
-	    self.__myinit__(left,right,bottom,top,name,origin)
+		#################################################
+		## Otherwise, use all the corners
+		#################################################
+		self.__myinit__(left,right,bottom,top,name,origin)
 
     def __myinit__(self, left, right, bottom, top, name, origin):
-	if right < left or left < 0 or right < 0:
-	    raise ROIError, "ROI must satisfy condition 0 <= left < right: left=%d right=%d" % (left,right)
-	if bottom > top or bottom < 0 or top < 0:
-	    raise ROIError, "ROI must satisfy condition 0 <= bottom < top: bottom=%d top=%d" % (bottom,top)
+	if left is not None:
+	    if right < left or left < 0 or right < 0:
+		raise ROIError, "ROI must satisfy condition 0 <= left < right: left=%d right=%d" % (left,right)
+	    if bottom > top or bottom < 0 or top < 0:
+		raise ROIError, "ROI must satisfy condition 0 <= bottom < top: bottom=%d top=%d" % (bottom,top)
 
 	self.left = left
 	self.right = right
@@ -91,7 +98,14 @@ Usage:
 
     @classmethod
     def fromfile(cls, filename):
-	print "TBD"
+	toInt = lambda s: int(useful.toNum(s))
+	settings = FileIO.loadsettings(filename, cast=toInt)
+
+	self = []
+	for name, roi in settings.items():
+	    self.append( cls(roi, name=name, origin='absolute') )
+
+	return tuple(self)
 
     @property
     def width(self):
@@ -102,13 +116,19 @@ Usage:
 	return self.top-self.bottom+1
 
     def __repr__(self):
-	return "ROI %s = L: %d, R: %d, B: %d, T: %d" % \
-	    (self.name,self.left,self.right,self.bottom,self.top)
+	if None in (self.left, self.right, self.bottom, self.top):
+	    name = self.name or 'Undefined'
+	    return "ROI '%s' = uninitialized" % self.name
+	else:
+	    return "ROI '%s' = L: %d, R: %d, B: %d, T: %d" % \
+		(self.name,self.left,self.right,self.bottom,self.top) 
 
-#====================================================================================================
-#
-#
-#====================================================================================================
+################################################################################
+##
+## Class Stack
+##
+## 
+################################################################################
 class Stack:
     "A class to load and manipulate images generated during single molecule experiments"
 
@@ -125,14 +145,14 @@ class Stack:
 	#################################################
 	if isinstance(filename, str):
 	    self.filename = filename
-	    self._img = loadimg(filename)
+	    self._img = FileIO.loadimg(filename)
 	    self._roi = dict(Stack.defaultROI)
 	    self._donorROIName = Stack.defaultDonorROI
 	    self._acceptorROIName = Stack.defaultAcceptorROI
 
 	    camFile = camFile or (os.path.splitext(filename)[0] + '.cam')
 	    
-	    settings = loadcam(camFile)
+	    settings = FileIO.loadcam(camFile)
 	    self._settings = []
 	    for (setting, value) in settings.iteritems():
 		if not hasattr(self,setting):
@@ -198,9 +218,9 @@ class Stack:
 	for _roi in args:
 	    cls.defaultROI[_roi.name]=_roi
 
-    def addROI(self, roi, name='donor'):
+    def addROI(self, roi):
 	try:
-	    key = roi.name or name
+	    key = roi.name
 
 	    if roi.origin == 'absolute':
 		# recast to relative origin
