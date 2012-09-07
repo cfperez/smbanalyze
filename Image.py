@@ -264,6 +264,11 @@ class Stack:
 	#temp._img = temp._img[slice]
 	#return temp
 
+    def append(self, stack):
+	temp = copy.copy(self)
+	temp._img = np.append( temp._img, stack._img, axis=0 )
+	return temp
+
     def __sub__(self, stack):
 	return self.__add__(stack.__neg__())
 
