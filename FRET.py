@@ -58,7 +58,8 @@ def fromDirectory(dir=None, verbose=False, **kwargs):
 		return ''
 	    bgName = basename+'_background.img'
 	    if bgName in bg_files: 
-		return bgName if bgName.count('_') > background.count('_') else background
+		return bgName if bgName.count('_') > background.count('_') \
+		    else background
 	    else:
 		return find_bg_filename(basename.rpartition('_')[0])
 
@@ -76,15 +77,20 @@ def fromDirectory(dir=None, verbose=False, **kwargs):
 
 	data = calctofile( image, basename+'.fret' )
 
-	pattern = re.compile(r'^([a-zA-Z0-9]+)_.*s(\d+)m(\d+)(?:_(\d+))?(?:_(background))?$')
-	construct, slide, mol, pull, isBackground = pattern.match(basename).groups()
+	pattern = re.compile(\
+	r'^([a-zA-Z0-9]+)_.*s(\d+)m(\d+)(?:_(\d+min))?(?:_(\d+))?(?:_(background))?$')
+
+	construct, slide, mol, time, pull, isBackground = \
+	    pattern.match(basename).groups()
+
+	pull = 1 or pull
 
 	temp = Experiment()
 	temp.image = image
 	temp.fret = data
 	results['s%sm%sp%s'%(slide,mol,pull)] = temp
 
-	if kwargs.get('plotall') is True:
+	if kwargs.get('plotall'):
 	    plt.figure()
 	    plt.subplot(211)
 	    plt.title(' '.join([construct, 's%sm%sp%s'%(slide,mol,pull)]) )
@@ -100,5 +106,10 @@ def fromDirectory(dir=None, verbose=False, **kwargs):
     os.chdir(old_dir)
     return results
 
+class Experiments(dict):
+    def __getattr__(self, name):
+	return self[name]
+
 class Experiment:
-    pass
+    def __setattr__(self, name, value):
+	raise AttributeError, "Class %s is read-only" % self.__class__
