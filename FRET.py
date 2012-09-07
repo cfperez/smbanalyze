@@ -72,7 +72,6 @@ def fromDirectory(dir=None, verbose=False, **kwargs):
 	if background:
 	    if BG is None or background != BG.filename:
 		BG = Image.fromBackground(background)
-		BG.filename = background
 	    image = image - BG
 
 	data = calctofile( image, basename+'.fret' )
