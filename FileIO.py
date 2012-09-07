@@ -57,6 +57,8 @@ def loadimg(filename, datatype='>h', **kwargs):
     return img
 
 def loadcam(filename):
+    "Return dictionary of camera settings as contained in .cam file"
+
     settings = {}
     with open(filename, 'r') as f:
 	for line in f.readlines():
@@ -70,6 +72,6 @@ def loadcam(filename):
 		    key = 'DateTime'
 		value = datetime.strptime(value,'%m/%d/%Y %I:%M %p')
 
-	    settings[key] = value
+	    settings[key.lower()] = value
 
     return settings
