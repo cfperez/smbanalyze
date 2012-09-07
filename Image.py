@@ -124,6 +124,7 @@ class Stack:
 	## Load data from file called filename if string
 	#################################################
 	if isinstance(filename, str):
+	    self.filename = filename
 	    self._img = loadimg(filename)
 	    self._roi = dict(Stack.defaultROI)
 	    self._donorROIName = Stack.defaultDonorROI
@@ -134,13 +135,12 @@ class Stack:
 	    settings = loadcam(camFile)
 	    self._settings = []
 	    for (setting, value) in settings.iteritems():
-		setting = setting.lower()
 		if not hasattr(self,setting):
 		    setattr(self, setting, value)
 		    self._settings += [setting]
 
 	    # check cam and img file correspondence
-	    if self._img.shape != (settings.frames,settings.height,settings.width):
+	    if self._img.shape != (settings['frames'],settings['height'],settings['width']):
 		raise StackError, ".img file and .cam file dimensions do not agree"
 
 	    self._origin = (self.roileft,self.roibottom)
@@ -183,14 +183,14 @@ class Stack:
 	if not self._roi.has_key(self._donorROIName):
 	    raise StackError, "ROI called %s hasn't been defined yet" % self._donorROIName
 
-	return self[self._donorROIName].counts
+	return self.counts(self._roi[self._donorROIName])
 
     @property
     def acceptor(self):
 	if not self._roi.has_key(self._acceptorROIName):
 	    raise StackError, "ROI called %s hasn't been defined yet" % self._acceptorROIName
 
-	return self[self._acceptorROIName].counts
+	return self.counts(self._roi[self._acceptorROIName])
 	
 
     @classmethod
@@ -238,14 +238,14 @@ class Stack:
 	
     def counts(self, roi=None):
 	if roi:
-	    return self[:,roi.bottom:roi.top,roi.left:roi.right]
+	    return self[:,roi.bottom:roi.top,roi.left:roi.right].counts()
+	    #return np.sum( np.sum(self._img[:,roi.bottom:roi.top,roi.left:roi.right],axis=1), axis=1 )
 	else:
 	    return np.sum( np.sum(self._img,axis=1), axis=1 )
 
     def __getitem__(self,key):
 	if type(key) == str and self._roi.has_key(key):
-	    roi = self._roi[key]
-	    return self[:,roi.bottom:roi.top,roi.left:roi.right]
+	    return self.counts(self._roi[key])
 	elif type(key) == int:
 	    return Frame(self._img[key])
 	else:
