@@ -10,32 +10,6 @@ class StackError(Exception):
 class ROIError(Exception):
     pass
 
-beta = 0.0
-gamma = 1.0
-
-def calcFRET(stack, beta=beta, gamma=gamma):
-    """Calculates FRET of an Image.Stack
-
-calcFRET( Image.Stack, beta = Image.beta, gamma = Image.gamma)
-
-defaults: taken from previous measurements
-
-RETURNS array of calculated FRET for each frame
-"""
-
-    donor = stack.donor - min(stack.donor)
-    acceptor = stack.acceptor - donor*beta
-    acceptor = acceptor - min(acceptor)
-
-    return acceptor/(acceptor+gamma*donor)
-
-def saveFRETdata(filename, stack, **kwargs):
-    "saveFRETdata( fret, ImageStack, filename): saves donor,acceptor, FRET to 3 column text file"
-
-    fret = calcFRET(stack, **kwargs)
-    savedat(filename, (stack.donor,stack.acceptor,fret), header='donor acceptor FRET', fmt=('%u','%u','%.5f'))
-    return fret
-
 def setDefaultROI(*args):
     Stack.setDefaultROI(*args)
 
@@ -259,10 +233,11 @@ class Stack:
 	self._acceptorROIName = roi_name
 	return self
 	
-    @property
-    def counts(self):
-	return np.sum( np.sum(self._img,axis=1), axis=1 )
-
+    def counts(self, roi=None):
+	if roi:
+	    return self[:,roi.bottom:roi.top,roi.left:roi.right]
+	else:
+	    return np.sum( np.sum(self._img,axis=1), axis=1 )
 
     def __getitem__(self,key):
 	if type(key) == str and self._roi.has_key(key):

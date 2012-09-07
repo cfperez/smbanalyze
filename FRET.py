@@ -5,7 +5,7 @@ from FileIO import savedat
 beta = 0.13
 gamma = 1.16
 
-def pullfromStack(stack, beta=beta, gamma=gamma):
+def calc(stack, beta=beta, gamma=gamma):
     """Calculates FRET of a pull from an Image.Stack
 
 calcFRET( Image.Stack, beta = Image.beta, gamma = Image.gamma)
