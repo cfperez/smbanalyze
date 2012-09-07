@@ -29,7 +29,10 @@ def calctofile(stack, filename, **kwargs):
     savedat(filename, (stack.donor,stack.acceptor,fretdata), header='donor acceptor FRET', fmt=('%u','%u','%.5f'))
     return fretdata
 
-def fromDirectory(dir=None, verbose=False, **kwargs):
+def fromDirectory(dir=None, *args, **kwargs):
+
+    verbose = 'verbose' in args or kwargs.get('verbose')
+    plotall = 'plotall' in args or kwargs.get('plotall')
 
     old_dir = os.getcwd()
     if dir:
@@ -77,10 +80,9 @@ def fromDirectory(dir=None, verbose=False, **kwargs):
 
 	data = calctofile( image, basename+'.fret' )
 
-	pattern = re.compile(\
-	r'^([a-zA-Z0-9]+)_.*s(\d+)m(\d+)(?:_(\d+min))?(?:_(\d+))?(?:_(background))?$')
+	pattern = re.compile(FileIO.FILENAME_SYNTAX)
 
-	construct, slide, mol, time, pull, isBackground = \
+	construct, slide, mol, pull, time, series, isBackground = \
 	    pattern.match(basename).groups()
 
 	pull = pull or 1
@@ -88,7 +90,7 @@ def fromDirectory(dir=None, verbose=False, **kwargs):
 	temp = Experiment(image=image, fret=data)
 	results['s%sm%sp%s'%(slide,mol,pull)] = temp
 
-	if kwargs.get('plotall'):
+	if plotall:
 	    plt.figure()
 	    plt.subplot(211)
 	    plt.title(' '.join([construct, 's%sm%sp%s'%(slide,mol,pull)]) )
