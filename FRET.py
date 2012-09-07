@@ -43,7 +43,7 @@ def fromDirectory(dir=None, verbose=False, **kwargs):
 
     background = ''
     BG = None
-    results = {}
+    results = Experiments()
 
     for file in files:
 	
@@ -83,11 +83,9 @@ def fromDirectory(dir=None, verbose=False, **kwargs):
 	construct, slide, mol, time, pull, isBackground = \
 	    pattern.match(basename).groups()
 
-	pull = 1 or pull
+	pull = pull or 1
 
-	temp = Experiment()
-	temp.image = image
-	temp.fret = data
+	temp = Experiment(image=image, fret=data)
 	results['s%sm%sp%s'%(slide,mol,pull)] = temp
 
 	if kwargs.get('plotall'):
@@ -111,5 +109,8 @@ class Experiments(dict):
 	return self[name]
 
 class Experiment:
+    def __init__(self, **kwargs):
+	self.__dict__.update(kwargs)
+
     def __setattr__(self, name, value):
 	raise AttributeError, "Class %s is read-only" % self.__class__
