@@ -33,10 +33,18 @@ def fromDirectory(dir=None, *args, **kwargs):
 
     verbose = 'verbose' in args or kwargs.get('verbose')
     plotall = 'plotall' in args or kwargs.get('plotall')
+    roi_file = kwargs.get('roi_file') or 'roi*'
 
     old_dir = os.getcwd()
     if dir:
 	os.chdir(dir)
+
+    roi_file = glob.glob(roi_file)
+    if roi_file:
+	roi = roi_file.pop()
+	Image.setDefaultROI(*Image.ROI.fromfile(roi))
+	if verbose and roi_file:
+	    print "WARNING: Only using first ROI file found: %s" % roi
 
     files = glob.glob( '*.img' )
     bg_files = glob.glob( '*_background.img' )
@@ -115,4 +123,4 @@ class Experiment:
 	self.__dict__.update(kwargs)
 
     def __setattr__(self, name, value):
-	raise AttributeError, "Class %s is read-only" % self.__class__
+	raise AttributeError, "Instance of class %s is read-only" % self.__class__

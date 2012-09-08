@@ -107,6 +107,9 @@ Usage:
 
 	return tuple(self)
 
+    def toRelative(self,first,*args):
+	pass
+	    
     @property
     def width(self):
 	return self.right-self.left+1
@@ -146,9 +149,11 @@ class Stack:
 	if isinstance(filename, str):
 	    self.filename = filename
 	    self._img = FileIO.loadimg(filename)
-	    self._roi = dict(Stack.defaultROI)
+	    self._roi = {}
 	    self._donorROIName = Stack.defaultDonorROI
 	    self._acceptorROIName = Stack.defaultAcceptorROI
+
+	    self.addROI(*self.__class__.defaultROI.values())
 
 	    camFile = camFile or (os.path.splitext(filename)[0] + '.cam')
 	    
@@ -218,27 +223,28 @@ class Stack:
 	for _roi in args:
 	    cls.defaultROI[_roi.name]=_roi
 
-    def addROI(self, roi):
-	try:
-	    key = roi.name
+    def addROI(self, *ROIs):
+	for roi in ROIs:
+	    try:
+		key = roi.name
 
-	    if roi.origin == 'absolute':
-		# recast to relative origin
-		roi = ROI( roi.left-self.roileft, roi.right-self.roileft, \
-		    roi.bottom-self.roibottom, roi.top-self.roibottom, name=key )
-	    else:
-		# make a new object
-		roi = ROI(roi)
+		if roi.origin == 'absolute':
+		    # recast to relative origin
+		    roi = ROI( roi.left-self.roileft, roi.right-self.roileft, \
+			roi.bottom-self.roibottom, roi.top-self.roibottom, name=key )
+		else:
+		    # make a new object
+		    roi = ROI(roi)
 
-	    if roi.right > self.width or roi.top > self.height:
-		raise ROIError
+		if roi.right > self.width or roi.top > self.height:
+		    raise ROIError
 
-	except AttributeError:
-	    raise TypeError, "Must use objects with ROI interface"
-	except ROIError:
-	    raise ROIError, "ROI out of bounds! %s" % repr(roi)
+	    except AttributeError:
+		raise TypeError, "Must use objects with ROI interface"
+	    except ROIError:
+		raise ROIError, "ROI out of bounds! %s" % repr(roi)
 
-	self._roi[key] = roi
+	    self._roi[key] = roi
 
 	return self
 
