@@ -12,11 +12,17 @@ FILENAME_SYNTAX = __build_pattern__( \
     _opt_(r'\d+') + _opt_(r'background') )
 
 
-def loadat(filename, comments='#', **kwargs):
+COMMENT_LINE = '#'
+
+def loaddat(filename, **kwargs):
+
+    comments = kwargs.get('comments', COMMENT_LINE)
 
     colnames = None
     with open(filename, 'r') as fh:
+	position = 0
 	for line in fh:
+	    position += 1
 	    if line.startswith(comments) or line.isspace():
 		continue
 
@@ -25,16 +31,20 @@ def loadat(filename, comments='#', **kwargs):
 	    else:
 		break
 
-	data = load(fh, **kwargs)
+	data = np.loadtxt(fh, skiprows=position-1, **kwargs)
     # end with
 
-    #data.dtype = dtype( zip(colnames, ['f8']*len(colnames)) )
+    data.dtype = np.dtype( zip(colnames, ['f8']*len(colnames)) )
+    #data.dtype = np.dtype( [(colnames[0], 'f8')] )
 
     return data
 
-def savedat(filename, data, header='', comments='#', fmt='%.18e', delimiter='\t'):
+def savedat(filename, data, header='', comments='', fmt='%.9e', delimiter='\t'):
 
-    header = ''.join(map(lambda line: comments+line.replace(' ',delimiter), header.splitlines(True)))
+    newline = '\n' if comments else ''
+
+    header = ''.join(map(lambda line: COMMENT_LINE+' '+line, comments.splitlines(True))) \
+		+ newline + header.replace(' ',delimiter)
 
     if type(data) == tuple:
 	data = np.array(data).T
@@ -65,6 +75,8 @@ def loadimg(filename, datatype='>h', **kwargs):
 
 def loadcam(filename):
     "Return dictionary of camera settings as contained in .cam file"
+    # Can be replaced by loadsettings and a handle for the DateTime key value
+    # once the old-style .cam setting is supplanted
 
     settings = {}
     with open(filename, 'r') as f:
@@ -85,7 +97,7 @@ def loadcam(filename):
 
 
 def loadsettings(filename, **kwargs):
-    "Load key/value objects from LabView-style configuration file"
+    "Return dictionary of key/value pairs from LabView-style configuration file"
 
     cast = kwargs.get('cast') or str
 
@@ -104,7 +116,7 @@ def loadsettings(filename, **kwargs):
 		    settings[header] = dotdict()
 	    else:
 		key,value = line.split('=')
-		settings[header][key.lower()] = cast(value)
+		settings[header][key.strip().lower()] = cast(value)
 
     return settings
 
