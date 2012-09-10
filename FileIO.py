@@ -107,3 +107,15 @@ def loadsettings(filename, **kwargs):
 		settings[header][key.lower()] = cast(value)
 
     return settings
+
+def savesettings(filename, **settings):
+    "save key/value object into LabView-style configuration file"
+
+    file_mode = settings.get('file_mode','w')
+
+    with open(filename, file_mode) as f:
+	for key in settings:
+	    f.write( '[%s]\n' % key.capitalize() )
+
+	    for key,value in settings[key].iteritems():
+		f.write( '%s=%s\n' % (str(key.capitalize()),str(value)) )

@@ -107,8 +107,28 @@ Usage:
 
 	return tuple(self)
 
-    def toRelative(self,first,*args):
-	pass
+    @classmethod
+    def save(cls, filename, *ROIs):
+	settings = {}
+	for roi in ROIs:
+	    settings[roi.name] = {'Left': roi.left, 'Right': roi.right, \
+			    'Bottom': roi.bottom, 'Top': roi.top }
+
+	FileIO.savesettings(filename, **settings)
+
+    def tofile(self, filename, mode='w'):
+	return "instance method tofile"
+	FileIO.savesettings(filename, \
+	    **dict( {self.name: {'Left': self.left, 'Right': self.right, \
+			    'Bottom': self.bottom, 'Top': self.top }, 'file_mode':mode } ) \
+	    )
+
+    def toRelative(self,origin):
+	if self.origin == 'relative':
+	    return copy.copy(self)
+	else:
+	    return ROI( self.left-origin[0],self.right-origin[0], \
+		self.bottom-origin[1],self.top-origin[1], name=self.name )
 	    
     @property
     def width(self):
@@ -153,7 +173,6 @@ class Stack:
 	    self._donorROIName = Stack.defaultDonorROI
 	    self._acceptorROIName = Stack.defaultAcceptorROI
 
-	    self.addROI(*self.__class__.defaultROI.values())
 
 	    camFile = camFile or (os.path.splitext(filename)[0] + '.cam')
 	    
@@ -169,6 +188,7 @@ class Stack:
 		raise StackError, ".img file and .cam file dimensions do not agree"
 
 	    self._origin = (self.roileft,self.roibottom)
+	    self.addROI(*self.__class__.defaultROI.values())
 
 	#################################################
 	## Make a copy of filename if actually another Stack
@@ -227,22 +247,16 @@ class Stack:
 	for roi in ROIs:
 	    try:
 		key = roi.name
-
-		if roi.origin == 'absolute':
-		    # recast to relative origin
-		    roi = ROI( roi.left-self.roileft, roi.right-self.roileft, \
-			roi.bottom-self.roibottom, roi.top-self.roibottom, name=key )
-		else:
-		    # make a new object
-		    roi = ROI(roi)
-
-		if roi.right > self.width or roi.top > self.height:
-		    raise ROIError
-
 	    except AttributeError:
 		raise TypeError, "Must use objects with ROI interface"
 	    except ROIError:
 		raise ROIError, "ROI out of bounds! %s" % repr(roi)
+
+	    # recast to relative origin
+	    roi = roi.toRelative( self._origin )
+
+	    if roi.right > self.width or roi.top > self.height:
+		raise ROIError, "ROI is larger than Stack dimensions"
 
 	    self._roi[key] = roi
 
@@ -285,11 +299,6 @@ class Stack:
 	    return temp
 	raise IndexError, "Invalid index: %s" % str(key)
 
-    #def __slice__(self, slice):
-	#temp = Stack(self)
-	#temp._img = temp._img[slice]
-	#return temp
-
     def append(self, stack):
 	temp = copy.copy(self)
 	temp._img = np.append( temp._img, stack._img, axis=0 )
@@ -317,11 +326,9 @@ class Frame:
 	self._img = imgarray
 
     def __getitem__(self,key):
-	#if type(key) == tuple:
-	#    return self._img[key[1],key[0]]
-	if isinstance(key, ROI):
+	try:
 	    return self._img[ key.bottom:key.top, key.left:key.right ]
-	else:
+	except AttributeError:
 	    return self._img[:,key]
 
     @property
