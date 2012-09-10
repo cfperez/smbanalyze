@@ -1,5 +1,6 @@
 from __future__ import with_statement
 import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt
 import os.path, copy, useful, FileIO
 
@@ -11,7 +12,6 @@ class ROIError(Exception):
 
 def setDefaultROI(*args):
     Stack.setDefaultROI(*args)
-    return Stack
 
 def fromBackground(filename, filter='median'):
     bg = Stack(filename)
@@ -97,18 +97,20 @@ Usage:
 	self.origin = origin
 
     @classmethod
-    def fromfile(cls, filename):
+    def fromfile(cls, filename, origin='absolute'):
+	"Load ROI(s) from a LabView config file and return tuple of Image.ROI objects"
 	toInt = lambda s: int(useful.toNum(s))
 	settings = FileIO.loadsettings(filename, cast=toInt)
 
 	self = []
 	for name, roi in settings.items():
-	    self.append( cls(roi, name=name, origin='absolute') )
+	    self.append( cls(roi, name=name, origin=origin) )
 
 	return tuple(self)
 
     @classmethod
     def save(cls, filename, *ROIs):
+	"Save ROI(s) to a LabView config file format"
 	settings = {}
 	for roi in ROIs:
 	    settings[roi.name] = {'Left': roi.left, 'Right': roi.right, \
@@ -126,9 +128,11 @@ Usage:
     def toRelative(self,origin):
 	if self.origin == 'relative':
 	    return copy.copy(self)
-	else:
+	elif self.origin == 'absolute':
 	    return ROI( self.left-origin[0],self.right-origin[0], \
 		self.bottom-origin[1],self.top-origin[1], name=self.name )
+	else:
+	    raise ROIError, "Origin must be either 'relative' or 'absolute'"
 	    
     @property
     def width(self):
@@ -342,8 +346,8 @@ class Frame:
     def counts( roi ):
 	return np.sum( self[roi] )
 
-    def show(self):
-	plot = self._plot_obj = plt.imshow(self._img)
+    def show(self, cmap=None):
+	plot = self._plot_obj = plt.imshow(self._img, cmap=cmap)
 	plot.get_axes().invert_yaxis()
 	plt.draw()
 	return self._plot_obj
