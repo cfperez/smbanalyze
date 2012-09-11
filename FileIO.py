@@ -8,7 +8,7 @@ _opt_ = lambda p: r'(?:_(%s))?' % p
 __build_pattern__ = lambda *x: r''.join(x)+'$'
 
 FILENAME_SYNTAX = __build_pattern__( \
-    r'^([a-zA-Z0-9]+)_.*s(\d+)m(\d+)' + _opt_(r'\d+') + _opt_(r'\d+min') + \
+    r'^([a-zA-Z0-9]+)_(.*)s(\d+)(?:m(\d+))?' + _opt_(r'\d+') + _opt_(r'\d+min') + \
     _opt_(r'\d+') + _opt_(r'background') )
 
 
@@ -31,6 +31,7 @@ def loaddat(filename, **kwargs):
 	    else:
 		break
 
+	fh.seek(0)
 	data = np.loadtxt(fh, skiprows=position-1, **kwargs)
     # end with
 
