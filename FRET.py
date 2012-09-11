@@ -34,6 +34,7 @@ def fromDirectory(*args, **kwargs):
     dir = kwargs.get('dir')
     verbose = 'verbose' in args or kwargs.get('verbose')
     plotall = 'plotall' in args or kwargs.get('plotall')
+    saveplot = 'saveplot' in args or kwargs.get('saveplot')
     roi_file = kwargs.get('roi_file') # 'roi*' would be the convention
 
     old_dir = os.getcwd()
@@ -75,7 +76,7 @@ def fromDirectory(*args, **kwargs):
 
 	basename, ext = os.path.splitext(file)
 
-	construct, slide, mol, pull, time, series, isBackground = \
+	construct, context, slide, mol, pull, time, series, isBackground = \
 	    pattern.match(basename).groups()
 
 	# recursively search for background file with the most specific scope
@@ -131,6 +132,10 @@ def fromDirectory(*args, **kwargs):
 	    plt.subplot(212)
 	    plt.ylabel('FRET')
 	    plt.plot(data, 'g-',label='fret')
+
+	    if saveplot:
+		plt.savefig('%s %s s%sm%s_%s.png'%(construct,context.replace('_',' '), \
+		    slide,mol,pull) )
     
     os.chdir(old_dir)
     return results.__lock__()

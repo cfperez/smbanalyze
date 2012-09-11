@@ -35,10 +35,10 @@ def loaddat(filename, **kwargs):
 	data = np.loadtxt(fh, skiprows=position-1, **kwargs)
     # end with
 
-    data.dtype = np.dtype( zip(colnames, ['f8']*len(colnames)) )
+    #data.dtype = np.dtype( zip(colnames, ['f8']*len(colnames)) )
     #data.dtype = np.dtype( [(colnames[0], 'f8')] )
 
-    return data
+    return colnames, data
 
 def savedat(filename, data, header='', comments='', fmt='%.9e', delimiter='\t'):
 
