@@ -5,14 +5,19 @@ from datetime import datetime
 import re
 
 _opt_ = lambda p: r'(?:_(%s))?' % p
+_opt_time_ = r'(?:_(\d+min)?(\d+s)?)?'
 __build_pattern__ = lambda *x: r''.join(x)+'$'
 
 FILENAME_SYNTAX = __build_pattern__( \
-    r'^([a-zA-Z0-9]+)_(.*)s(\d+)(?:m(\d+))?' + _opt_(r'\d+') + _opt_(r'\d+min') + \
+    r'^([a-zA-Z0-9]+)_(.*)s(\d+)(?:m(\d+))?' + _opt_(r'\d+') + _opt_time_ + \
     _opt_(r'\d+') + _opt_(r'background') )
 
 
 COMMENT_LINE = '#'
+
+def parseFilename(filename):
+	pass
+	
 
 def loaddat(filename, **kwargs):
 
