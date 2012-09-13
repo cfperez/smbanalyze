@@ -6,6 +6,16 @@ import os, glob, re, useful
 beta = 0.13
 gamma = 1.16
 
+def plot(image):
+	plt.figure()
+	#plt.subplot(211)
+	plt.plot(image.timeAxis, image.donor, label='donor')
+	plt.plot(image.timeAxis, image.acceptor,'r-', label='acceptor')
+	plt.ylabel('Counts')
+	plt.xlabel('Seconds')
+	#plt.legend(loc='upper left')
+	plt.legend()
+
 def calc(stack, beta=beta, gamma=gamma):
     """Calculates FRET of a pull from an Image.Stack
 
@@ -22,7 +32,7 @@ RETURNS array of calculated FRET for each frame
 
     return acceptor/(acceptor+gamma*donor)
 
-def calctofile(stack, filename, **kwargs):
+def calctoFile(stack, filename, **kwargs):
     "saveFRETdata( fret, ImageStack, filename): saves donor,acceptor, FRET to 3 column text file"
 
     fretdata = calc(stack, **kwargs)
@@ -76,7 +86,7 @@ def fromDirectory(*args, **kwargs):
 
 	basename, ext = os.path.splitext(file)
 
-	construct, context, slide, mol, pull, time, series, isBackground = \
+	construct, context, slide, mol, pull, min, sec, series, isBackground = \
 	    pattern.match(basename).groups()
 
 	# recursively search for background file with the most specific scope
@@ -108,7 +118,7 @@ def fromDirectory(*args, **kwargs):
 	if verbose:
 	    print "Processing image %s using background %s" % (file,background)
 
-	data = calctofile( image, basename+'.fret' )
+	data = calcToFile( image, basename+'.fret' )
 
 
 	pull = int(pull) or 1
@@ -134,8 +144,8 @@ def fromDirectory(*args, **kwargs):
 	    plt.plot(data, 'g-',label='fret')
 
 	    if saveplot:
-		plt.savefig('%s %s s%sm%s_%s.png'%(construct,context.replace('_',' '), \
-		    slide,mol,pull) )
+		  plt.savefig('%s %s s%sm%s_%s.png'%(construct,context.replace('_',' '), \
+			  slide,mol,pull) )
     
     os.chdir(old_dir)
     return results.__lock__()
