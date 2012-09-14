@@ -12,12 +12,12 @@ FILENAME_SYNTAX = __build_pattern__( \
     r'^([a-zA-Z0-9]+)_(.*)s(\d+)(?:m(\d+))?' + _opt_(r'\d+') + _opt_time_ + \
     _opt_(r'\d+') + _opt_(r'background') )
 
+Pattern = re.compile(FILENAME_SYNTAX)
 
 COMMENT_LINE = '#'
 
 def parseFilename(filename):
 	pass
-	
 
 def loaddat(filename, **kwargs):
 
@@ -126,14 +126,12 @@ def loadsettings(filename, **kwargs):
 
     return settings
 
-def savesettings(filename, **settings):
-    "save key/value object into LabView-style configuration file"
+def savesettings(filename, file_mode, **settings):
+  "save key/value object into LabView-style configuration file"
 
-    file_mode = settings.get('file_mode','w')
-
-    with open(filename, file_mode) as f:
+  with open(filename, file_mode) as f:
 	for key in settings:
-	    f.write( '[%s]\n' % key.capitalize() )
+	  f.write( '[%s]\n' % key.capitalize() )
 
-	    for key,value in settings[key].iteritems():
+	  for key,value in settings[key].iteritems():
 		f.write( '%s=%s\n' % (str(key.capitalize()),str(value)) )
