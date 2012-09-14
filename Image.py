@@ -52,44 +52,19 @@ Usage:
 3) Copy from another ROI
 
     ROI( roi, name='', origin='relative' )
-    """
+  """
 
-  def __init__(self, left=None, right=None, bottom=None, top=None, name='', origin='relative'):
+  def __init__(self, bl, tr, name='', origin='relative'):
 
-	#################################################
-	## If the first argument is another ROI, make a copy
-	#################################################
-	try:
-	  roi=left
-	  if name:
-		  roi.name = name
-	  if not hasattr(roi, 'origin'):
-		  roi.origin = origin
+	left,bottom = bl
+	right,top = tr
 
-	  self.__myinit__( roi.left, roi.right, roi.bottom, roi.top, roi.name, roi.origin )
-	except AttributeError:
-	  
-	  #################################################
-	  ## If the first argument is a tuple, assume
-	  ## bottomleft and topright (bounding box) usage
-	  #################################################
-	  try:
-		self.__myinit__(left[0], right[0], left[1], right[1], name, origin)
-	  except TypeError, IndexError:
+	if right < left or left < 0 or right < 0:
+	  raise ROIError, "ROI must satisfy condition 0 <= left < right: left=%d right=%d" \
+		  % (left,right)
 
-		#################################################
-		## Otherwise, use all the corners
-		#################################################
-		self.__myinit__(left,right,bottom,top,name,origin)
-
-  def __myinit__(self, left, right, bottom, top, name, origin):
-	if left is not None:
-	    if right < left or left < 0 or right < 0:
-		  raise ROIError, "ROI must satisfy condition 0 <= left < right: left=%d right=%d" \
-		  	% (left,right)
-
-	    if bottom > top or bottom < 0 or top < 0:
-		  raise ROIError, "ROI must satisfy condition 0 <= bottom < top: bottom=%d top=%d" \
+	if bottom > top or bottom < 0 or top < 0:
+	  raise ROIError, "ROI must satisfy condition 0 <= bottom < top: bottom=%d top=%d" \
 		  	% (bottom,top)
 
 	self.left = left
@@ -107,33 +82,45 @@ Usage:
 
 	self = []
 	for name, roi in settings.items():
-	    self.append( cls(roi, name=name, origin=origin) )
+	  roi.name = name
+	  roi.origin = origin
+	  self.append( cls.copy(roi) )
 
 	return tuple(self)
 
   @classmethod
+  def copy(cls, roi, name='', origin=''):
+	try:
+		name = name or roi.name
+		origin = origin or roi.origin or 'relative'
+		return cls( (roi.left,roi.bottom), (roi.right,roi.top), name, origin )
+	except AttributeError:
+		raise ROIError, "Must use ROI-type object"
+
+  @classmethod
+  def fromCorners(cls, left, right, bottom, top, **kwargs):
+  	return cls( (left,bottom), (right,top), **kwargs )
+
+  @classmethod
   def save(cls, filename, *ROIs):
 	"Save ROI(s) to a LabView config file format"
-	settings = {}
+	mode = 'w'
 	for roi in ROIs:
-	    settings[roi.name] = {'Left': roi.left, 'Right': roi.right, \
-			    'Bottom': roi.bottom, 'Top': roi.top }
+	  roi.toFile(filename, mode)
+	  mode = 'a'
 
-	FileIO.savesettings(filename, **settings)
-
-  def tofile(self, filename, mode='w'):
-	return "instance method tofile"
-	FileIO.savesettings(filename, \
-	    **dict( {self.name: {'Left': self.left, 'Right': self.right, \
-			    'Bottom': self.bottom, 'Top': self.top }, 'file_mode':mode } ) \
+  def toFile(self, filename, mode='w'):
+	FileIO.savesettings(filename, mode,
+	  **dict( {self.name: {'Left': self.left, 'Right': self.right, 
+			    'Bottom': self.bottom, 'Top': self.top }} ) 
 	    )
 
   def toRelative(self,origin):
 	if self.origin == 'relative':
 	    return copy.copy(self)
 	elif self.origin == 'absolute':
-	    return ROI( self.left-origin[0],self.right-origin[0], \
-		self.bottom-origin[1],self.top-origin[1], name=self.name )
+	    return ROI( (self.left-origin[0], self.bottom-origin[1]),
+			(self.right-origin[0],self.top-origin[1]), name=self.name )
 	else:
 	    raise ROIError, "Origin must be either 'relative' or 'absolute'"
 	    
@@ -289,15 +276,15 @@ class Stack:
 	
   def counts(self, roi=None):
 	if roi:
+		if self._roi.has_key(str(roi)):
+		  roi = self_roi[roi]
 	    return self[:,roi.bottom:roi.top,roi.left:roi.right].counts()
 	    #return np.sum( np.sum(self._img[:,roi.bottom:roi.top,roi.left:roi.right],axis=1), axis=1 )
 	else:
 	    return np.sum( np.sum(self._img,axis=1), axis=1 )
 
   def __getitem__(self,key):
-	if type(key) == str and self._roi.has_key(key):
-	    return self.counts(self._roi[key])
-	elif type(key) == int:
+	if type(key) == int:
 	    return Frame(self._img[key])
 	else:
 	    temp = Stack(self)
