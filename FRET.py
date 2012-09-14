@@ -6,15 +6,27 @@ import os, glob, re, useful
 beta = 0.13
 gamma = 1.16
 
-def plot(image):
+def plot(image, **kwargs):
+
+	fret = kwargs.get('fret')
+
 	plt.figure()
-	#plt.subplot(211)
+	if fret:
+		plt.subplot(211)
 	plt.plot(image.timeAxis, image.donor, label='donor')
 	plt.plot(image.timeAxis, image.acceptor,'r-', label='acceptor')
 	plt.ylabel('Counts')
 	plt.xlabel('Seconds')
 	#plt.legend(loc='upper left')
 	plt.legend()
+
+	if fret:
+		plt.subplot(212)
+		plt.ylabel('FRET')
+		try:
+			plt.plot(fret[:], 'g-', label='fret')
+		except TypeError:
+			plt.plot( calc(image), 'g-', label='fret')
 
 def calc(stack, beta=beta, gamma=gamma):
     """Calculates FRET of a pull from an Image.Stack
