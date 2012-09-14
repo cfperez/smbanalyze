@@ -9,15 +9,21 @@ gamma = 1.16
 def plot(image, **kwargs):
 
 	fret = kwargs.get('fret')
+	loc = kwargs.get('loc', 'best')
+	title = kwargs.get('title')
 
 	plt.figure()
 	if fret:
 		plt.subplot(211)
+
+	if title:
+	  plt.title(title)
+
 	plt.plot(image.timeAxis, image.donor, label='donor')
 	plt.plot(image.timeAxis, image.acceptor,'r-', label='acceptor')
 	plt.ylabel('Counts')
 	plt.xlabel('Seconds')
-	#plt.legend(loc='upper left')
+	plt.legend(loc=loc)
 	plt.legend()
 
 	if fret:
@@ -88,18 +94,16 @@ def fromDirectory(*args, **kwargs):
     BG = None
     results = Experiments()
 
-    pattern = re.compile(FileIO.FILENAME_SYNTAX)
-
-    for file in files:
+    for fname in files:
 	
 	# skip background files for FRET processing
-	if file in bg_files:
+	if fname in bg_files:
 	    continue
 
-	basename, ext = os.path.splitext(file)
+	basename, ext = os.path.splitext(fname)
 
 	construct, context, slide, mol, pull, min, sec, series, isBackground = \
-	    pattern.match(basename).groups()
+	    FileIO.Pattern.match(basename).groups()
 
 	# recursively search for background file with the most specific scope
 	# using '_' convention of file naming
@@ -120,7 +124,7 @@ def fromDirectory(*args, **kwargs):
 	elif slide == last_slide and bg_search.count('_') < background.count('_'):
 	    background = slide_background
 
-	image = Image.Stack(file)
+	image = Image.Stack(fname)
 
 	if background:
 	    if BG is None or background != BG.filename:
@@ -128,10 +132,9 @@ def fromDirectory(*args, **kwargs):
 	    image = image - BG
 
 	if verbose:
-	    print "Processing image %s using background %s" % (file,background)
+	    print "Processing image %s using background %s" % (fname,background)
 
 	data = calcToFile( image, basename+'.fret' )
-
 
 	pull = int(pull) or 1
 
@@ -143,17 +146,8 @@ def fromDirectory(*args, **kwargs):
 	last_slide = slide
 
 	if plotall:
-	    plt.figure()
-	    plt.subplot(211)
-	    plt.title(' '.join([construct, 's%sm%sp%s'%(slide,mol,pull)]) )
-	    plt.plot(image.donor, label='donor')
-	    plt.plot(image.acceptor,'r-', label='acceptor')
-	    plt.ylabel('counts')
-	    plt.legend(loc='upper left')
-
-	    plt.subplot(212)
-	    plt.ylabel('FRET')
-	    plt.plot(data, 'g-',label='fret')
+	    title = ' '.join([construct, 's%sm%sp%s'%(slide,mol,pull)])
+		plot(image, fret=data, title=title)
 
 	    if saveplot:
 		  plt.savefig('%s %s s%sm%s_%s.png'%(construct,context.replace('_',' '), \
