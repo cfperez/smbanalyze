@@ -103,7 +103,7 @@ Usage:
 
   @classmethod
   def save(cls, filename, *ROIs):
-	"Save ROI(s) to a LabView config file format"
+	"save(filename, *ROIs): Save ROI(s) to a LabView config file format"
 	mode = 'w'
 	for roi in ROIs:
 	  roi.toFile(filename, mode)
@@ -277,11 +277,10 @@ class Stack:
   def counts(self, roi=None):
 	if roi:
 		if self._roi.has_key(str(roi)):
-		  roi = self_roi[roi]
-	    return self[:,roi.bottom:roi.top,roi.left:roi.right].counts()
-	    #return np.sum( np.sum(self._img[:,roi.bottom:roi.top,roi.left:roi.right],axis=1), axis=1 )
+		  roi = self._roi[roi]
+		return self[:,roi.bottom:roi.top,roi.left:roi.right].counts()
 	else:
-	    return np.sum( np.sum(self._img,axis=1), axis=1 )
+		return np.sum( np.sum(self._img,axis=1), axis=1 )
 
   def __getitem__(self,key):
 	if type(key) == int:
