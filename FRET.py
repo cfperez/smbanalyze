@@ -11,9 +11,10 @@ def plot(image, **kwargs):
 	fret = kwargs.get('fret')
 	loc = kwargs.get('loc', 'best')
 	title = kwargs.get('title')
+	fig = kwargs.get('fig')
 
-	plt.figure()
-	if fret:
+	plt.figure(fig)
+	if fret is not None:
 		plt.subplot(211)
 
 	if title:
@@ -26,7 +27,7 @@ def plot(image, **kwargs):
 	plt.legend(loc=loc)
 	plt.legend()
 
-	if fret:
+	if fret is not None:
 		plt.subplot(212)
 		plt.ylabel('FRET')
 		try:
@@ -50,7 +51,7 @@ RETURNS array of calculated FRET for each frame
 
     return acceptor/(acceptor+gamma*donor)
 
-def calctoFile(stack, filename, **kwargs):
+def calcToFile(stack, filename, **kwargs):
     "saveFRETdata( fret, ImageStack, filename): saves donor,acceptor, FRET to 3 column text file"
 
     fretdata = calc(stack, **kwargs)
@@ -59,102 +60,125 @@ def calctoFile(stack, filename, **kwargs):
 
 def fromDirectory(*args, **kwargs):
 
-    dir = kwargs.get('dir')
-    verbose = 'verbose' in args or kwargs.get('verbose')
-    plotall = 'plotall' in args or kwargs.get('plotall')
-    saveplot = 'saveplot' in args or kwargs.get('saveplot')
-    roi_file = kwargs.get('roi_file') # 'roi*' would be the convention
+	dir = kwargs.get('dir')
+	verbose = 'verbose' in args or kwargs.get('verbose')
+	plotall = 'plotall' in args or kwargs.get('plotall')
+	saveplot = 'saveplot' in args or kwargs.get('saveplot')
+	roi_file = kwargs.get('roi_file') # 'roi*' would be the convention
+	files = kwargs.get('glob','*.img')
+	user_slide = kwargs.get('slide')
+	user_mol = kwargs.get('mol')
+	background = kwargs.get('background','')
 
-    old_dir = os.getcwd()
-    if dir:
-	os.chdir(dir)
+	old_dir = os.getcwd()
+	if dir:
+	  os.chdir(dir)
 
-    roi_file = glob.glob(roi_file) if roi_file else None
-    if roi_file:
-	roi = roi_file.pop()
-	Image.setDefaultROI( \
-	    *Image.ROI.fromfile(roi, origin=kwargs.get('roi_origin','absolute')))
+	try:
+	  roi_file = glob.glob(roi_file) if roi_file else None
+	  if roi_file:
+		roi = roi_file.pop()
+		Image.setDefaultROI(
+		  *Image.ROI.fromfile(roi, origin=kwargs.get('roi_origin','absolute')))
 
-	if roi_file:
-	    print "WARNING: Only using first ROI file found: %s" % roi
-	elif verbose:
-	    print "Using ROI file: %s" % roi
-    elif not Image.Stack.defaultROI:
-	raise RuntimeError, "No ROIs set or loaded--cannot compute counts"
+	  if roi_file:
+		print "WARNING: Only using first ROI file found: %s" % roi_file
+	  elif verbose:
+		print "Using ROI file: %s" % roi_file
+	  elif not Image.Stack.defaultROI:
+		raise RuntimeError, "No ROIs set or loaded--cannot compute counts"
 
-    files = glob.glob( '*.img' )
-    bg_files = glob.glob( '*_background.img' )
+	  files = glob.glob( '*.img' )
+	  bg_files = glob.glob( '*_background.img' )
 
-    if verbose:
-	print "Found files:\n%s\n" % '\n'.join(files)
+	  if verbose:
+		print "Found files:\n%s\n" % '\n'.join(files)
 
-    background = ''
-    slide_background = ''
-    last_slide = None
-    BG = None
-    results = Experiments()
+	  slide_background = ''
+	  last_slide = None
+	  BG = None
+	  results = Experiments()
 
-    for fname in files:
-	
-	# skip background files for FRET processing
-	if fname in bg_files:
-	    continue
+	  for fname in files:
 
-	basename, ext = os.path.splitext(fname)
+	  # skip background files for FRET processing
+		if fname in bg_files:
+		  continue
 
-	construct, context, slide, mol, pull, min, sec, series, isBackground = \
-	    FileIO.Pattern.match(basename).groups()
+		basename, ext = os.path.splitext(fname)
 
-	# recursively search for background file with the most specific scope
-	# using '_' convention of file naming
-	def find_bg_filename(basename):
-	    if basename == '':
-		return ''
-	    bgName = basename+'_background.img'
-	    if bgName in bg_files: 
-		return bgName if bgName.count('_') >= background.count('_') \
-		    else background
-	    else:
-		return find_bg_filename(basename.rpartition('_')[0])
+		construct, context, slide, mol, pull, force, min, sec, series, isBackground = \
+			FileIO.Pattern.match(basename).groups()
 
-	bg_search = find_bg_filename(basename)
-	if slide != last_slide or bg_search.count('_') >= background.count('_'):
-	    slide_background = background
-	    background = bg_search
-	elif slide == last_slide and bg_search.count('_') < background.count('_'):
-	    background = slide_background
+		slide=int(slide)
+		mol=int(mol)
 
-	image = Image.Stack(fname)
+		def match_or_included(x,y):
+		  if x is not None:
+			if type(x) is tuple:
+			  return y in x
+			else:
+			  return x==y
+		  return False
 
-	if background:
-	    if BG is None or background != BG.filename:
-		BG = Image.fromBackground(background)
-	    image = image - BG
+		if not (match_or_included(user_slide,slide) or \
+			match_or_included(user_mol,mol)):
+		  print "skipping " + fname
+		  continue
 
-	if verbose:
-	    print "Processing image %s using background %s" % (fname,background)
+		# recursively search for background file with the most specific scope
+		# using '_' convention of file naming
+		def find_bg_filename(basename):
+			if basename == '':
+			  return ''
+			bgName = basename+'_background.img'
+			if bgName in bg_files: 
+			  return bgName if bgName.count('_') >= background.count('_') \
+				else background
+			else:
+			  return find_bg_filename(basename.rpartition('_')[0])
 
-	data = calcToFile( image, basename+'.fret' )
+		bg_search = find_bg_filename(basename)
+		if slide != last_slide or bg_search.count('_') >= background.count('_'):
+		  slide_background = background
+		  background = bg_search or background
+		elif slide == last_slide and bg_search.count('_') < background.count('_'):
+		  background = slide_background
 
-	pull = int(pull) or 1
+		image = Image.Stack(fname)
 
-	temp = Experiment(image=image, fret=data)
+		if background:
+		  if BG is None or background != BG.filename:
+			BG = Image.fromBackground(background)
+		  image = image - BG
 
-	molID = 's%sm%s'%(slide,mol)
-	results[construct][molID][pull] = temp
+		if verbose:
+		  print "Processing image file '%s' using background '%s'" \
+			% (fname,background)
 
-	last_slide = slide
+		data = calcToFile( image, basename+'.fret' )
 
-	if plotall:
-	    title = ' '.join([construct, 's%sm%sp%s'%(slide,mol,pull)])
-		plot(image, fret=data, title=title)
+		pull = useful.toNum(pull) or 1
 
-	    if saveplot:
-		  plt.savefig('%s %s s%sm%s_%s.png'%(construct,context.replace('_',' '), \
-			  slide,mol,pull) )
-    
-    os.chdir(old_dir)
-    return results.__lock__()
+		temp = Experiment(image=image, fret=data)
+
+		molID = 's%sm%s'%(slide,mol)
+		results[construct][molID][pull] = temp
+
+		last_slide = slide
+
+		if plotall:
+		  title = ' '.join([construct, 's%sm%sp%s'%(slide,mol,pull)])
+		  plot(image, fret=data, title=title)
+
+		  if saveplot:
+			plt.savefig('%s %s s%sm%s_%s.png'%(construct,context.replace('_',' '), \
+				slide,mol,pull) )
+	  
+	finally:
+	  os.chdir(old_dir)
+
+	return results.__lock__()
 
 class Exp2:
     def __init__(self,*args,**kwargs):
