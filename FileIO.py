@@ -2,22 +2,72 @@ from __future__ import with_statement
 from useful import toNum, dotdict
 import numpy as np
 from datetime import datetime
-import re
+import re, collections
 
-_opt_ = lambda p: r'(?:_(%s))?' % p
-_opt_time_ = r'(?:_(\d+min)?(\d+s)?)?'
-__build_pattern__ = lambda *x: r''.join(x)+'$'
+_named_ = lambda n,p: r'(?P<%s>%s)' % (n,p)
+_opt_unit_ = lambda n,p,u: r'(?:_%s%s)?' % (_named_(n,p),u)
+_opt_ = lambda n,p: _opt_unit_(n,p,'')
+_opt_time_ = r'(?:_(?:(\d+)min)?(?:(\d+)s)?)?'
+_build_pattern_ = lambda *x: ''.join(x)+'$'
 
-FILENAME_SYNTAX = __build_pattern__( \
-    r'^([a-zA-Z0-9]+)_(.*)s(\d+)(?:m(\d+))?' + _opt_(r'\d+') + _opt_time_ + \
-    _opt_(r'\d+') + _opt_(r'background') )
+_ALPHANUM_ = r'[a-zA-Z0-9]+'
+
+FILENAME_SYNTAX = _build_pattern_( 
+	'_'.join( [
+	  _named_('construct',_ALPHANUM_),
+	  _named_('conditions','.*'),
+	  r's(?P<slide>\d+)(?:m(?P<mol>\d+))?'] ) +
+
+	_opt_('pull',r'\d+') + _opt_unit_('force',r'\d+','pN') + _opt_time_ + _opt_('series',r'\d+') \
+	+ _opt_('isBackground',r'background') )
 
 Pattern = re.compile(FILENAME_SYNTAX)
+
+FILENAME_TEXT_FIELDS = ( 'construct', 'conditions' )
+
+FILENAME_NUM_FIELDS = ('slide', 'mol', 'pull',
+  'force', 'min', 'sec', 'series')
+
+FILENAME_BOOL_FIELDS = ( 'isBackground', )
+
+FileInfo = collections.namedtuple('FileInfo', FILENAME_TEXT_FIELDS +
+  FILENAME_NUM_FIELDS + FILENAME_BOOL_FIELDS)
+
+# construct, conditions, slide, mol, pull
+basePattern = re.compile(r'^(?P<construct>[a-zA-Z0-9]+)_(.*)_s(\d+)(?:m(\d+))?'+_opt_('pull',r'\d+'))
+
+forcePattern = re.compile(r'_(\d+)pN')
+
+# min, sec, series
+timePattern = re.compile(r'_(?:(\d+)min)?(?:(\d+)s)?(?:_(\d+))?(?:_|$)')
+
+bgPattern = re.compile(r'_background')
 
 COMMENT_LINE = '#'
 
 def parseFilename(filename):
-	pass
+	#construct,conditions,slide,mol,pull=basePattern.match(filename).groups()
+	#slide=int(slide); mol=int(mol); pull=int(pull)
+
+	#force=toNum(forcePattern.search(filename).group(1))
+
+	#min,sec,series=map(toNum, timePattern.search(filename).groups())
+
+	#background = bgPattern.search(filename) is not None
+	construct, context, slide, mol, pull, force, min, sec, \
+	  series, isBackground = \
+		Pattern.match(basename).groups()
+
+	toInt = lambda i: int(i) or 1
+
+	slide = toInt(slide)
+	mol = toInt(mol)
+	pull = toInt(pull)
+	force = toNum(force)
+	min,sec,series = map(toInt,(min,sec,series))
+	isBackground = isBackground is not None
+
+	return FileInfo(construct,conditions,slide,mol,pull,force,min,sec,series,background)
 
 def loaddat(filename, **kwargs):
 
