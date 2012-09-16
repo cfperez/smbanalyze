@@ -61,6 +61,7 @@ def calcToFile(stack, filename, **kwargs):
 def fromDirectory(*args, **kwargs):
 
 	dir = kwargs.get('dir')
+	# roi_origin => for roi file
 	verbose = 'verbose' in args or kwargs.get('verbose')
 	plotall = 'plotall' in args or kwargs.get('plotall')
 	saveplot = 'saveplot' in args or kwargs.get('saveplot')
@@ -107,11 +108,9 @@ def fromDirectory(*args, **kwargs):
 
 		basename, ext = os.path.splitext(fname)
 
-		construct, context, slide, mol, pull, force, min, sec, series, isBackground = \
-			FileIO.Pattern.match(basename).groups()
-
-		slide=int(slide)
-		mol=int(mol)
+		construct, context, slide, mol, pull, force, min, sec,\
+		  series, isBackground = \
+			FileIO.parseFilename(fname)
 
 		def match_or_included(x,y):
 		  if x is not None:
@@ -157,8 +156,6 @@ def fromDirectory(*args, **kwargs):
 			% (fname,background)
 
 		data = calcToFile( image, basename+'.fret' )
-
-		pull = useful.toNum(pull) or 1
 
 		temp = Experiment(image=image, fret=data)
 
