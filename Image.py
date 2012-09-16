@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 import os.path, copy, useful, FileIO
+from operator import methodcaller
 
 class StackError(Exception):
   pass
@@ -38,7 +39,7 @@ class ROI:
 
 name => how you will call the ROI after attached to an Image.Stack
 origin => is the origin 'relative' to the subimage or 'absolute' to the CCD origin
-
+k
 Usage: 
 
 1) Specify corners
@@ -73,6 +74,8 @@ Usage:
 	self.bottom = bottom
 	self.name = name
 	self.origin = origin
+
+	self.lines = []
 
   @classmethod
   def fromfile(cls, filename, origin='absolute'):
@@ -109,18 +112,57 @@ Usage:
 	  roi.toFile(filename, mode)
 	  mode = 'a'
 
+  Colors = ('r','y')
+  _lastColor = 0
+
+  def draw(self,color=None):
+	if not color:
+	  i = ROI._lastColor
+	  color=ROI.Colors[i]
+	  ROI._lastColor = (i+1) % (len(ROI.Colors))
+
+	self.clear()
+
+	self.lines = [
+	  plt.axvline(self.left,color=color),
+	  plt.axvline(self.right,color=color),
+	  plt.axhline(self.bottom,color=color),
+	  plt.axhline(self.top,color=color)
+	  ]
+
+  def clear(self):
+	if self.lines:
+	  map( methodcaller('remove'), self.lines )
+	  plt.gcf().canvas.draw()
+	  self.lines=[]
+
+  def todict(self):
+	return {'Left': self.left, 'Right': self.right, 
+			    'Bottom': self.bottom, 'Top': self.top }
+
   def toFile(self, filename, mode='w'):
 	FileIO.savesettings(filename, mode,
-	  **dict( {self.name: {'Left': self.left, 'Right': self.right, 
-			    'Bottom': self.bottom, 'Top': self.top }} ) 
+	  **{self.name: self.todict()}  
 	    )
+
+  def toAbsolute(self,origin):
+	if self.origin != 'absolute':
+	  self.left+=origin[0]
+	  self.right+=origin[0]
+	  self.bottom+=origin[1]
+	  self.top+=origin[1]
+	  self.origin='absolute'
+	return self
 
   def toRelative(self,origin):
 	if self.origin == 'relative':
-	    return copy.copy(self)
+	    return self
 	elif self.origin == 'absolute':
-	    return ROI( (self.left-origin[0], self.bottom-origin[1]),
-			(self.right-origin[0],self.top-origin[1]), name=self.name )
+	  self.left-=origin[0]
+	  self.right-=origin[0]
+	  self.bottom-=origin[1]
+	  self.top-=origin[1]
+	  return self
 	else:
 	    raise ROIError, "Origin must be either 'relative' or 'absolute'"
 	    
@@ -157,6 +199,8 @@ class Stack:
 	if filetype != 'img':
 	  raise ValueError, "Only filetype 'img' is supported!"
 
+	self._showROI = False
+
 	#################################################
 	## Load data from file called filename if string
 	#################################################
@@ -181,7 +225,7 @@ class Stack:
 	  if self._img.shape != (settings['frames'],settings['height'],settings['width']):
 		raise StackError, ".img file and .cam file dimensions do not agree"
 
-	  self._origin = (self.roileft,self.roibottom)
+	  self.origin = (self.roileft,self.roibottom)
 	  self.addROI(*self.__class__.defaultROI.values())
 
 	#################################################
@@ -196,7 +240,7 @@ class Stack:
 	  self._roi=filename._roi
 	  self._donorROIName = filename._donorROIName
 	  self._acceptorROIName = filename._acceptorROIName
-	  self._origin = filename._origin
+	  self.origin = filename.origin
 	  self._settings = filename._settings
 	  for setting in self._settings:
 		if not hasattr(self,setting.lower()):
@@ -243,22 +287,29 @@ class Stack:
 
   def addROI(self, *ROIs):
 	for roi in ROIs:
-	    try:
+	  try:
+		roi = ROI.copy(roi)
 		key = roi.name
-	    except AttributeError:
+
+		# recast to relative origin
+		roi = roi.toRelative( self.origin )
+
+		if roi.right > self.width or roi.top > self.height:
+		  raise ROIError, "ROI is larger than Stack dimensions"
+
+		self._roi[key] = roi
+
+	  except AttributeError:
 		raise TypeError, "Must use objects with ROI interface"
-	    except ROIError:
+	  except ROIError:
 		raise ROIError, "ROI out of bounds! %s" % repr(roi)
 
-	    # recast to relative origin
-	    roi = roi.toRelative( self._origin )
-
-	    if roi.right > self.width or roi.top > self.height:
-		raise ROIError, "ROI is larger than Stack dimensions"
-
-	    self._roi[key] = roi
-
 	return self
+
+  def showROI(self,*args):
+	self._showROI=True
+	for roi in args:
+	  self._roi[roi].draw()
 
   def setDonorROI(self, roi_name):
 	if not self._roi.has_key(roi_name):
@@ -284,7 +335,7 @@ class Stack:
 
   def __getitem__(self,key):
 	if type(key) == int:
-	    return Frame(self._img[key])
+	    return Frame(self._img[key], self._roi)
 	else:
 	    temp = Stack(self)
 	    temp._img = temp._img[key]
@@ -319,8 +370,9 @@ class Stack:
 
 class Frame:
     
-  def __init__(self, imgarray):
+  def __init__(self, imgarray, roi=None):
 	self._img = imgarray
+	self._roi = roi
 
   def __getitem__(self,key):
 	try:
@@ -339,10 +391,15 @@ class Frame:
   def counts( roi ):
 	return np.sum( self[roi] )
 
-  def show(self, cmap=None):
+  def show(self, **kwargs):
+	cmap = kwargs.get('cmap')
+
   	plt.cla()
 	plot = self._plot_obj = plt.imshow(self._img, cmap=cmap)
 	plot.get_axes().invert_yaxis()
+	if self._roi is not None:
+	  for roi in self._roi.itervalues():
+		roi.draw()
 	plt.draw()
 	return self._plot_obj
 
