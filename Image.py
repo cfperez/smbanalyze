@@ -78,7 +78,7 @@ Usage:
 	self.lines = []
 
   @classmethod
-  def fromfile(cls, filename, origin='absolute'):
+  def fromFile(cls, filename, origin='absolute'):
 	"Load ROI(s) from a LabView config file and return tuple of Image.ROI objects"
 	toInt = lambda s: int(useful.toNum(s))
 	settings = FileIO.loadsettings(filename, cast=toInt)
@@ -132,17 +132,21 @@ Usage:
 
   def clear(self):
 	if self.lines:
-	  map( methodcaller('remove'), self.lines )
-	  plt.gcf().canvas.draw()
-	  self.lines=[]
+	  try:
+		map( methodcaller('remove'), self.lines )
+		plt.gcf().canvas.draw()
+	  except ValueError:
+		pass
+	  finally:
+		self.lines=[]
 
-  def todict(self):
+  def toDict(self):
 	return {'Left': self.left, 'Right': self.right, 
 			    'Bottom': self.bottom, 'Top': self.top }
 
   def toFile(self, filename, mode='w'):
 	FileIO.savesettings(filename, mode,
-	  **{self.name: self.todict()}  
+	  **{self.name: self.toDict()}  
 	    )
 
   def toAbsolute(self,origin):
