@@ -30,6 +30,7 @@ def plot(image, **kwargs):
 	if fret is not None:
 		plt.subplot(212)
 		plt.ylabel('FRET')
+		plt.xlabel('Frames')
 		try:
 			plt.plot(fret[:], 'g-', label='fret')
 		except TypeError:
@@ -80,7 +81,7 @@ def fromDirectory(*args, **kwargs):
 	  if roi_file:
 		roi = roi_file.pop()
 		Image.setDefaultROI(
-		  *Image.ROI.fromfile(roi, origin=kwargs.get('roi_origin','absolute')))
+		  *Image.ROI.fromFile(roi, origin=kwargs.get('roi_origin','absolute')))
 
 	  if roi_file:
 		print "WARNING: Only using first ROI file found: %s" % roi_file
