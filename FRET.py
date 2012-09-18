@@ -1,6 +1,6 @@
 import Image, FileIO
 import matplotlib.pyplot as plt
-from FileIO import savedat
+from FileIO import savedat,loaddat
 import os, glob, re, useful
 
 beta = 0.13
@@ -11,9 +11,7 @@ def plot(image, **kwargs):
 	fret = kwargs.get('fret')
 	loc = kwargs.get('loc', 'best')
 	title = kwargs.get('title')
-	fig = kwargs.get('fig')
 
-	plt.figure(fig)
 	if fret is not None:
 		plt.subplot(211)
 
@@ -65,6 +63,7 @@ def fromDirectory(*args, **kwargs):
 	# roi_origin => for roi file
 	verbose = 'verbose' in args or kwargs.get('verbose')
 	plotall = 'plotall' in args or kwargs.get('plotall')
+	hold = 'singleplot' in args or kwargs.get('singleplot')
 	saveplot = 'saveplot' in args or kwargs.get('saveplot')
 	roi_file = kwargs.get('roi_file') # 'roi*' would be the convention
 	files = kwargs.get('glob','*.img')
@@ -119,7 +118,7 @@ def fromDirectory(*args, **kwargs):
 			  return y in x
 			else:
 			  return x==y
-		  return False
+		  return True
 
 		if not (match_or_included(user_slide,slide) or \
 			match_or_included(user_mol,mol)):
@@ -166,6 +165,7 @@ def fromDirectory(*args, **kwargs):
 		last_slide = slide
 
 		if plotall:
+		  figure()
 		  title = ' '.join([construct, 's%sm%sp%s'%(slide,mol,pull)])
 		  plot(image, fret=data, title=title)
 
