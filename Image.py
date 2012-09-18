@@ -4,6 +4,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import os.path, copy, useful, FileIO
 from operator import methodcaller
+from useful import toInt
 
 class StackError(Exception):
   pass
@@ -80,7 +81,6 @@ Usage:
   @classmethod
   def fromFile(cls, filename, origin='absolute'):
 	"Load ROI(s) from a LabView config file and return tuple of Image.ROI objects"
-	toInt = lambda s: int(useful.toNum(s))
 	settings = FileIO.loadsettings(filename, cast=toInt)
 
 	self = []
@@ -181,10 +181,11 @@ Usage:
   def __repr__(self):
 	if None in (self.left, self.right, self.bottom, self.top):
 	    name = self.name or 'Undefined'
-	    return "ROI '%s' = uninitialized" % self.name
+	    return "<ROI '%s' = uninitialized>" % self.name
 	else:
-	    return "ROI '%s' = L: %d, R: %d, B: %d, T: %d" % \
-		(self.name,self.left,self.right,self.bottom,self.top) 
+	    return "<%s ROI '%s' = L: %d, R: %d, B: %d, T: %d>" % \
+		(self.origin,self.name,self.left,self.right,self.bottom,self.top) 
+
 
 ################################################################################
 ##
@@ -372,6 +373,10 @@ class Stack:
   def __repr__(self):
 	return "Stack %dx%dx%d" % (self.frames, self.height, self.width)
 
+  def __iter__(self):
+	for i in range(self.frames):
+	  yield self[i]
+	
 class Frame:
     
   def __init__(self, imgarray, roi=None):
