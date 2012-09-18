@@ -6,10 +6,13 @@ def toNum(s):
   except ValueError:
 	return float(s)
 
+def toInt(s):
+	s = toNum(s)
+	return int(s) if s else None
 
 class dotdict(dict):
   def __setitem__(self, key, val):
-	if not key.replace('_','').isalnum():
+	if not str(key).replace('_','').isalnum():
 	  raise KeyError, "Key must be alphanumeric"
 	super(dotdict,self).__setitem__(key,val)
 
