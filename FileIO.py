@@ -1,5 +1,5 @@
 from __future__ import with_statement
-from useful import toNum, dotdict
+from useful import toNum, dotdict, toInt
 import numpy as np
 from datetime import datetime
 import re, collections
@@ -8,7 +8,7 @@ _named_ = lambda n,p: r'(?P<%s>%s)' % (n,p)
 _opt_unit_ = lambda n,p,u: r'(?:_%s%s)?' % (_named_(n,p),u)
 _opt_ = lambda n,p: _opt_unit_(n,p,'')
 _opt_time_ = r'(?:_(?:(\d+)min)?(?:(\d+)s)?)?'
-_build_pattern_ = lambda *x: ''.join(x)+'$'
+_build_pattern_ = lambda *x: ''.join(x)+'\.\w+$'
 
 _ALPHANUM_ = r'[a-zA-Z0-9]+'
 
@@ -45,6 +45,7 @@ bgPattern = re.compile(r'_background')
 
 COMMENT_LINE = '#'
 
+
 def parseFilename(filename):
 	#construct,conditions,slide,mol,pull=basePattern.match(filename).groups()
 	#slide=int(slide); mol=int(mol); pull=int(pull)
@@ -54,37 +55,35 @@ def parseFilename(filename):
 	#min,sec,series=map(toNum, timePattern.search(filename).groups())
 
 	#background = bgPattern.search(filename) is not None
-	construct, context, slide, mol, pull, force, min, sec, \
+	construct, conditions, slide, mol, pull, force, min, sec, \
 	  series, isBackground = \
-		Pattern.match(basename).groups()
-
-	toInt = lambda i: int(i) or 1
+		Pattern.match(filename).groups()
 
 	slide = toInt(slide)
 	mol = toInt(mol)
-	pull = toInt(pull)
+	pull = toInt(pull) or 1
 	force = toNum(force)
 	min,sec,series = map(toInt,(min,sec,series))
+	series = (series or 1) if min or sec else series
 	isBackground = isBackground is not None
 
-	return FileInfo(construct,conditions,slide,mol,pull,force,min,sec,series,background)
+	return FileInfo(construct,conditions,slide,mol,pull,force,min,sec,series,isBackground)
 
 def loaddat(filename, **kwargs):
 
-    comments = kwargs.get('comments', COMMENT_LINE)
+  comments = kwargs.get('comments', COMMENT_LINE)
 
-    colnames = None
-    with open(filename, 'r') as fh:
+  colnames = None
+  with open(filename,'U') as fh:
 	position = 0
 	for line in fh:
-	    position += 1
-	    if line.startswith(comments) or line.isspace():
+	  position += 1
+	  if line.startswith(comments) or line.isspace():
 		continue
-
-	    if not colnames and any( map(str.isalpha, line.split()) ):
-		colnames = line.lower().split()
-	    else:
+	  elif colnames:
 		break
+	  elif any( map(str.isalnum, line.split()) ):
+	  	colnames = line.lower().split()
 
 	fh.seek(0)
 	data = np.loadtxt(fh, skiprows=position-1, **kwargs)
@@ -93,7 +92,7 @@ def loaddat(filename, **kwargs):
     #data.dtype = np.dtype( zip(colnames, ['f8']*len(colnames)) )
     #data.dtype = np.dtype( [(colnames[0], 'f8')] )
 
-    return colnames, data
+  return colnames, data
 
 def savedat(filename, data, header='', comments='', fmt='%.9e', delimiter='\t'):
 
@@ -185,3 +184,14 @@ def savesettings(filename, file_mode, **settings):
 
 	  for key,value in settings[key].iteritems():
 		f.write( '%s=%s\n' % (str(key.capitalize()),str(value)) )
+
+def loadFRET(fname):
+  finfo = parseFilename(fname)
+  header,data = loaddat(fname)
+  output = dotdict( zip(header,data.T) )
+  output.update(finfo._asdict())
+  return output
+
+def loadPull(fname,**kwargs):
+  header,data = loaddat(fname,comments='/',**kwargs)
+  return dotdict( zip(header,data.T) )
