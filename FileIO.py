@@ -4,6 +4,16 @@ import numpy as np
 from datetime import datetime
 import re, collections
 
+IMAGE_FILE = '.img'
+CAMERA_FILE = '.cam'
+FRET_FILE = '.fret'
+PULL_FILE = '.str'
+
+add_img_ext = lambda x: x+IMAGE_FILE if not x.endswith(IMAGE_FILE) else x
+add_cam_ext = lambda x: x+CAMERA_FILE if not x.endswith(CAMERA_FILE) else x
+add_fret_ext = lambda x: x+FRET_FILE if not x.endsiwth(FRET_FILE) else x
+add_pull_ext = lambda x: x+PULL_FILE if not x.endsiwth(PULL_FILE) else x
+
 _named_ = lambda n,p: r'(?P<%s>%s)' % (n,p)
 _opt_unit_ = lambda n,p,u: r'(?:_%s%s)?' % (_named_(n,p),u)
 _opt_ = lambda n,p: _opt_unit_(n,p,'')
@@ -23,15 +33,10 @@ FILENAME_SYNTAX = _build_pattern_(
 
 Pattern = re.compile(FILENAME_SYNTAX)
 
-FILENAME_TEXT_FIELDS = ( 'construct', 'conditions' )
+FILENAME_FIELDS = ( 'construct', 'conditions', 'slide', 'mol', 'pull',
+  'force', 'min', 'sec', 'series', 'isBackground' )
 
-FILENAME_NUM_FIELDS = ('slide', 'mol', 'pull',
-  'force', 'min', 'sec', 'series')
-
-FILENAME_BOOL_FIELDS = ( 'isBackground', )
-
-FileInfo = collections.namedtuple('FileInfo', FILENAME_TEXT_FIELDS +
-  FILENAME_NUM_FIELDS + FILENAME_BOOL_FIELDS)
+FileInfo = collections.namedtuple('FileInfo', FILENAME_FIELDS)
 
 # construct, conditions, slide, mol, pull
 basePattern = re.compile(r'^(?P<construct>[a-zA-Z0-9]+)_(.*)_s(\d+)(?:m(\d+))?'+_opt_('pull',r'\d+'))
@@ -71,14 +76,19 @@ def parseFilename(filename):
 
 def loaddat(filename, **kwargs):
 
-  comments = kwargs.get('comments', COMMENT_LINE)
+  comment_line = kwargs.get('comments', COMMENT_LINE)
 
   colnames = None
+  comments = ''
+
   with open(filename,'U') as fh:
 	position = 0
 	for line in fh:
 	  position += 1
-	  if line.startswith(comments) or line.isspace():
+	  if np.any( map(line.startswith, comment_line) ):
+	  #if line.startswith(comment_line):
+		comments += line
+	  if line.isspace():
 		continue
 	  elif colnames:
 		break
@@ -86,7 +96,7 @@ def loaddat(filename, **kwargs):
 	  	colnames = line.lower().split()
 
 	fh.seek(0)
-	data = np.loadtxt(fh, skiprows=position-1, **kwargs)
+	data = np.loadtxt(fh, skiprows=position-1, comments=comment_line, **kwargs)
     # end with
 
     #data.dtype = np.dtype( zip(colnames, ['f8']*len(colnames)) )
@@ -185,13 +195,16 @@ def savesettings(filename, file_mode, **settings):
 	  for key,value in settings[key].iteritems():
 		f.write( '%s=%s\n' % (str(key.capitalize()),str(value)) )
 
-def loadFRET(fname):
-  finfo = parseFilename(fname)
-  header,data = loaddat(fname)
-  output = dotdict( zip(header,data.T) )
-  output.update(finfo._asdict())
-  return output
+FretData = collections.namedtuple('FretData',('donor','acceptor','fret'))
+
+def loadFRET(fname,**kwargs):
+  header,data = loaddat(fname,**kwargs)
+  return FretData(*data.T)
+
+PullData = collections.namedtuple('PullData', ('ext','f','sep'))
 
 def loadPull(fname,**kwargs):
   header,data = loaddat(fname,comments='/',**kwargs)
-  return dotdict( zip(header,data.T) )
+  if header != ['extension','force','trapdistance']:
+	raise IOError, "Stretch file must contain extension, force, and separation"
+  return PullData(*data.T)
