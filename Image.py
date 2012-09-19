@@ -259,7 +259,7 @@ class Stack:
 	return self._img.shape[0]
 
   @property
-  def timeAxis(self):
+  def time(self):
   	return np.arange(1,self.frames+1)*self.exposurems/1000.
 
   @property

@@ -40,8 +40,8 @@ def plot(*data, **kwargs):
 	name = name or getattr(trace,'molname','')
 
 	x_axis = None
-	if hasattr(trace,'timeAxis'):
-	  x_axis = trace.timeAxis
+	if hasattr(trace,'time'):
+	  x_axis = trace.time
 	  plt.xlabel('Seconds')
 	else:
 	  x_axis = range(1,len(trace.donor)+1)
@@ -66,7 +66,13 @@ def hist(*data, **kwargs):
   bins = kwargs.get('bins',50)
   attr = kwargs.get('plot','fret')
 
-  return plt.hist( concatenate(map(operator.attrgetter(attr),data)), bins )
+  counts,bins,patches = \
+	plt.hist( concatenate(map(operator.attrgetter(attr),data)), bins )
+
+  delta = bins[1]-bins[0]
+  bins = (bins-delta/2)[1:]
+
+  return counts,bins
 
 def calc(stack, beta=beta, gamma=gamma):
     """Calculates FRET of a pull from an Image.Stack
@@ -86,7 +92,7 @@ def calcToFile(stack, filename, **kwargs):
     "saveFRETdata( fret, ImageStack, filename): saves donor,acceptor, FRET to 3 column text file"
 
     fretdata = calc(stack, **kwargs)
-    savedat(filename, (stack.donor,stack.acceptor,fretdata), header='donor acceptor FRET', fmt=('%u','%u','%.5f'))
+    savedat(filename, (stack.time,stack.donor,stack.acceptor,fretdata), header='time donor acceptor FRET', fmt=('%u','%u','%.5f'))
     return fretdata
 
 def fromDirectory(*args, **kwargs):
