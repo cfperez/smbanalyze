@@ -1,45 +1,77 @@
 import Image, FileIO
 import matplotlib.pyplot as plt
+from numpy import concatenate
 from FileIO import savedat,loaddat
-import os, glob, re, useful
+import os, glob, re, useful, operator
 
 beta = 0.13
 gamma = 1.16
 
-def plot(image, **kwargs):
+molname = lambda t: 's{}m{}_{}'.format(t.slide,t.mol,t.pull)
 
-	fret = kwargs.get('fret')
-	loc = kwargs.get('loc', 'best')
-	title = kwargs.get('title')
+def plot(*data, **kwargs):
+  "loc=legend location (or None for off), title, hold (False for individual plots),\
+  names=labels for individual traces (must equal number of traces)\
+  prefix=for all traces in legend"
 
-	if fret is not None:
+  loc = kwargs.get('legend', 'best')
+  title = kwargs.get('title')
+  hold = kwargs.get('hold',True)
+
+  # to prefix labels in plots
+  names = kwargs.get('names',[None]*len(data))
+  prefix = kwargs.get('prefix','')
+
+  if len(names) != len(data):
+	raise ValueError, "Must have same number of names as traces to plot"
+
+  for name,trace in zip(names,data):
+	hasfret = kwargs.get('fret',hasattr(trace,'fret'))
+
+	if not hold:
+	  plt.figure()
+
+	if hasfret:
 		plt.subplot(211)
 
 	if title:
 	  plt.title(title)
 
-	plt.plot(image.timeAxis, image.donor, label='donor')
-	plt.plot(image.timeAxis, image.acceptor,'r-', label='acceptor')
-	plt.ylabel('Counts')
-	plt.xlabel('Seconds')
-	plt.legend(loc=loc)
-	plt.legend()
+	name = name or getattr(trace,'molname','')
 
-	if fret is not None:
+	x_axis = None
+	if hasattr(trace,'timeAxis'):
+	  x_axis = trace.timeAxis
+	  plt.xlabel('Seconds')
+	else:
+	  x_axis = range(1,len(trace.donor)+1)
+	  plt.xlabel('Frames')
+
+	plt.plot(x_axis, trace.donor, label=' '.join([prefix,name,'donor']))
+	plt.plot(x_axis, trace.acceptor,label=' '.join([prefix,name,'acceptor']))
+	plt.ylabel('Counts')
+	if loc:
+	  plt.legend(loc=loc)
+
+	if hasfret:
 		plt.subplot(212)
 		plt.ylabel('FRET')
 		plt.xlabel('Frames')
-		try:
-			plt.plot(fret[:], 'g-', label='fret')
-		except TypeError:
-			plt.plot( calc(image), 'g-', label='fret')
+		if hasfret is True:
+			plt.plot( trace.fret, label=' '.join([prefix,name]))
+		else:
+			plt.plot(hasfret, label=' '.join([prefix,name]))
+
+def hist(*data, **kwargs):
+  bins = kwargs.get('bins',50)
+  attr = kwargs.get('plot','fret')
+
+  return plt.hist( concatenate(map(operator.attrgetter(attr),data)), bins )
 
 def calc(stack, beta=beta, gamma=gamma):
     """Calculates FRET of a pull from an Image.Stack
 
 calcFRET( Image.Stack, beta = Image.beta, gamma = Image.gamma)
-
-defaults: taken from previous measurements
 
 RETURNS array of calculated FRET for each frame
 """
@@ -108,9 +140,9 @@ def fromDirectory(*args, **kwargs):
 
 		basename, ext = os.path.splitext(fname)
 
+		finfo = FileIO.parseFilename(fname)
 		construct, context, slide, mol, pull, force, min, sec,\
-		  series, isBackground = \
-			FileIO.parseFilename(fname)
+		  series, isBackground = finfo
 
 		def match_or_included(x,y):
 		  if x is not None:
