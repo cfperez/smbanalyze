@@ -1,10 +1,13 @@
 from __future__ import with_statement
-import numpy as np
-import matplotlib
-import matplotlib.pyplot as plt
-import os.path, copy, useful, FileIO
 from operator import methodcaller
-from useful import toInt
+import os.path
+import copy
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+import FileIO
+import useful
 
 class StackError(Exception):
   pass
@@ -81,7 +84,7 @@ Usage:
   @classmethod
   def fromFile(cls, filename, origin='absolute'):
 	"Load ROI(s) from a LabView config file and return tuple of Image.ROI objects"
-	settings = FileIO.loadsettings(filename, cast=toInt)
+	settings = FileIO.loadsettings(filename, cast=useful.toInt)
 
 	self = []
 	for name, roi in settings.items():
@@ -166,6 +169,7 @@ Usage:
 	  self.right-=origin[0]
 	  self.bottom-=origin[1]
 	  self.top-=origin[1]
+	  self.origin = 'relative'
 	  return self
 	else:
 	    raise ROIError, "Origin must be either 'relative' or 'absolute'"
@@ -338,8 +342,18 @@ class Stack:
 	else:
 		return np.sum( np.sum(self._img,axis=1), axis=1 )
 
+  def attime(self,time):
+  	if isinstance(time,slice):
+	  start,step = None,None
+	  if time.start:
+		start = time.start/self.exposurems
+	  if time.step:
+		step = time.step/self.exposurems
+	  time = slice(start,time.stop/self.exposurems,step)
+  	return self[time/self.exposurems]
+  	
   def __getitem__(self,key):
-	if type(key) == int:
+	if isinstance(key,int):
 	    return Frame(self._img[key], self._roi)
 	else:
 	    temp = Stack(self)
