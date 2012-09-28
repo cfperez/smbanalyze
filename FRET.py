@@ -182,13 +182,15 @@ def fromDirectory(*args, **kwargs):
         # Look for background file using name heirarchy
 		bg_search = find_bg_filename(basename)
 
-        # Use the new background if a) on a new slide or b) it is more appropriate
+        # Use the new background if a) on a new slide or 
+		# b) it is more appropriate
 		if slide != last_slide or bg_search.count('_') >= background.count('_'):
 		  slide_background = background
           # keep the last background if a new one is not found
 		  background = bg_search or background
         # Use the last when when, e.g. s1m1_background and then s1m2
-		elif slide == last_slide and bg_search.count('_') < background.count('_'):
+		elif slide == last_slide and \
+		   bg_search.count('_') < background.count('_'):
 		  background = slide_background
 
 		image = Image.Stack(fname)
@@ -217,8 +219,8 @@ def fromDirectory(*args, **kwargs):
 		  plot(image, fret=data, title=' '.join([construct, molname(finfo)]))
 
 		  if saveplot:
-			plt.savefig('%s %s s%sm%s_%s.png'%(construct,context.replace('_',' '), \
-				slide,mol,pull) )
+			plt.savefig('%s %s s%sm%s_%s.png' % (construct,
+			  context.replace('_',' '), slide,mol,pull) )
 	  
 	finally:
 	  os.chdir(old_dir)
