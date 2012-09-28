@@ -411,20 +411,20 @@ class Frame:
   def width(self):
 	return self._img.shape[1]
 
-  def counts( roi ):
+  def counts(self,roi):
 	return np.sum( self[roi] )
 
   def show(self, **kwargs):
 	cmap = kwargs.get('cmap')
 
+	plot.hold(1)
   	plt.cla()
-	plot = self._plot_obj = plt.imshow(self._img, cmap=cmap)
+	plt.imshow(self._img, cmap=cmap)
 	plot.get_axes().invert_yaxis()
 	if self._roi is not None:
 	  for roi in self._roi.itervalues():
 		roi.draw()
 	plt.draw()
-	return self._plot_obj
 
   def __neg__(self):
 	temp = copy.copy(self)
