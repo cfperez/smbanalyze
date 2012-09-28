@@ -29,16 +29,19 @@ def load(filename, **kwargs):
 	  print "Processing %s as pulling experiment..." % basename
 
 	fretfile = FileIO.add_fret_ext(basename)
-	if recalc:
-	  imgfile = FileIO.add_img_ext(basename)
-	  if verbose:
-		print "Recalculating fret from %s" % imgfile
-	  image = Image.Stack(imgfile)
-	  fret = FRET.calcToFile(image,fretfile) 
+	if os.path.isfile(fretfile):
+	  if recalc:
+		imgfile = FileIO.add_img_ext(basename)
+		if verbose:
+		  print "Recalculating fret from %s" % imgfile
+		image = Image.Stack(imgfile)
+		fret = FRET.calcToFile(image,fretfile) 
+	  else:
+		if verbose:
+		  print "Loading fret from %s" % fretfile
+		fret = FileIO.loadFRET(fretfile)
 	else:
-	  if verbose:
-		print "Loading fret from %s" % fretfile
-	  fret = FileIO.loadFRET(fretfile)
+		fret = None
 
 	pullfile=FileIO.add_pull_ext(basename)
 	if verbose:
@@ -47,7 +50,7 @@ def load(filename, **kwargs):
 	
 	finfo = FileIO.parseFilename(filename)
 
-	return Pulling(finfo,fret,pulldata)
+	return Pulling(finfo,pulldata,fret)
 
 
 def constants(**kwargs):
@@ -65,9 +68,9 @@ class Base(object):
   def __init__(self,*args):#,fret,fext):
 	self.fieldnames = ()
 	for arg in args:
-	  self._loadattr(arg)
+	  self._setattr(arg)
 
-  def _loadattr(self,named):
+  def _setattr(self,named):
 	for attr,val in named._asdict().iteritems():
 	  self.fieldnames += (attr,)
 	  setattr(self, attr, val)
@@ -121,7 +124,7 @@ class Pulling(Base):
 	  #return self.datatype(*(self.pulls[key]+self.fret[key]))
 	  return Base(self.info[key], self._pulls[key], self._fret[key])
 	else:
-	  return self.datatype(*self.pulls[key])
+	  return self.datatype(*self._pulls[key])
 
   def __len__(self):
 	return self.size
