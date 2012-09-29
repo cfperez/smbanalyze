@@ -31,8 +31,11 @@ class dotdict(dict):
 	return super(dotdict,self).__getitem__(key)
 
   def __getattr__(self, name):
-	if not dict.__dict__.has_key(name):
-	  return self.__getitem__(name)
+	if not self.__dict__.has_key(name):
+	  try:
+		return self.__getitem__(name)
+	  except KeyError:
+		raise AttributeError('Dotdict has no attribute %s' % name)
 	else: return super(dotdict,self).__getattr__(name)
 
   def __setattr__(self, name, value):
