@@ -8,6 +8,7 @@ import numpy as np
 from useful import dotdict
 import FileIO
 import FRET
+import Image
 
 parameters = {'T':293.2}
 
@@ -34,23 +35,28 @@ def load(fileglob, **kwargs):
 
     basename,ext = os.path.splitext(filename)
     fretfile = FileIO.add_fret_ext(basename)
-    if os.path.isfile(fretfile):
-      if recalc:
-        imgfile = FileIO.add_img_ext(basename)
-        if verbose:
-          print "Recalculating fret from %s" % imgfile
-        image = Image.Stack(imgfile)
-        fret += [FRET.calcToFile(image,fretfile)]
-      else:
-        if verbose:
-          print "Loading fret from %s" % fretfile
-        fret += [FileIO.loadFRET(fretfile)]
+    imgfile = FileIO.add_img_ext(basename)
+
+    if verbose:
+      print "Processing %s" % basename
+
+    if os.path.isfile(fretfile) and not recalc:
+      if verbose:
+        print "\tLoading fret from %s" % fretfile
+      fret += [FileIO.loadFRET(fretfile)]
+    elif os.path.isfile(imgfile):
+      if verbose:
+        print "\tCalculating fret from %s" % imgfile
+      image = Image.Stack(imgfile)
+      fret += [FRET.calcToFile(image,fretfile)]
     else:
-        fret += [None]
+      if verbose:
+        print "\tNo .fret or .img file found"
+      fret += [None]
 
     pullfile = FileIO.add_pull_ext(basename)
     if verbose:
-      print "Loading pulling data from %s" % pullfile
+      print "\tLoading pulling data from %s" % pullfile
     pulldata += [FileIO.loadPull(pullfile)]
     
     finfo += [FileIO.parseFilename(filename)]
@@ -108,7 +114,7 @@ class Pulling(Base):
 
 	self.size = len(pulls)
 
-	if fret is not None and len(fret) != self.size:
+	if fret != [None] and len(fret) != self.size:
 	  raise ExperimentError("Must have equal number of pulling curves and fret traces")
 
 	super(Pulling,self).__init__(finfo[0])#,fret,pulls)
@@ -119,7 +125,7 @@ class Pulling(Base):
 	self.info = finfo
 
   def __getitem__(self,key):
-	if self._fret[key]:
+	if self._fret[key] is not None:
 	  return PullFretData(*(self._pulls[key]+self._fret[key]))
 	  #return Base(self.info[key], self._pulls[key], self._fret[key])
 	else:
