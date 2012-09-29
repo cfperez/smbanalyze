@@ -61,7 +61,7 @@ def plot(*data, **kwargs):
 	plt.plot(x_axis, trace.acceptor,label=' '.join([prefix,name,'acceptor']))
 	plt.ylabel('Counts')
 	if loc:
-	  plt.legend(loc=loc)
+	  plt.legend(loc=loc,ncol=2,prop={'size':'small'})
 
 	if hasfret is not False:
 		plt.subplot(212)
