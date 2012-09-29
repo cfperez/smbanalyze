@@ -4,7 +4,7 @@ import re
 import operator
 
 import matplotlib.pyplot as plt
-from numpy import concatenate
+from numpy import concatenate,iterable
 
 import useful
 import Image
@@ -24,6 +24,9 @@ def plot(*data, **kwargs):
 
   loc = kwargs.get('legend', 'best')
   hold = kwargs.get('hold',True)
+
+  if len(data) == 1 and iterable(data[0]):
+	data = data[0]
 
   # to prefix labels in plots
   names = kwargs.get('names',[None]*len(data))
@@ -110,7 +113,7 @@ def calcToFile(stack, filename, **kwargs):
     FileIO.savedat(filename, (stack.time,stack.donor,stack.acceptor,fretdata), header='time donor acceptor FRET', fmt=('%.3f','%u','%u','%.5f'))
     return fretdata
 
-def fromDirectory(*args, **kwargs):
+def calcDirectory(file_glob='',*args, **kwargs):
 
 	dir = kwargs.get('dir')
 	# roi_origin => for roi file
@@ -118,8 +121,7 @@ def fromDirectory(*args, **kwargs):
 	plotall = 'plotall' in args or kwargs.get('plotall')
 	hold = 'singleplot' in args or kwargs.get('singleplot')
 	saveplot = 'saveplot' in args or kwargs.get('saveplot')
-	roi_file = kwargs.get('roi_file') # 'roi*' would be the convention
-	file_glob = kwargs.get('files','*.img')
+	roi_file = kwargs.get('roi_file','roi.txt') # 'roi*' would be the convention
 	user_slide = kwargs.get('slide')
 	user_mol = kwargs.get('mol')
 	background = kwargs.get('background','')
@@ -129,7 +131,7 @@ def fromDirectory(*args, **kwargs):
 	  os.chdir(dir)
     
 	try:
-	  if roi_file:
+	  if os.path.isfile(roi_file):
 		Image.setDefaultROI(
 		  *Image.ROI.fromFile(roi_file, origin=kwargs.get('roi_origin','absolute')))
 		if verbose:
@@ -138,7 +140,7 @@ def fromDirectory(*args, **kwargs):
 	  if not Image.Stack.defaultROI:
 		raise RuntimeError, "No ROIs set or loaded--cannot compute counts"
 
-	  files = glob.glob(file_glob)
+	  files = glob.glob('*'+file_glob+'*.img')
 	  bg_files = glob.glob( '*_background.img' )
 
 	  if verbose:
@@ -206,7 +208,8 @@ def fromDirectory(*args, **kwargs):
 
 		data = calcToFile( image, basename+'.fret' )
 
-		temp = useful.dotdict(image=image, fret=data)
+		temp = useful.dotdict(image=image, fret=data, 
+		  donor=image.donor, acceptor=image.acceptor,molname=molname(finfo))
 		if force is not None:
 		  results[construct][molID(finfo)][pN(force)][series] = temp
 		else:
