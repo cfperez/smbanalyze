@@ -116,11 +116,12 @@ def calcToFile(stack, filename, **kwargs):
 def calcDirectory(select='',*args, **kwargs):
 
 	dir = kwargs.get('dir')
-	# roi_origin => for roi file
+	roi_origin = kwargs.get('roi_origin','absolute')
 	verbose = 'verbose' in args or kwargs.get('verbose')
 	plotall = 'plotall' in args or kwargs.get('plotall')
 	hold = 'singleplot' in args or kwargs.get('singleplot')
 	saveplot = 'saveplot' in args or kwargs.get('saveplot')
+	aslist = 'aslist' in args or kwargs.get('aslist',False)
 	roi_file = kwargs.get('roi_file','roi.txt') # 'roi*' would be the convention
 	user_slide = kwargs.get('slide')
 	user_mol = kwargs.get('mol')
@@ -133,7 +134,7 @@ def calcDirectory(select='',*args, **kwargs):
 	try:
 	  if os.path.isfile(roi_file):
 		Image.setDefaultROI(
-		  *Image.ROI.fromFile(roi_file, origin=kwargs.get('roi_origin','absolute')))
+		  *Image.ROI.fromFile(roi_file, origin=roi_origin))
 		if verbose:
 		  print "Using ROI file: %s" % roi_file
 
@@ -146,7 +147,7 @@ def calcDirectory(select='',*args, **kwargs):
 		print "Found files:\n%s\n" % '\n'.join(img_files)
 
 	  BG = None             # current background image
-	  results = useful.dotdict() # output
+	  results = [] if aslist else useful.dotdict() # output
 
 	  for fname,background in matchImgFilestoBackground(img_files):
 
@@ -184,10 +185,15 @@ def calcDirectory(select='',*args, **kwargs):
 
 		temp = useful.dotdict(image=image, fret=data, 
 		  donor=image.donor, acceptor=image.acceptor,molname=molname(finfo))
-		if force is not None:
-		  results[construct][molID(finfo)][pN(force)][series] = temp
+
+		if aslist:
+		  temp.info = finfo
+		  results += [temp]
 		else:
-		  results[construct][molID(finfo)][pull] = temp
+		  if force is not None:
+			results[construct][molID(finfo)][pN(force)][series] = temp
+		  else:
+			results[construct][molID(finfo)][pull] = temp
 
 		last_slide = slide
 
@@ -202,7 +208,8 @@ def calcDirectory(select='',*args, **kwargs):
 	finally:
 	  os.chdir(old_dir)
 
-	results._lock()
+	if not aslist:
+	  results._lock()
 	return results
 
 # recursively search for background file with the most specific scope
@@ -216,8 +223,10 @@ def match_or_included(x,y):
   return True
 
 
-def matchImgFilestoBackground(img_files):
+def matchImgFilestoBackground(img_files=None):
   "Look through current directory and intelligently match each img file to a background.img file"
+
+  img_files = img_files or glob.glob('*.img')
 
   background = ''
   slide_background = '' # last background used on this slide

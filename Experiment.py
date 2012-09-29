@@ -29,8 +29,12 @@ def load(fileglob, **kwargs):
   fret = []
   pulldata = []
   finfo = []
+  fret_files = None
 
   files = glob.glob('*'+fileglob+'*.str')
+  if not files:
+    raise IOError("No files found using glob "+fileglob)
+
   for filename in files:
 
     basename,ext = os.path.splitext(filename)
@@ -38,17 +42,23 @@ def load(fileglob, **kwargs):
     imgfile = FileIO.add_img_ext(basename)
 
     if verbose:
-      print "Processing %s" % basename
+      print "Processing %s..." % basename
 
     if os.path.isfile(fretfile) and not recalc:
       if verbose:
-        print "\tLoading fret from %s" % fretfile
+        print "\tLoading fret from " + fretfile
       fret += [FileIO.loadFRET(fretfile)]
     elif os.path.isfile(imgfile):
       if verbose:
-        print "\tCalculating fret from %s" % imgfile
+        print "\tCalculating fret..." + imgfile
+
+      if not fret_files:
+        matched = FRET.matchImgFilestoBackground()
+        fret_files = dict([ (img,bg) for img,bg in matched if fileglob in img ])
+
       image = Image.Stack(imgfile)
-      fret += [FRET.calcToFile(image,fretfile)]
+      bg = Image.fromBackground(fret_files[imgfile])
+      fret += [FRET.calcToFile(image-bg,fretfile)]
     else:
       if verbose:
         print "\tNo .fret or .img file found"
@@ -108,7 +118,7 @@ class Pulling(Base):
   # pull.ext pull.f pull.sep pull.fret pull.donor
 
   def __init__(self,finfo,pulls,fret=[None]):
-	if type(finfo) is not list:
+	if not isinstance(finfo,list):
 	  finfo = [finfo]
 	  pulls = [pulls]
 
