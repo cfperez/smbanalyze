@@ -113,7 +113,7 @@ def calcToFile(stack, filename, **kwargs):
     FileIO.savedat(filename, (stack.time,stack.donor,stack.acceptor,fretdata), header='time donor acceptor FRET', fmt=('%.3f','%u','%u','%.5f'))
     return fretdata
 
-def calcDirectory(file_glob='',*args, **kwargs):
+def calcDirectory(select='',*args, **kwargs):
 
 	dir = kwargs.get('dir')
 	# roi_origin => for roi file
@@ -140,21 +140,17 @@ def calcDirectory(file_glob='',*args, **kwargs):
 	  if not Image.Stack.defaultROI:
 		raise RuntimeError, "No ROIs set or loaded--cannot compute counts"
 
-	  files = glob.glob('*'+file_glob+'*.img')
-	  bg_files = glob.glob( '*_background.img' )
+	  img_files = glob.glob('*.img')
 
 	  if verbose:
-		print "Found files:\n%s\n" % '\n'.join(files)
+		print "Found files:\n%s\n" % '\n'.join(img_files)
 
-	  slide_background = '' # last background used on this slide
-	  last_slide = None     # slide number of last file
 	  BG = None             # current background image
 	  results = useful.dotdict() # output
 
-	  for fname in files:
+	  for fname,background in matchImgFilestoBackground(img_files):
 
-        # Skip background files for FRET processing
-		if fname in bg_files:
+		if select not in fname:
 		  continue
 
 		basename, ext = os.path.splitext(fname)
@@ -171,39 +167,17 @@ def calcDirectory(file_glob='',*args, **kwargs):
 			print "skipping " + fname
 		  continue
 
-		def find_bg_filename(basename):
-			if basename == '':
-			  return ''
-			bgName = basename+'_background.img'
-			if bgName in bg_files: 
-			  return bgName if bgName.count('_') >= background.count('_') \
-				else background
-			else:
-			  return find_bg_filename(basename.rpartition('_')[0])
-
-        # Look for background file using name heirarchy
-		bg_search = find_bg_filename(basename)
-
-        # Use the new background if a) on a new slide or 
-		# b) it is more appropriate
-		if slide != last_slide or bg_search.count('_') >= background.count('_'):
-		  slide_background = background
-          # keep the last background if a new one is not found
-		  background = bg_search or background
-        # Use the last when when, e.g. s1m1_background and then s1m2
-		elif slide == last_slide and \
-		   bg_search.count('_') < background.count('_'):
-		  background = slide_background
 
 		image = Image.Stack(fname)
 
 		if background:
+		  # Load the background file from disk only if needed
 		  if BG is None or background != BG.filename:
 			BG = Image.fromBackground(background)
 		  image = image - BG
 
 		if verbose:
-		  print "Processing image file '%s' using background '%s'" \
+		  print "Processing...\n\timage: %s\n\tbackground: %s\n" \
 			% (fname,background)
 
 		data = calcToFile( image, basename+'.fret' )
@@ -240,3 +214,57 @@ def match_or_included(x,y):
     else:
       return x==y
   return True
+
+
+def matchImgFilestoBackground(img_files):
+  "Look through current directory and intelligently match each img file to a background.img file"
+
+  background = ''
+  slide_background = '' # last background used on this slide
+  last_slide = None     # slide number of last file
+
+  matched_files = []
+  bg_files = []
+
+  for fname in img_files:
+
+	if '_background' in fname:
+	  continue
+
+	basename, ext = os.path.splitext(fname)
+
+	# Get molecule information from filename
+	finfo = FileIO.parseFilename(fname)
+	(construct, context, slide, mol, pull, force, min, sec,
+		series, isBackground) = finfo
+
+	def find_bg_filename(basename):
+	  if basename == '':
+		return ''
+	  bgName = basename+'_background.img'
+	  if bgName in img_files: 
+		return bgName if bgName.count('_') >= background.count('_') \
+		  else background
+	  else:
+		return find_bg_filename(basename.rpartition('_')[0])
+
+	# Look for background file using name heirarchy
+	bg_search = find_bg_filename(basename)
+
+	# Use the new background if a) on a new slide or 
+	# b) it is more appropriate
+	if slide != last_slide or bg_search.count('_') >= background.count('_'):
+	  slide_background = background
+	  # keep the last background if a new one is not found
+	  background = bg_search or background
+	# Use the last when when, e.g. s1m1_background and then s1m2
+	elif slide == last_slide and \
+	   bg_search.count('_') < background.count('_'):
+	  background = slide_background
+
+	last_slide = slide
+
+	bg_files += [background]
+	matched_files += [fname]
+
+  return zip(matched_files,bg_files)
