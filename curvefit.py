@@ -1,5 +1,6 @@
 import inspect
 from functools import wraps
+from numpy import arccos, cos, exp, sqrt, log, fabs, pi
 
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit,fmin_bfgs
@@ -37,7 +38,42 @@ def MS(x,Lp,Lc,K):
   return A * (0.25/(1-x_)**2 - 0.25 +x_)
 MS.default = {'Lp':20,'Lc':1100,'K':1200}
 
-@broadcast
+def MMS2(F,Lp,Lc,K):
+  "Calculates x(F) for Modified Marko-Siggia"
+
+  if not np.iterable(F):
+    F = [F]
+  F = np.asarray(F)
+
+  # Normalize parameters
+  Lp_ = Lp/kT(parameters['T'])
+  F_ = F/K
+
+  # Create variables for computation
+  Q = 1 + F_
+  P = F_ + Lp_*F + 0.25
+
+  U = -(Lp_*F - 0.75)**2 / 9   
+  V = -(Lp_*F - 0.75)**3 / 27 + 0.125
+  L_ = -(2*Q + P)/3
+
+  #u = -(P-Q)**2 / 9.0   #=(-1/9)*(Lp_*F - 3/4)**2
+  #v = -(P-Q)**3 / 27.0 + 0.125   #=(-1/27)*(Lp_*F - 3/4)**3 + 1/8
+
+  def calc(u,v,L):
+    if v**2+u**3 < 0.0:
+      theta = arccos(sqrt(-v**2/u**3)) / 3.0
+      if v<0:
+        return (2*sqrt(-u)*cos(theta+2*pi/3) - L)*Lc
+      else:
+        return (-2*sqrt(-u)*cos(theta) - L)*Lc
+    else:
+      A = exp( log(-v+sqrt(0.015625 - ((Lp_*F-0.75)**3/108) ) ) )
+      B = exp( log(-v-sqrt(0.015625 - ((Lp_*F-0.75)**3/108) ) ) )
+      return -Lc*(fabs(A+B) + L)
+
+  return np.array([calc(u,v,L) for u,v,L in zip(U,V,L_)])
+
 def MMS(x,Lp,Lc,K,startf=20.):
   x_ = x/float(Lc)
   guess = [startf/K]
@@ -68,14 +104,14 @@ def funcBuilder(func,num):
 def apply(fitfunc,*args):
   return lambda x: fitfunc(x,*args)
 
-def fit( fitfunc, x, y, p0=None):
-  return Fit(fitfunc.func_name, *curve_fit( fitfunc, x, y, p0=p0 ) )
-
 class Fit(object):
   def __init__(self, fitfunc, x, y, **kwargs):
     "Initialize to a specific fitting function, optionally fitting to data specified"
 
     self.x = x
+
+    if isinstance(fitfunc,str):
+      fitfunc = eval(fitfunc)
 
     # Use inspection to get parameter names from fit function
     # assuming first argument is independent variable
