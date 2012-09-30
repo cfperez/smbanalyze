@@ -30,13 +30,13 @@ def gauss(x,mu,sigma,A):
 def doublegauss(x,mu,sigma,A,mu2,sigma2,A2):
   return gauss(x,mu,sigma,A)+gauss(x,mu2,sigma2,A2)
 
-def MS(x,Lp,Lc,K):
+def MS(x,Lp,Lc,F0):
   "MS(x, Lp, Lc, K) = Marko-Siggia model of worm-like chain"
 
   x_ = x/float(Lc)
   A = kT(parameters['T'])/Lp
-  return A * (0.25/(1-x_)**2 - 0.25 +x_)
-MS.default = {'Lp':20,'Lc':1100,'K':1200}
+  return A * (0.25/(1-x_)**2 - 0.25 +x_) + F0
+MS.default = {'Lp':20,'Lc':1100,'F0':0.1}
 
 def MMS2(F,Lp,Lc,K):
   "Calculates x(F) for Modified Marko-Siggia"
@@ -108,6 +108,8 @@ class Fit(object):
   def __init__(self, fitfunc, x, y, **kwargs):
     "Initialize to a specific fitting function, optionally fitting to data specified"
 
+    verbose = kwargs.get('verbose',True)
+
     self.x = x
 
     if isinstance(fitfunc,str):
@@ -137,13 +139,18 @@ class Fit(object):
       self.fitfunc = fitfunc
 
     self.params,self.error = curve_fit(self.fitfunc,x,y,p0)
-    self.params = self.params.tolist()
+    self.params = tuple(self.params)
     self.fitY = self.fitfunc(x,*self.params)
+    self.residual = self.fitY-y
 
     for i,p in enumerate(param_names):
       setattr(self,p,self.params[i])
 
-    self._param_names = arg_names
+    self.param_names = tuple(arg_names)
+
+    if verbose:
+      print "Fitting with parameters {}".format(','.join(['{}={:.2f}'.format(*p) for p
+        in zip(self.param_names,self.params)]))
 
   def __call__(self,x=None):
 	#if x == self.x:
@@ -151,13 +158,10 @@ class Fit(object):
 	return self.fitfunc(x,*self.params)
 	
   def __getitem__(self,key):
-	try:
-	  return getattr(self,self._param_names[key])
-	except AttributeError:
-	  return self.params[key]
+    return self.params[key]
 
   def __len__(self):
-	return len(self._param_names)
+	return len(self.param_names)
 
   def plot(self,x=None,**kwargs):
 	if x is None:
