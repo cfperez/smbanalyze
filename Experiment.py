@@ -29,7 +29,7 @@ def load(fileglob, **kwargs):
   fret = []
   pulldata = []
   finfo = []
-  fret_files = None
+  bg_files = None
 
   files = glob.glob('*'+fileglob+'*.str')
   if not files:
@@ -50,15 +50,16 @@ def load(fileglob, **kwargs):
       fret += [FileIO.loadFRET(fretfile)]
     elif os.path.isfile(imgfile):
       if verbose:
-        print "\tCalculating fret..." + imgfile
+        print "\tCalculating fret from " + imgfile
 
-      if not fret_files:
+      if not bg_files:
         matched = FRET.matchImgFilestoBackground()
-        fret_files = dict([ (img,bg) for img,bg in matched if fileglob in img ])
+        bg_files = dict([ (img,bg) for img,bg in matched if fileglob in img ])
 
       image = Image.Stack(imgfile)
-      bg = Image.fromBackground(fret_files[imgfile])
-      fret += [FRET.calcToFile(image-bg,fretfile)]
+      image -= Image.fromBackground(bg_files[imgfile])
+      fret += [(image.time(),image.donor,image.acceptor,
+                FRET.calcToFile(image,fretfile))]
     else:
       if verbose:
         print "\tNo .fret or .img file found"
