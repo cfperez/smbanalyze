@@ -123,3 +123,23 @@ def fcache(f,rounding=None):
       return f(*args)
 
   return _f
+
+def trace(f):
+  "Prints arguments and return values every time f is called"
+
+  argspec = inspect.getargspec(f)
+
+  @wraps(f)
+  def _f(*args,**kwargs):
+    if args:
+      print "Positional args: " + str(args)
+
+    if kwargs:
+      print "Keyword args: " + str(kwargs)
+
+    retval = f(*args,**kwargs)
+    print "Return value: {}\n".format(retval)
+    return retval
+
+  return _f
+
