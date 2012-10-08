@@ -25,7 +25,7 @@ def plot(*data, **kwargs):
   loc = kwargs.get('legend', 'best')
   hold = kwargs.get('hold',True)
 
-  if len(data) == 1 and iterable(data[0]):
+  if len(data) == 1 and isinstance(data[0],list):
 	data = data[0]
 
   # to prefix labels in plots
@@ -119,7 +119,7 @@ def calcDirectory(select='',*args, **kwargs):
 	roi_origin = kwargs.get('roi_origin','absolute')
 	verbose = 'verbose' in args or kwargs.get('verbose')
 	plotall = 'plotall' in args or kwargs.get('plotall')
-	hold = 'singleplot' in args or kwargs.get('singleplot')
+	hold = 'hold' in args or kwargs.get('hold')
 	saveplot = 'saveplot' in args or kwargs.get('saveplot')
 	aslist = 'aslist' in args or kwargs.get('aslist',False)
 	roi_file = kwargs.get('roi_file','roi.txt') # 'roi*' would be the convention
