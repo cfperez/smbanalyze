@@ -25,6 +25,7 @@ def load(fileglob, **kwargs):
   "Create a new Experiment subclass based on filetype and data"
   verbose = kwargs.get('verbose')
   recalc = kwargs.get('recalc')
+  roi = kwargs.get('roi_file')
 
   fret = []
   pulldata = []
@@ -44,7 +45,11 @@ def load(fileglob, **kwargs):
     if verbose:
       print "Processing %s..." % basename
 
-    if os.path.isfile(fretfile) and not recalc:
+    if recalc and not fret:
+      print "-- Recalculating FRET data --"
+      FRET.calcDirectory(fileglob,verbose=verbose,roi_file=roi)
+
+    if os.path.isfile(fretfile):
       if verbose:
         print "\tLoading fret from " + fretfile
       fret += [FileIO.loadFRET(fretfile)]
@@ -55,6 +60,9 @@ def load(fileglob, **kwargs):
       if not bg_files:
         matched = FRET.matchImgFilestoBackground()
         bg_files = dict([ (img,bg) for img,bg in matched if fileglob in img ])
+        if roi:
+          roi = Image.ROI.fromFile(roi)
+          Image.setDefaultROI(*roi)
 
       image = Image.Stack(imgfile)
       image -= Image.fromBackground(bg_files[imgfile])
