@@ -1,1 +1,1 @@
-__all__ = ["Image", "FileIO", "FRET"]
+__all__ = ["Image", "FileIO", "FRET", "Experiment", "curvefit"]

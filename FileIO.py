@@ -1,14 +1,28 @@
 from __future__ import with_statement
-from useful import toNum, dotdict
-import numpy as np
+import re
+import collections
 from datetime import datetime
-import re, collections
+
+import numpy as np
+
+import Experiment
+from useful import toNum, dotdict, toInt
+
+IMAGE_FILE = '.img'
+CAMERA_FILE = '.cam'
+FRET_FILE = '.fret'
+PULL_FILE = '.str'
+
+add_img_ext = lambda x: x+IMAGE_FILE if not x.endswith(IMAGE_FILE) else x
+add_cam_ext = lambda x: x+CAMERA_FILE if not x.endswith(CAMERA_FILE) else x
+add_fret_ext = lambda x: x+FRET_FILE if not x.endswith(FRET_FILE) else x
+add_pull_ext = lambda x: x+PULL_FILE if not x.endswith(PULL_FILE) else x
 
 _named_ = lambda n,p: r'(?P<%s>%s)' % (n,p)
 _opt_unit_ = lambda n,p,u: r'(?:_%s%s)?' % (_named_(n,p),u)
 _opt_ = lambda n,p: _opt_unit_(n,p,'')
 _opt_time_ = r'(?:_(?:(\d+)min)?(?:(\d+)s)?)?'
-_build_pattern_ = lambda *x: ''.join(x)+'$'
+_build_pattern_ = lambda *x: ''.join(x)+'(?:\.\w+)?$'
 
 _ALPHANUM_ = r'[a-zA-Z0-9]+'
 
@@ -17,21 +31,15 @@ FILENAME_SYNTAX = _build_pattern_(
 	  _named_('construct',_ALPHANUM_),
 	  _named_('conditions','.*'),
 	  r's(?P<slide>\d+)(?:m(?P<mol>\d+))?'] ) +
-
 	_opt_('pull',r'\d+') + _opt_unit_('force',r'\d+','pN') + _opt_time_ + _opt_('series',r'\d+') \
 	+ _opt_('isBackground',r'background') )
 
 Pattern = re.compile(FILENAME_SYNTAX)
 
-FILENAME_TEXT_FIELDS = ( 'construct', 'conditions' )
+FILENAME_FIELDS = ( 'construct', 'conditions', 'slide', 'mol', 'pull',
+  'force', 'min', 'sec', 'series', 'isBackground' )
 
-FILENAME_NUM_FIELDS = ('slide', 'mol', 'pull',
-  'force', 'min', 'sec', 'series')
-
-FILENAME_BOOL_FIELDS = ( 'isBackground', )
-
-FileInfo = collections.namedtuple('FileInfo', FILENAME_TEXT_FIELDS +
-  FILENAME_NUM_FIELDS + FILENAME_BOOL_FIELDS)
+FileInfo = collections.namedtuple('FileInfo', FILENAME_FIELDS)
 
 # construct, conditions, slide, mol, pull
 basePattern = re.compile(r'^(?P<construct>[a-zA-Z0-9]+)_(.*)_s(\d+)(?:m(\d+))?'+_opt_('pull',r'\d+'))
@@ -45,6 +53,7 @@ bgPattern = re.compile(r'_background')
 
 COMMENT_LINE = '#'
 
+
 def parseFilename(filename):
 	#construct,conditions,slide,mol,pull=basePattern.match(filename).groups()
 	#slide=int(slide); mol=int(mol); pull=int(pull)
@@ -54,46 +63,48 @@ def parseFilename(filename):
 	#min,sec,series=map(toNum, timePattern.search(filename).groups())
 
 	#background = bgPattern.search(filename) is not None
-	construct, context, slide, mol, pull, force, min, sec, \
-	  series, isBackground = \
-		Pattern.match(basename).groups()
-
-	toInt = lambda i: int(i) or 1
+	(construct, conditions, slide, mol, pull, force, min, sec,
+	  series, isBackground) = Pattern.match(filename).groups()
 
 	slide = toInt(slide)
 	mol = toInt(mol)
-	pull = toInt(pull)
+	pull = toInt(pull) or 1
 	force = toNum(force)
 	min,sec,series = map(toInt,(min,sec,series))
+	series = (series or 1) if min or sec else series
 	isBackground = isBackground is not None
 
-	return FileInfo(construct,conditions,slide,mol,pull,force,min,sec,series,background)
+	return FileInfo(construct,conditions,slide,mol,pull,force,min,sec,series,isBackground)
 
 def loaddat(filename, **kwargs):
 
-    comments = kwargs.get('comments', COMMENT_LINE)
+  comment_line = kwargs.pop('comments', COMMENT_LINE)
 
-    colnames = None
-    with open(filename, 'r') as fh:
+  colnames = None
+  comments = ''
+
+  with open(filename,'U') as fh:
 	position = 0
 	for line in fh:
-	    position += 1
-	    if line.startswith(comments) or line.isspace():
+	  position += 1
+	  if np.any( map(line.startswith, comment_line) ):
+	  #if line.startswith(comment_line):
+		comments += line
+	  if line.isspace():
 		continue
-
-	    if not colnames and any( map(str.isalpha, line.split()) ):
-		colnames = line.lower().split()
-	    else:
+	  elif colnames:
 		break
+	  elif any( map(str.isalnum, line.split()) ):
+	  	colnames = line.lower().split()
 
 	fh.seek(0)
-	data = np.loadtxt(fh, skiprows=position-1, **kwargs)
+	data = np.loadtxt(fh, skiprows=position-1, comments=COMMENT_LINE, **kwargs)
     # end with
 
     #data.dtype = np.dtype( zip(colnames, ['f8']*len(colnames)) )
     #data.dtype = np.dtype( [(colnames[0], 'f8')] )
 
-    return colnames, data
+  return colnames, data
 
 def savedat(filename, data, header='', comments='', fmt='%.9e', delimiter='\t'):
 
@@ -124,8 +135,8 @@ def loadimg(filename, datatype='>h', **kwargs):
     try:
 	img = img.reshape(img_size)
     except ValueError:
-	raise IOError, "Image file %s is corrupted, expected frame: %d, height: %d, width: %d" % \
-	    (filename, img_size[0], img_size[1], img_size[2])
+	raise IOError("Image file %s is corrupted, expected frame: %d, height: %d, width: %d" % 
+	    (filename, img_size[0], img_size[1], img_size[2]))
     
     return img
 
@@ -153,26 +164,24 @@ def loadcam(filename):
 
 
 def loadsettings(filename, **kwargs):
-    "Return dictionary of key/value pairs from LabView-style configuration file"
+  "Return dictionary of key/value pairs from LabView-style configuration file"
 
-    cast = kwargs.get('cast') or str
+  cast = kwargs.get('cast') or str
 
-    settings = dotdict()
-    with open(filename) as f:
-	header = None
-	for line in f:
-	    line = line.strip()
-	    if line == '':
-		continue
+  settings = dotdict()
+  with open(filename) as f:
+    header = None
+    for line in f:
+      line = line.strip()
+      if line == '':
+        continue
 
-	    m = re.match(r'\[(\w+)\]',line)
-	    if m:
-		header = m.group(1).lower()
-		if not settings.has_key(header):
-		    settings[header] = dotdict()
-	    else:
-		key,value = line.split('=')
-		settings[header][key.strip().lower()] = cast(value)
+      m = re.match(r'\[(\w+)\]',line)
+      if m:
+        header = m.group(1).lower()
+      else:
+        key,value = line.split('=')
+        settings[header][key.strip().lower()] = cast(value)
 
     return settings
 
@@ -185,3 +194,14 @@ def savesettings(filename, file_mode, **settings):
 
 	  for key,value in settings[key].iteritems():
 		f.write( '%s=%s\n' % (str(key.capitalize()),str(value)) )
+
+
+def loadFRET(fname,**kwargs):
+  header,data = loaddat(fname,**kwargs)
+  return Experiment.FretData(*data.T)
+
+def loadPull(fname,**kwargs):
+  header,data = loaddat(fname,comments=('#','/*'),**kwargs)
+  if header != ['extension','force','trapdistance']:
+	raise IOError, "Stretch file must contain extension, force, and separation"
+  return Experiment.PullData(*data.T)

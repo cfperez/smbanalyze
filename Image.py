@@ -1,9 +1,13 @@
 from __future__ import with_statement
-import numpy as np
-import matplotlib
-import matplotlib.pyplot as plt
-import os.path, copy, useful, FileIO
 from operator import methodcaller
+import os.path
+import copy
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+import FileIO
+import useful
 
 class StackError(Exception):
   pass
@@ -78,10 +82,9 @@ Usage:
 	self.lines = []
 
   @classmethod
-  def fromfile(cls, filename, origin='absolute'):
+  def fromFile(cls, filename, origin='absolute'):
 	"Load ROI(s) from a LabView config file and return tuple of Image.ROI objects"
-	toInt = lambda s: int(useful.toNum(s))
-	settings = FileIO.loadsettings(filename, cast=toInt)
+	settings = FileIO.loadsettings(filename, cast=useful.toInt)
 
 	self = []
 	for name, roi in settings.items():
@@ -132,17 +135,21 @@ Usage:
 
   def clear(self):
 	if self.lines:
-	  map( methodcaller('remove'), self.lines )
-	  plt.gcf().canvas.draw()
-	  self.lines=[]
+	  try:
+		map( methodcaller('remove'), self.lines )
+		plt.gcf().canvas.draw()
+	  except ValueError:
+		pass
+	  finally:
+		self.lines=[]
 
-  def todict(self):
+  def toDict(self):
 	return {'Left': self.left, 'Right': self.right, 
 			    'Bottom': self.bottom, 'Top': self.top }
 
   def toFile(self, filename, mode='w'):
 	FileIO.savesettings(filename, mode,
-	  **{self.name: self.todict()}  
+	  **{self.name: self.toDict()}  
 	    )
 
   def toAbsolute(self,origin):
@@ -162,6 +169,7 @@ Usage:
 	  self.right-=origin[0]
 	  self.bottom-=origin[1]
 	  self.top-=origin[1]
+	  self.origin = 'relative'
 	  return self
 	else:
 	    raise ROIError, "Origin must be either 'relative' or 'absolute'"
@@ -177,10 +185,11 @@ Usage:
   def __repr__(self):
 	if None in (self.left, self.right, self.bottom, self.top):
 	    name = self.name or 'Undefined'
-	    return "ROI '%s' = uninitialized" % self.name
+	    return "<ROI '%s' = uninitialized>" % self.name
 	else:
-	    return "ROI '%s' = L: %d, R: %d, B: %d, T: %d" % \
-		(self.name,self.left,self.right,self.bottom,self.top) 
+	    return "<%s ROI '%s' = L: %d, R: %d, B: %d, T: %d>" % \
+		(self.origin,self.name,self.left,self.right,self.bottom,self.top) 
+
 
 ################################################################################
 ##
@@ -254,7 +263,7 @@ class Stack:
 	return self._img.shape[0]
 
   @property
-  def timeAxis(self):
+  def time(self):
   	return np.arange(1,self.frames+1)*self.exposurems/1000.
 
   @property
@@ -333,8 +342,18 @@ class Stack:
 	else:
 		return np.sum( np.sum(self._img,axis=1), axis=1 )
 
+  def attime(self,time):
+  	if isinstance(time,slice):
+	  start,step = None,None
+	  if time.start:
+		start = time.start/self.exposurems
+	  if time.step:
+		step = time.step/self.exposurems
+	  time = slice(start,time.stop/self.exposurems,step)
+  	return self[time/self.exposurems]
+  	
   def __getitem__(self,key):
-	if type(key) == int:
+	if isinstance(key,int):
 	    return Frame(self._img[key], self._roi)
 	else:
 	    temp = Stack(self)
@@ -368,6 +387,10 @@ class Stack:
   def __repr__(self):
 	return "Stack %dx%dx%d" % (self.frames, self.height, self.width)
 
+  def __iter__(self):
+	for i in range(self.frames):
+	  yield self[i]
+	
 class Frame:
     
   def __init__(self, imgarray, roi=None):
@@ -388,20 +411,20 @@ class Frame:
   def width(self):
 	return self._img.shape[1]
 
-  def counts( roi ):
+  def counts(self,roi):
 	return np.sum( self[roi] )
 
   def show(self, **kwargs):
 	cmap = kwargs.get('cmap')
 
+	plot.hold(1)
   	plt.cla()
-	plot = self._plot_obj = plt.imshow(self._img, cmap=cmap)
+	plt.imshow(self._img, cmap=cmap)
 	plot.get_axes().invert_yaxis()
 	if self._roi is not None:
 	  for roi in self._roi.itervalues():
 		roi.draw()
 	plt.draw()
-	return self._plot_obj
 
   def __neg__(self):
 	temp = copy.copy(self)
