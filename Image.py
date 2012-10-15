@@ -85,10 +85,10 @@ Usage:
   def fromFile(cls, filename, origin='absolute'):
 	"Load ROI(s) from a LabView config file and return tuple of Image.ROI objects"
 	settings = FileIO.loadsettings(filename, cast=useful.toInt)
-	self.filename = filename
 
 	self = []
 	for name, roi in settings.items():
+	  roi.filename = filename
 	  roi.name = name
 	  roi.origin = origin
 	  self.append( cls.copy(roi) )
