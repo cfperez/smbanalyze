@@ -66,7 +66,7 @@ def load(fileglob, **kwargs):
 
       image = Image.Stack(imgfile)
       image -= Image.fromBackground(bg_files[imgfile])
-      fret += [(image.time(),image.donor,image.acceptor,
+      fret += [(image.time,image.donor,image.acceptor,
                 FRET.calcToFile(image,fretfile))]
     else:
       if verbose:
