@@ -38,16 +38,31 @@ def plot(*data, **kwargs):
 
   for name,trace in zip(names,data):
 	hasfret = kwargs.get('fret',hasattr(trace,'fret'))
+	if kwargs.get('FDC', hasattr(trace,'f')):
+	    FDC = (trace.sep, trace.f)
+	else:
+	    FDC = None
 
 	if not hold:
 	  plt.figure()
 
-	if hasfret is not False:
-		plt.subplot(211)
+	fig_size = 1
+	if hasfret:
+	    fig_size += 1
+	if FDC:
+	    fig_size += 1
 
+	#if hasfret is not False:
+	current_panel = 1
+	plt.subplot(fig_size,1,current_panel)
 	plt.title(title)
 
 	name = name or getattr(trace,'molname','')
+
+        if FDC:
+            plt.plot(*FDC,label=prefix+' '+name)
+            current_panel += 1
+            plt.subplot(fig_size,1,current_panel)
 
 	x_axis = None
 	if hasattr(trace,'time'):
@@ -63,14 +78,15 @@ def plot(*data, **kwargs):
 	if loc:
 	  plt.legend(loc=loc,ncol=2,prop={'size':'small'})
 
-	if hasfret is not False:
-		plt.subplot(212)
-		plt.ylabel('FRET')
-		plt.xlabel('Frames')
-		if hasfret is True:
-			plt.plot( trace.fret, label=' '.join([prefix,name]))
-		else:
-			plt.plot(hasfret, label=' '.join([prefix,name]))
+        if hasfret is not False:
+            current_panel += 1
+            plt.subplot(fig_size,1,current_panel)
+            plt.ylabel('FRET')
+            plt.xlabel('Frames')
+            if hasfret is True:
+                plt.plot( trace.fret, label=' '.join([prefix,name]))
+            else:
+                plt.plot(hasfret, label=' '.join([prefix,name]))
 
 def hist(*data, **kwargs):
   bins = kwargs.get('bins',50)
