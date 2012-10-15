@@ -85,6 +85,7 @@ Usage:
   def fromFile(cls, filename, origin='absolute'):
 	"Load ROI(s) from a LabView config file and return tuple of Image.ROI objects"
 	settings = FileIO.loadsettings(filename, cast=useful.toInt)
+	self.filename = filename
 
 	self = []
 	for name, roi in settings.items():
@@ -147,10 +148,10 @@ Usage:
 	return {'Left': self.left, 'Right': self.right, 
 			    'Bottom': self.bottom, 'Top': self.top }
 
-  def toFile(self, filename, mode='w'):
-	FileIO.savesettings(filename, mode,
-	  **{self.name: self.toDict()}  
-	    )
+  def toFile(self, filename=None, mode='w'):
+	self.filename = filename or self.filename
+	FileIO.savesettings(self.filename, mode,
+	  **{self.name: self.toDict()} )
 
   def toAbsolute(self,origin):
 	if self.origin != 'absolute':
@@ -417,10 +418,10 @@ class Frame:
   def show(self, **kwargs):
 	cmap = kwargs.get('cmap')
 
-	plot.hold(1)
+	plt.hold(1)
   	plt.cla()
-	plt.imshow(self._img, cmap=cmap)
-	plot.get_axes().invert_yaxis()
+	p = plt.imshow(self._img, cmap=cmap)
+	p.get_axes().invert_yaxis()
 	if self._roi is not None:
 	  for roi in self._roi.itervalues():
 		roi.draw()
