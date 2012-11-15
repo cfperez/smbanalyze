@@ -83,14 +83,13 @@ def loaddat(filename, **kwargs):
   colnames = None
   comments = ''
 
-  with open(filename,'U') as fh:
+  with open(filename,'rU') as fh:
 	position = 0
 	for line in fh:
 	  position += 1
 	  if np.any( map(line.startswith, comment_line) ):
-	  #if line.startswith(comment_line):
 		comments += line
-	  if line.isspace():
+	  elif line.isspace():
 		continue
 	  elif colnames:
 		break
@@ -98,7 +97,7 @@ def loaddat(filename, **kwargs):
 	  	colnames = line.lower().split()
 
 	fh.seek(0)
-	data = np.loadtxt(fh, skiprows=position-1, comments=COMMENT_LINE, **kwargs)
+	data = np.loadtxt(fh, skiprows=position, **kwargs)
     # end with
 
     #data.dtype = np.dtype( zip(colnames, ['f8']*len(colnames)) )
