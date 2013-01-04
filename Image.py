@@ -401,7 +401,10 @@ class Stack:
 
   def __add__(self, stack):
     temp = Stack(self)
-    temp._img = temp._img + stack._img
+    try:
+      temp._img = temp._img + stack._img
+    except ValueError:
+      raise StackError("Couldn't add images: check sizes are the same")
     return temp
 
   def __neg__(self):
