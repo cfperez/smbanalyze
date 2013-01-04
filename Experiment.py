@@ -9,10 +9,7 @@ from useful import dotdict
 import FileIO
 import FRET
 import Image
-
-parameters = {'T':293.2}
-
-kT = lambda T: 0.0138965*T
+import Constants
 
 FretData = collections.namedtuple('FretData',('time','donor','acceptor','fret'))
 PullData = collections.namedtuple('PullData', ('ext','f','sep'))
@@ -21,20 +18,25 @@ PullFretData = collections.namedtuple('PullingFretData',PullData._fields+FretDat
 class ExperimentError(Exception):
   pass
 
-def load(fileglob, **kwargs):
+def loadPull(fileglob, **kwargs):
   "Create a new Experiment subclass based on filetype and data"
   verbose = kwargs.get('verbose')
   recalc = kwargs.get('recalc')
   roi = kwargs.get('roi_file')
+  #autoglob = kwargs.get('autoglob', True)
+  exact_match = kwargs.get('exact_match', False)
 
   fret = []
   pulldata = []
   finfo = []
   bg_files = None
 
-  files = glob.glob('*'+fileglob+'*.str')
+  if os.path.isfile(fileglob):
+    files = [fileglob]
+  else:
+    files = (exact_match and glob.glob(fileglob)) or glob.glob('*%s[._]*str'%fileglob)
   if not files:
-    raise IOError("No files found using glob "+fileglob)
+    raise IOError("No files found using glob '%s'" % fileglob)
 
   for filename in files:
 
@@ -42,12 +44,12 @@ def load(fileglob, **kwargs):
     fretfile = FileIO.add_fret_ext(basename)
     imgfile = FileIO.add_img_ext(basename)
 
-    if verbose:
-      print "Processing %s..." % basename
-
     if recalc and not fret:
       print "-- Recalculating FRET data --"
-      FRET.calcDirectory(fileglob,verbose=verbose,roi_file=roi)
+      FRET.calcDirectory(fileglob, **kwargs)
+
+    if verbose:
+      print "Experiment.load: Processing %s..." % basename
 
     if os.path.isfile(fretfile):
       if verbose:
