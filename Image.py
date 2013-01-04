@@ -10,16 +10,24 @@ import FileIO
 import FRET
 import useful
 
+################################################################################
+## EXCEPTIONS
+################################################################################
 class StackError(Exception):
   pass
 
 class ROIError(Exception):
   pass
 
+################################################################################
+## MODULE LEVEL FUNCTIONS
+################################################################################
 def setDefaultROI(*args):
   Stack.setDefaultROI(*args)
 
 def fromFile(filename, **kwargs):
+"fromFile(filename, [background='' or True]): Load Image from filename with optional background file to subtract"
+
   bg = kwargs.pop('background', False)
   try:
     img = Stack(filename, **kwargs)
@@ -62,24 +70,37 @@ def fromBackground(filename, filter='median'):
 ## 
 ################################################################################
 class ROI:
-  """Stores static ROI data
+  """Region of Interest
+
+ROI( (bottom,left), (top,right), name='', origin='relative' )
 
 name => how you will call the ROI after attached to an Image.Stack
 origin => is the origin 'relative' to the subimage or 'absolute' to the CCD origin
-k
-Usage: 
 
-1) Specify corners
+>>> donorROI = ROI( (0,10), (0,10), name='donor' )
 
-    ROI( left, right, bottom, top, name='', origin='relative')
+Other constructors from class methods:
 
-2) Specify bottom left and top right corner
+  From a file
+  >>> ROI.fromFile( 'roi.txt', [origin='absolute'] )
 
-    ROI( bottomleft, topright, name='', origin='relative' )
+  Specify corners
+  >>>  ROI.fromCorners( left, right, bottom, top, name='', origin='relative')
 
-3) Copy from another ROI
+  Copy from another ROI
+  >>>  ROI.copy( old_roi, name='', origin='relative' )
 
-    ROI( roi, name='', origin='relative' )
+And saving:
+
+  >>> ROI.save('roi.txt', ROI1, ROI2)
+
+  or individually. Mode='a' appends to existing file, 'w' overwrites.
+  >>> donorROI.toFile('filename.txt', [mode='w'])
+
+Convert between 'absolute' and 'relative' coordinates:
+
+  >>> donorROI.toRelative( (0,0) )
+  >>> donorROI.toAbsolute( (0,0) )
   """
 
   def __init__(self, bl, tr, name='', origin='relative'):
@@ -109,14 +130,14 @@ Usage:
     "Load ROI(s) from a LabView config file and return tuple of Image.ROI objects"
     settings = FileIO.loadsettings(filename, cast=useful.toInt)
 
-    self = []
+    temp = []
     for name, roi in settings.items():
       roi.filename = filename
       roi.name = name
       roi.origin = origin
-      self.append( cls.copy(roi) )
+      temp.append( cls.copy(roi) )
 
-    return tuple(self)
+    return temp(self)
 
   @classmethod
   def copy(cls, roi, name='', origin=''):
