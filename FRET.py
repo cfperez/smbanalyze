@@ -13,14 +13,14 @@ import FileIO
 beta = 0.13
 gamma = 1.16
 
-molID = lambda t: 's{}m{}'.format(t.slide,t.mol)
-molname = lambda t: 's{}m{}_{}'.format(t.slide,t.mol,t.pull)
+molID = lambda t: 's{0}m{1}'.format(t.slide,t.mol)
+molname = lambda t: 's{0}m{1}_{2}'.format(t.slide,t.mol,t.pull)
 pN = lambda f: 'f'+str(f)+'pN'
 
 def plot(*data, **kwargs):
-  "loc=legend location (or None for off), title, hold (False for individual plots),\
-  names=labels for individual traces (must equal number of traces)\
-  prefix=for all traces in legend"
+  """loc=legend location (or None for off), title, hold (False for individual plots),
+  names=labels for individual traces (must equal number of traces)
+  prefix=for all traces in legend"""
 
   loc = kwargs.get('legend', 'best')
   hold = kwargs.get('hold',True)
@@ -47,14 +47,15 @@ def plot(*data, **kwargs):
 	  plt.figure()
 
 	fig_size = 1
-	if hasfret:
+	if hasfret is not False:
 	    fig_size += 1
 	if FDC:
 	    fig_size += 1
 
 	#if hasfret is not False:
 	current_panel = 1
-	plt.subplot(fig_size,1,current_panel)
+	s = plt.subplot(fig_size,1,current_panel)
+        s.autoscale_view(tight=True)
 	plt.title(title)
 
 	name = name or getattr(trace,'molname','')
@@ -62,12 +63,15 @@ def plot(*data, **kwargs):
         if FDC:
             plt.plot(*FDC,label=prefix+' '+name)
             current_panel += 1
-            plt.subplot(fig_size,1,current_panel)
+            s=plt.subplot(fig_size,1,current_panel)
+            s.autoscale_view(tight=True)
 
 	x_axis = None
 	if hasattr(trace,'time'):
 	  x_axis = trace.time
 	  plt.xlabel('Seconds')
+        elif not hasattr(trace, 'donor'):
+          continue
 	else:
 	  x_axis = range(1,len(trace.donor)+1)
 	  plt.xlabel('Frames')
@@ -80,7 +84,8 @@ def plot(*data, **kwargs):
 
         if hasfret is not False:
             current_panel += 1
-            plt.subplot(fig_size,1,current_panel)
+            s=plt.subplot(fig_size,1,current_panel)
+            s.autoscale_view(tight=True)
             plt.ylabel('FRET')
             plt.xlabel('Frames')
             if hasfret is True:
@@ -108,22 +113,22 @@ def hist(*data, **kwargs):
 
   return bins,counts
 
-def calc(stack, beta=beta, gamma=gamma):
+def calc(stack, beta=beta, gamma=gamma, minsub=True):
     """Calculates FRET of a pull from an Image.Stack
 
-calcFRET( Image.Stack, beta = Image.beta, gamma = Image.gamma)
+calc( Image.Stack, beta = Image.beta, gamma = Image.gamma)
 
 RETURNS array of calculated FRET for each frame
 """
 
-    donor = stack.donor - min(stack.donor)
+    donor = stack.donor - (minsub and min(stack.donor))
     acceptor = stack.acceptor - donor*beta
-    acceptor = acceptor - min(acceptor)
+    acceptor = acceptor - (minsub and min(acceptor))
 
     return acceptor/(acceptor+gamma*donor)
 
 def calcToFile(stack, filename, **kwargs):
-    "saveFRETdata( fret, ImageStack, filename): saves donor,acceptor, FRET to 3 column text file"
+    "saveFRETdata(fret, ImageStack, filename): saves donor,acceptor, FRET to 3 column text file"
 
     fretdata = calc(stack, **kwargs)
     FileIO.savedat(filename, (stack.time,stack.donor,stack.acceptor,fretdata), header='time donor acceptor FRET', fmt=('%.3f','%u','%u','%.5f'))
@@ -173,7 +178,7 @@ def calcDirectory(select='',*args, **kwargs):
 		basename, ext = os.path.splitext(fname)
 
         # Get molecule information from filename
-		finfo = FileIO.parseFilename(fname)
+		finfo = FileIO.parseFilename(basename)
 		(construct, context, slide, mol, pull, force, min, sec,
             series, isBackground) = finfo
 
@@ -242,6 +247,7 @@ def match_or_included(x,y):
 def matchImgFilestoBackground(img_files=None):
   "Look through current directory and intelligently match each img file to a background.img file"
 
+  bg_files = glob.glob('*_background.img')
   img_files = img_files or glob.glob('*.img')
 
   background = ''
@@ -249,7 +255,7 @@ def matchImgFilestoBackground(img_files=None):
   last_slide = None     # slide number of last file
 
   matched_files = []
-  bg_files = []
+  bg = []
 
   for fname in img_files:
 
@@ -267,7 +273,7 @@ def matchImgFilestoBackground(img_files=None):
 	  if basename == '':
 		return ''
 	  bgName = basename+'_background.img'
-	  if bgName in img_files: 
+	  if bgName in bg_files: 
 		return bgName if bgName.count('_') >= background.count('_') \
 		  else background
 	  else:
@@ -289,7 +295,7 @@ def matchImgFilestoBackground(img_files=None):
 
 	last_slide = slide
 
-	bg_files += [background]
+	bg += [background]
 	matched_files += [fname]
 
-  return zip(matched_files,bg_files)
+  return zip(matched_files,bg)
