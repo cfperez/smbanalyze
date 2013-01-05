@@ -2,10 +2,11 @@ from __future__ import with_statement
 import re
 import collections
 from datetime import datetime
+import os
 
 import numpy as np
 
-import Experiment
+from Types import FretData, PullData
 from useful import toNum, dotdict, toInt
 
 IMAGE_FILE = '.img'
@@ -13,6 +14,7 @@ CAMERA_FILE = '.cam'
 FRET_FILE = '.fret'
 PULL_FILE = '.str'
 
+change_extenion = lambda x,y: os.path.splitext(x)[0]+y
 add_img_ext = lambda x: x+IMAGE_FILE if not x.endswith(IMAGE_FILE) else x
 add_cam_ext = lambda x: x+CAMERA_FILE if not x.endswith(CAMERA_FILE) else x
 add_fret_ext = lambda x: x+FRET_FILE if not x.endswith(FRET_FILE) else x
@@ -197,10 +199,10 @@ def savesettings(filename, file_mode, **settings):
 
 def loadFRET(fname,**kwargs):
   header,data = loaddat(fname,**kwargs)
-  return Experiment.FretData(*data.T)
+  return FretData(*data.T)
 
 def loadPull(fname,**kwargs):
   header,data = loaddat(fname,comments=('#','/*'),**kwargs)
   if header != ['extension','force','trapdistance']:
 	raise IOError, "Stretch file must contain extension, force, and separation"
-  return Experiment.PullData(*data.T)
+  return PullData(*data.T)
