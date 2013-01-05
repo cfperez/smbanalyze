@@ -26,7 +26,7 @@ def setDefaultROI(*args):
   Stack.setDefaultROI(*args)
 
 def fromFile(filename, **kwargs):
-"fromFile(filename, [background='' or True]): Load Image from filename with optional background file to subtract"
+  "fromFile(filename, [background='' or True]): Load Image from filename with optional background file to subtract"
 
   bg = kwargs.pop('background', False)
   try:
