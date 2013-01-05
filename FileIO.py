@@ -14,7 +14,7 @@ CAMERA_FILE = '.cam'
 FRET_FILE = '.fret'
 PULL_FILE = '.str'
 
-change_extenion = lambda x,y: os.path.splitext(x)[0]+y
+change_extension = lambda x,y: os.path.splitext(x)[0]+y
 add_img_ext = lambda x: x+IMAGE_FILE if not x.endswith(IMAGE_FILE) else x
 add_cam_ext = lambda x: x+CAMERA_FILE if not x.endswith(CAMERA_FILE) else x
 add_fret_ext = lambda x: x+FRET_FILE if not x.endswith(FRET_FILE) else x
@@ -87,13 +87,13 @@ def loaddat(filename, **kwargs):
 
   with open(filename,'rU') as fh:
 	position = 0
-	for line in fh:
-	  position += 1
+	for number,line in enumerate(fh):
 	  if np.any( map(line.startswith, comment_line) ):
 		comments += line
 	  elif line.isspace():
 		continue
 	  elif colnames:
+		position = number
 		break
 	  elif any( map(str.isalnum, line.split()) ):
 	  	colnames = line.lower().split()
@@ -201,7 +201,7 @@ def loadFRET(fname,**kwargs):
   header,data = loaddat(fname,**kwargs)
   return FretData(*data.T)
 
-def loadPull(fname,**kwargs):
+def loadStr(fname,**kwargs):
   header,data = loaddat(fname,comments=('#','/*'),**kwargs)
   if header != ['extension','force','trapdistance']:
 	raise IOError, "Stretch file must contain extension, force, and separation"
