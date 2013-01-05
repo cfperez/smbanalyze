@@ -9,13 +9,44 @@ from numpy import concatenate,iterable
 import useful
 import Image
 import FileIO
-
-beta = 0.13
-gamma = 1.16
+import Constants
+from Types import FretData
 
 molID = lambda t: 's{0}m{1}'.format(t.slide,t.mol)
 molname = lambda t: 's{0}m{1}_{2}'.format(t.slide,t.mol,t.pull)
 pN = lambda f: 'f'+str(f)+'pN'
+
+def multiplot(*data, **kwargs):
+  names = kwargs.get('names',[None]*len(data))
+  prefix = kwargs.get('prefix','')
+  title = kwargs.get('title','')
+
+def singleplot(data, **kwargs):
+  title = kwargs.get('title','')
+  loc = kwargs.get('legend', 'best')
+
+  if kwargs.get('autofigure', False):
+    plt.figure()
+  elif not kwargs.get('hold',False):
+    plt.clf()
+
+  if hasattr(data,'fret'):
+    s = plt.subplot(212)
+    plt.plot(data.time, data.fret)
+    s.autoscale_view(tight=True)
+    plt.xlabel('Seconds')
+    plt.ylabel('FRET')
+    plt.subplot(211)
+
+  plt.hold(True)
+  plt.plot(data.time, data.donor, label='donor')
+  plt.plot(data.time, data.acceptor, label='acceptor')
+  plt.gca().autoscale_view(tight=True)
+  plt.ylabel('counts')
+  plt.hold()
+
+  plt.title(title)
+  plt.legend(loc=loc,ncol=2,prop={'size':'small'})
 
 def plot(*data, **kwargs):
   """loc=legend location (or None for off), title, hold (False for individual plots),
@@ -26,7 +57,7 @@ def plot(*data, **kwargs):
   hold = kwargs.get('hold',True)
 
   if len(data) == 1 and isinstance(data[0],list):
-	data = data[0]
+    data = data[0]
 
   # to prefix labels in plots
   names = kwargs.get('names',[None]*len(data))
@@ -34,64 +65,64 @@ def plot(*data, **kwargs):
   title = kwargs.get('title','')
 
   if len(names) != len(data):
-	raise ValueError, "Must have same number of names as traces to plot"
+    raise ValueError, "Must have same number of names as traces to plot"
 
   for name,trace in zip(names,data):
-	hasfret = kwargs.get('fret',hasattr(trace,'fret'))
-	if kwargs.get('FDC', hasattr(trace,'f')):
-	    FDC = (trace.sep, trace.f)
-	else:
-	    FDC = None
+    hasfret = kwargs.get('fret',hasattr(trace,'fret'))
+    if kwargs.get('FDC', hasattr(trace,'f')):
+      FDC = (trace.sep, trace.f)
+    else:
+      FDC = None
 
-	if not hold:
-	  plt.figure()
+    if not hold:
+      plt.figure()
 
-	fig_size = 1
-	if hasfret is not False:
-	    fig_size += 1
-	if FDC:
-	    fig_size += 1
+    fig_size = 1
+    if hasfret is not False:
+      fig_size += 1
+    if FDC:
+      fig_size += 1
 
-	#if hasfret is not False:
-	current_panel = 1
-	s = plt.subplot(fig_size,1,current_panel)
-        s.autoscale_view(tight=True)
-	plt.title(title)
+    #if hasfret is not False:
+    current_panel = 1
+    s = plt.subplot(fig_size,1,current_panel)
+    s.autoscale_view(tight=True)
+    plt.title(title)
 
-	name = name or getattr(trace,'molname','')
+    name = name or getattr(trace,'molname','')
 
-        if FDC:
-            plt.plot(*FDC,label=prefix+' '+name)
-            current_panel += 1
-            s=plt.subplot(fig_size,1,current_panel)
-            s.autoscale_view(tight=True)
+    if FDC:
+      plt.plot(*FDC,label=prefix+' '+name)
+      current_panel += 1
+      s=plt.subplot(fig_size,1,current_panel)
+      s.autoscale_view(tight=True)
 
-	x_axis = None
-	if hasattr(trace,'time'):
-	  x_axis = trace.time
-	  plt.xlabel('Seconds')
-        elif not hasattr(trace, 'donor'):
-          continue
-	else:
-	  x_axis = range(1,len(trace.donor)+1)
-	  plt.xlabel('Frames')
+    x_axis = None
+    if hasattr(trace,'time'):
+      x_axis = trace.time
+      plt.xlabel('Seconds')
+    elif not hasattr(trace, 'donor'):
+      continue
+    else:
+      x_axis = range(1,len(trace.donor)+1)
+      plt.xlabel('Frames')
 
-	plt.plot(x_axis, trace.donor, label=' '.join([prefix,name,'donor']))
-	plt.plot(x_axis, trace.acceptor,label=' '.join([prefix,name,'acceptor']))
-	plt.ylabel('Counts')
-	if loc:
-	  plt.legend(loc=loc,ncol=2,prop={'size':'small'})
+    plt.plot(x_axis, trace.donor, label=' '.join([prefix,name,'donor']))
+    plt.plot(x_axis, trace.acceptor,label=' '.join([prefix,name,'acceptor']))
+    plt.ylabel('Counts')
+    if loc:
+      plt.legend(loc=loc,ncol=2,prop={'size':'small'})
 
-        if hasfret is not False:
-            current_panel += 1
-            s=plt.subplot(fig_size,1,current_panel)
-            s.autoscale_view(tight=True)
-            plt.ylabel('FRET')
-            plt.xlabel('Frames')
-            if hasfret is True:
-                plt.plot( trace.fret, label=' '.join([prefix,name]))
-            else:
-                plt.plot(hasfret, label=' '.join([prefix,name]))
+    if hasfret is not False:
+      current_panel += 1
+      s=plt.subplot(fig_size,1,current_panel)
+      s.autoscale_view(tight=True)
+      plt.ylabel('FRET')
+      plt.xlabel('Frames')
+      if hasfret is True:
+        plt.plot( trace.fret, label=' '.join([prefix,name]))
+      else:
+        plt.plot(hasfret, label=' '.join([prefix,name]))
 
 def hist(*data, **kwargs):
   bins = kwargs.get('bins',50)
@@ -113,125 +144,146 @@ def hist(*data, **kwargs):
 
   return bins,counts
 
-def calc(stack, beta=beta, gamma=gamma, minsub=True):
-    """Calculates FRET of a pull from an Image.Stack
+def calculate(stack, beta=Constants.beta, gamma=Constants.gamma, minsub=True):
+  """
+Calculates FRET of a pull from an Image.Stack
 
-calc( Image.Stack, beta = Image.beta, gamma = Image.gamma)
+calculate( Image.Stack, beta = Image.beta, gamma = Image.gamma)
 
 RETURNS array of calculated FRET for each frame
 """
 
-    donor = stack.donor - (minsub and min(stack.donor))
-    acceptor = stack.acceptor - donor*beta
-    acceptor = acceptor - (minsub and min(acceptor))
+  donor = stack.donor - (minsub and min(stack.donor))
+  acceptor = stack.acceptor - donor*beta
+  acceptor = acceptor - (minsub and min(acceptor))
 
-    return acceptor/(acceptor+gamma*donor)
+  return FretData(stack.time, donor, acceptor, acceptor/(acceptor+gamma*donor))
 
 def calcToFile(stack, filename, **kwargs):
-    "saveFRETdata(fret, ImageStack, filename): saves donor,acceptor, FRET to 3 column text file"
+  "saveFRETdata(fret, ImageStack, filename): saves donor,acceptor, FRET to 3 column text file"
 
-    fretdata = calc(stack, **kwargs)
-    FileIO.savedat(filename, (stack.time,stack.donor,stack.acceptor,fretdata), header='time donor acceptor FRET', fmt=('%.3f','%u','%u','%.5f'))
-    return fretdata
+  fretdata = calculate(stack, **kwargs)
+  FileIO.savedat(filename, (stack.time,stack.donor,stack.acceptor,fretdata), header='time donor acceptor FRET', fmt=('%.3f','%u','%u','%.5f'))
+  return fretdata
+
+def save(filename, data):
+  try:
+    FileIO.savedat(filename, (data.time,data.donor,data.acceptor,data.fret), header='time donor acceptor FRET', fmt=('%.3f','%u','%u','%.5f'))
+  except AttributeError:
+    raise AttributeError('FRET.save expects argument with time, donor, acceptor, and fret attributes')
+
+def processFiles(flist, roi='roi.txt', background='background.img', ext=FileIO.FRET_FILE):
+  BG = Image.fromBackground(background)
+  ROIs = Image.ROI.fromFile(roi)
+
+  all_output = []
+  for fname in flist:
+    img = Image.fromFile(fname) - BG
+    img.addROI(*ROIs)
+    output = calculate(img)
+    save(FileIO.change_extension(fname,ext), output)
+    all_output += [output]
+
+  return all_output
 
 def calcDirectory(select='',*args, **kwargs):
 
-	dir = kwargs.get('dir')
-	roi_origin = kwargs.get('roi_origin','absolute')
-	verbose = 'verbose' in args or kwargs.get('verbose')
-	plotall = 'plotall' in args or kwargs.get('plotall')
-	hold = 'hold' in args or kwargs.get('hold')
-	saveplot = 'saveplot' in args or kwargs.get('saveplot')
-	aslist = 'aslist' in args or kwargs.get('aslist',False)
-	roi_file = kwargs.get('roi_file','roi.txt') # 'roi*' would be the convention
-	user_slide = kwargs.get('slide')
-	user_mol = kwargs.get('mol')
-	background = kwargs.get('background','')
+  dir = kwargs.get('dir')
+  roi_origin = kwargs.get('roi_origin','absolute')
+  verbose = 'verbose' in args or kwargs.get('verbose')
+  plotall = 'plotall' in args or kwargs.get('plotall')
+  hold = 'hold' in args or kwargs.get('hold')
+  saveplot = 'saveplot' in args or kwargs.get('saveplot')
+  aslist = 'aslist' in args or kwargs.get('aslist',False)
+  roi_file = kwargs.get('roi_file','roi.txt') # 'roi*' would be the convention
+  user_slide = kwargs.get('slide')
+  user_mol = kwargs.get('mol')
+  background = kwargs.get('background','')
 
-	old_dir = os.getcwd()
-	if dir:
-	  os.chdir(dir)
+  old_dir = os.getcwd()
+  if dir:
+    os.chdir(dir)
+
+  try:
+    if os.path.isfile(roi_file):
+      Image.setDefaultROI(
+        *Image.ROI.fromFile(roi_file, origin=roi_origin))
+      if verbose:
+        print "Using ROI file: %s" % roi_file
+
+    if not Image.Stack.defaultROI:
+      raise RuntimeError, "No ROIs set or loaded--cannot compute counts"
+
+    img_files = glob.glob('*.img')
+
+    if verbose:
+      print "Found files:\n%s\n" % '\n'.join(img_files)
+
+    BG = None             # current background image
+    results = [] if aslist else useful.dotdict() # output
+
+    for fname,background in matchImgFilestoBackground(img_files):
+
+      if select not in fname:
+        continue
+
+      basename, ext = os.path.splitext(fname)
+
+# Get molecule information from filename
+      finfo = FileIO.parseFilename(basename)
+      (construct, context, slide, mol, pull, force, min, sec,
+  series, isBackground) = finfo
+
+# Only process requested slide and molecules
+      if (not match_or_included(user_slide,slide) or 
+        not match_or_included(user_mol,mol)):
+        if verbose:
+          print "skipping " + fname
+        continue
+
+
+      image = Image.Stack(fname)
+
+      if background:
+        # Load the background file from disk only if needed
+        if BG is None or background != BG.filename:
+          BG = Image.fromBackground(background)
+        image = image - BG
+
+      if verbose:
+        print "Processing...\n\timage: %s\n\tbackground: %s\n" \
+              % (fname,background)
+
+      data = calcToFile( image, basename+'.fret' )
+
+      temp = useful.dotdict(image=image, fret=data, 
+        donor=image.donor, acceptor=image.acceptor,molname=molname(finfo))
+
+      if aslist:
+        temp.info = finfo
+        results += [temp]
+      else:
+        if force is not None:
+          results[construct][molID(finfo)][pN(force)][series] = temp
+        else:
+          results[construct][molID(finfo)][pull] = temp
+
+      last_slide = slide
+
+      if plotall:
+        plt.figure()
+        plot(image, fret=data, title=' '.join([construct, molname(finfo)]))
+
+        if saveplot:
+          plt.savefig('%s %s s%sm%s_%s.png' % (construct,
+            context.replace('_',' '), slide,mol,pull) )
     
-	try:
-	  if os.path.isfile(roi_file):
-		Image.setDefaultROI(
-		  *Image.ROI.fromFile(roi_file, origin=roi_origin))
-		if verbose:
-		  print "Using ROI file: %s" % roi_file
+  finally:
+    os.chdir(old_dir)
 
-	  if not Image.Stack.defaultROI:
-		raise RuntimeError, "No ROIs set or loaded--cannot compute counts"
-
-	  img_files = glob.glob('*.img')
-
-	  if verbose:
-		print "Found files:\n%s\n" % '\n'.join(img_files)
-
-	  BG = None             # current background image
-	  results = [] if aslist else useful.dotdict() # output
-
-	  for fname,background in matchImgFilestoBackground(img_files):
-
-		if select not in fname:
-		  continue
-
-		basename, ext = os.path.splitext(fname)
-
-        # Get molecule information from filename
-		finfo = FileIO.parseFilename(basename)
-		(construct, context, slide, mol, pull, force, min, sec,
-            series, isBackground) = finfo
-
-        # Only process requested slide and molecules
-		if (not match_or_included(user_slide,slide) or 
-		  not match_or_included(user_mol,mol)):
-		  if verbose:
-			print "skipping " + fname
-		  continue
-
-
-		image = Image.Stack(fname)
-
-		if background:
-		  # Load the background file from disk only if needed
-		  if BG is None or background != BG.filename:
-			BG = Image.fromBackground(background)
-		  image = image - BG
-
-		if verbose:
-		  print "Processing...\n\timage: %s\n\tbackground: %s\n" \
-			% (fname,background)
-
-		data = calcToFile( image, basename+'.fret' )
-
-		temp = useful.dotdict(image=image, fret=data, 
-		  donor=image.donor, acceptor=image.acceptor,molname=molname(finfo))
-
-		if aslist:
-		  temp.info = finfo
-		  results += [temp]
-		else:
-		  if force is not None:
-			results[construct][molID(finfo)][pN(force)][series] = temp
-		  else:
-			results[construct][molID(finfo)][pull] = temp
-
-		last_slide = slide
-
-		if plotall:
-		  plt.figure()
-		  plot(image, fret=data, title=' '.join([construct, molname(finfo)]))
-
-		  if saveplot:
-			plt.savefig('%s %s s%sm%s_%s.png' % (construct,
-			  context.replace('_',' '), slide,mol,pull) )
-	  
-	finally:
-	  os.chdir(old_dir)
-
-	if not aslist:
-	  results._lock()
-	return results
+  if not aslist:
+    results._lock()
+  return results
 
 # recursively search for background file with the most specific scope
 # using '_' convention of file naming
