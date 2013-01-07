@@ -137,7 +137,7 @@ Convert between 'absolute' and 'relative' coordinates:
       roi.origin = origin
       temp.append( cls.copy(roi) )
 
-    return temp(self)
+    return tuple(temp)
 
   @classmethod
   def copy(cls, roi, name='', origin=''):
@@ -226,6 +226,10 @@ Convert between 'absolute' and 'relative' coordinates:
   @property
   def height(self):
     return self.top-self.bottom+1
+
+  @property
+  def size(self):
+    return self.height*self.width
 
   def __repr__(self):
     if None in (self.left, self.right, self.bottom, self.top):
@@ -422,11 +426,14 @@ class Stack:
 
   def __add__(self, stack):
     temp = Stack(self)
-    try:
-      temp._img = temp._img + stack._img
-    except ValueError:
-      raise StackError("Couldn't add images: check sizes are the same")
-    return temp
+    if hasattr(stack,'_img'):
+      try:
+        temp._img = temp._img + stack._img
+      except ValueError:
+        raise StackError("Couldn't add images: check sizes are the same")
+    else:
+      temp._img = temp._img + stack
+      return temp
 
   def __neg__(self):
     temp = Stack(self)
