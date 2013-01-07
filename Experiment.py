@@ -1,5 +1,4 @@
 import os
-import collections
 import operator
 import glob
 
@@ -10,10 +9,7 @@ import FileIO
 import FRET
 import Image
 import Constants
-
-FretData = collections.namedtuple('FretData',('time','donor','acceptor','fret'))
-PullData = collections.namedtuple('PullData', ('ext','f','sep'))
-PullFretData = collections.namedtuple('PullingFretData',PullData._fields+FretData._fields)
+from Types import FretData,PullData,PullFretData
 
 class ExperimentError(Exception):
   pass
@@ -78,7 +74,7 @@ def loadPull(fileglob, **kwargs):
     pullfile = FileIO.add_pull_ext(basename)
     if verbose:
       print "\tLoading pulling data from %s" % pullfile
-    pulldata += [FileIO.loadPull(pullfile)]
+    pulldata += [FileIO.loadStr(pullfile)]
     
     finfo += [FileIO.parseFilename(filename)]
 
