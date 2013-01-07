@@ -172,8 +172,14 @@ def save(filename, data):
   except AttributeError:
     raise AttributeError('FRET.save expects argument with time, donor, acceptor, and fret attributes')
 
-def processFiles(flist, roi='roi.txt', background='background.img', ext=FileIO.FRET_FILE):
-  BG = Image.fromBackground(background)
+def processFiles(flist, roi='roi.txt', background=None, ext=FileIO.FRET_FILE):
+  "processFiles(filelist, roi='roi.txt', background=None, ext=Fret_File_extension)"
+
+  if background:
+    BG = Image.fromBackground(background)
+  else:
+    BG = Constants.default_background_subtract
+
   ROIs = Image.ROI.fromFile(roi)
 
   all_output = []
