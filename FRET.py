@@ -176,7 +176,7 @@ def processFiles(flist, roi='roi.txt', background=None, ext=FileIO.FRET_FILE):
   "processFiles(filelist, roi='roi.txt', background=None, ext=Fret_File_extension)"
 
   if background:
-    BG = Image.fromBackground(background)
+    BG = Image.fromFile(background,background=True)
   else:
     BG = Constants.default_background_subtract
 
@@ -253,7 +253,7 @@ def calcDirectory(select='',*args, **kwargs):
       if background:
         # Load the background file from disk only if needed
         if BG is None or background != BG.filename:
-          BG = Image.fromBackground(background)
+          BG = Image.fromFile(background, background=True)
         image = image - BG
 
       if verbose:

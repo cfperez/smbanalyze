@@ -26,7 +26,14 @@ def setDefaultROI(*args):
   Stack.setDefaultROI(*args)
 
 def fromFile(filename, **kwargs):
-  "fromFile(filename, [background='' or True]): Load Image from filename with optional background file to subtract"
+  """fromFile(filename, [background='' or True]): 
+  
+  Load Image from filename with optional background file or constant to subtract.
+
+  fromFile('image.img', background = 'filename') => load background file and subtract (SLOW!)
+  fromFile('background.img', background=True, [filter='median']) => load background.img as background file
+  fromFile('image.img', background=100) => subtract 100 from image as background level
+""" 
 
   bg = kwargs.pop('background', False)
   try:
@@ -35,13 +42,10 @@ def fromFile(filename, **kwargs):
     raise IOError("File %s can't be found/loaded" % filename)
 
   if bg is True:
-    NA,bg = FRET.matchImgFilestoBackground([filename])[0]
-    if not bg:
-      print "Warning! Did not find a background file for %s" % filename
-  if bg:
-    bg = fromBackground(bg, **kwargs)
-  else:
-    return img
+    return img.toBackground(**kwargs)
+  elif isinstance(bg,str):
+    bg = Stack(bg)
+    bg.toBackground(**kwargs)
 
   return img - bg
 
@@ -343,6 +347,18 @@ class Stack:
     for _roi in args:
         cls.defaultROI[_roi.name]=_roi
 
+  def toBackground(self,filter='median'):
+    width, height = self.width, self.height
+    if filter == 'median':
+      self._img = np.median( self._img, axis=0, overwrite_input=True ).reshape((1,height,width))
+    elif filter == 'mean':
+      self._img = np.mean( self._img, axis=0 ).reshape((1,height,width))
+    elif filter == 'min':
+      self._img = np.min( self._img, axis=0 ).reshape((1,height,width))
+    else:
+      raise ValueError, "Filter type can only be median, mean, or min"
+    return self
+
   def addROI(self, *ROIs):
     for roi in ROIs:
       try:
@@ -433,7 +449,8 @@ class Stack:
         raise StackError("Couldn't add images: check sizes are the same")
     else:
       temp._img = temp._img + stack
-      return temp
+
+    return temp
 
   def __neg__(self):
     temp = Stack(self)
