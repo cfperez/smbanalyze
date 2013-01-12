@@ -50,7 +50,7 @@ def loadPull(fileglob, **kwargs):
     if os.path.isfile(fretfile):
       if verbose:
         print "\tLoading fret from " + fretfile
-      fret += [FileIO.loadFRET(fretfile)]
+      fret += [FileIO.loadfret(fretfile)]
     elif os.path.isfile(imgfile):
       if verbose:
         print "\tCalculating fret from " + imgfile
@@ -74,7 +74,7 @@ def loadPull(fileglob, **kwargs):
     pullfile = FileIO.add_pull_ext(basename)
     if verbose:
       print "\tLoading pulling data from %s" % pullfile
-    pulldata += [FileIO.loadStr(pullfile)]
+    pulldata += [FileIO.loadstr(pullfile)]
     
     finfo += [FileIO.parseFilename(filename)]
 

@@ -197,11 +197,11 @@ def savesettings(filename, file_mode, **settings):
 		f.write( '%s=%s\n' % (str(key.capitalize()),str(value)) )
 
 
-def loadFRET(fname,**kwargs):
+def loadfret(fname,**kwargs):
   header,data = loaddat(fname,**kwargs)
   return FretData(*data.T)
 
-def loadStr(fname,**kwargs):
+def loadstr(fname,**kwargs):
   header,data = loaddat(fname,comments=('#','/*'),**kwargs)
   if header != ['extension','force','trapdistance']:
 	raise IOError, "Stretch file must contain extension, force, and separation"

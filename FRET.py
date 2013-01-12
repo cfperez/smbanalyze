@@ -2,9 +2,10 @@ import os
 import glob
 import re
 import operator
+from itertools import izip
 
 import matplotlib.pyplot as plt
-from numpy import concatenate,iterable
+from numpy import concatenate
 
 import useful
 import Image
@@ -21,34 +22,44 @@ def multiplot(*data, **kwargs):
   prefix = kwargs.get('prefix','')
   title = kwargs.get('title','')
 
-def singleplot(data, **kwargs):
-  title = kwargs.get('title','')
+def plot(datalist, **kwargs):
   loc = kwargs.get('legend', 'best')
+  titles = kwargs.get('title',('',))
 
-  if kwargs.get('autofigure', False):
-    plt.figure()
-  elif not kwargs.get('hold',False):
-    plt.clf()
+  if not isinstance(datalist,list):
+    datalist=[datalist]
 
-  if hasattr(data,'fret'):
-    s = plt.subplot(212)
-    plt.plot(data.time, data.fret)
-    s.autoscale_view(tight=True)
-    plt.xlabel('Seconds')
-    plt.ylabel('FRET')
-    plt.subplot(211)
+  if not isinstance(titles,tuple):
+    titles = (titles,)
 
-  plt.hold(True)
-  plt.plot(data.time, data.donor, label='donor')
-  plt.plot(data.time, data.acceptor, label='acceptor')
-  plt.gca().autoscale_view(tight=True)
-  plt.ylabel('counts')
-  plt.hold()
+  figures=[]
+  for data,title in izip(datalist,titles):
+    if len(datalist)>1 or kwargs.get('autofigure', False):
+      figures += [plt.figure()]
+    elif not kwargs.get('hold',False):
+      plt.clf()
 
-  plt.title(title)
-  plt.legend(loc=loc,ncol=2,prop={'size':'small'})
+    if hasattr(data,'fret'):
+      s = plt.subplot(212)
+      plt.plot(data.time, data.fret)
+      s.autoscale_view(tight=True)
+      plt.xlabel('Seconds')
+      plt.ylabel('FRET')
+      plt.subplot(211)
 
-def plot(*data, **kwargs):
+    plt.hold(True)
+    plt.plot(data.time, data.donor, label='donor')
+    plt.plot(data.time, data.acceptor, label='acceptor')
+    plt.gca().autoscale_view(tight=True)
+    plt.ylabel('counts')
+    plt.hold()
+
+    plt.title(title)
+    plt.legend(loc=loc,ncol=2,prop={'size':'small'})
+
+  return figures
+
+def oldplot(*data, **kwargs):
   """loc=legend location (or None for off), title, hold (False for individual plots),
   names=labels for individual traces (must equal number of traces)
   prefix=for all traces in legend"""
@@ -145,13 +156,12 @@ def hist(*data, **kwargs):
   return bins,counts
 
 def calculate(stack, beta=Constants.beta, gamma=Constants.gamma, minsub=True):
+  """Calculates FRET of a pull from an Image.Stack
+
+  calculate( Image.Stack, beta = Image.beta, gamma = Image.gamma)
+
+  RETURNS array of calculated FRET for each frame
   """
-Calculates FRET of a pull from an Image.Stack
-
-calculate( Image.Stack, beta = Image.beta, gamma = Image.gamma)
-
-RETURNS array of calculated FRET for each frame
-"""
 
   donor = stack.donor - (minsub and min(stack.donor))
   acceptor = stack.acceptor - donor*beta
