@@ -2,6 +2,7 @@ from __future__ import with_statement
 from operator import methodcaller
 import os.path
 import copy
+import operator
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -201,23 +202,21 @@ Convert between 'absolute' and 'relative' coordinates:
     FileIO.savesettings(self.filename, mode,
       **{self.name: self.toDict()} )
 
-  def toAbsolute(self,origin):
+  def _convert(self,origin):
+    (self.left,self.bottom,self.right,self.top) = map(
+        operator.add,(self.left,self.bottom,self.right,self.top), origin*2)
+    
+  def toAbsolute(self,origin_coord):
     if self.origin != 'absolute':
-      self.left+=origin[0]
-      self.right+=origin[0]
-      self.bottom+=origin[1]
-      self.top+=origin[1]
+      self._convert(origin_coord)
       self.origin='absolute'
     return self
 
-  def toRelative(self,origin):
+  def toRelative(self,origin_coord):
     if self.origin == 'relative':
         return self
     elif self.origin == 'absolute':
-      self.left-=origin[0]
-      self.right-=origin[0]
-      self.bottom-=origin[1]
-      self.top-=origin[1]
+      self._convert(useful.negate(origin_coord))
       self.origin = 'relative'
       return self
     else:
