@@ -25,7 +25,7 @@ image.times
 
 # display frames -- starts with 0
 image_bg.show(0)
-image._bg.show(10)
+image_bg.show(10)
 ```
 
 Get out the donor/acceptor counts:
