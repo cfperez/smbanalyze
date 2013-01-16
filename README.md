@@ -16,6 +16,16 @@ image_bg = Image.fromFile('filename.img', background='bg_filename.img')
 
 # is true!
 image - background == image_bg
+
+# Properties
+image.frames
+image.width
+image.height
+image.times
+
+# display frames -- starts with 0
+image_bg.show(0)
+image._bg.show(10)
 ```
 
 Get out the donor/acceptor counts:
@@ -32,3 +42,22 @@ image_bg.addROI(donorROI,acceptorROI)
 
 donor,acceptor = image_bg.donor,image_bg.acceptor
 ```
+
+Origin reflects whether the pixels are numbered with respect to the CCD origin ('absolute') or the image origin ('relative'). Absolute ROIs are robust to changes in the subimage coordinates.
+
+To calculate fret:
+
+```python
+fret = FRET.calculate(image_bg) # optional: beta= , gamma=
+
+# Access as named fields
+fret.time, fret.donor, fret.acceptor, fret.fret
+
+# or as a tuple (order matters!)
+T,donor,acceptor,f = fret
+
+# and save to a file
+FRET.save('saveTo.fret', fret)
+```
+
+`fret` is a special "named tuple" from the collections package in the python library with more flexible usage, as shown above. Don't be confused; it's just a tuple in which each position also has a name which you can see with `fret._fields`.
