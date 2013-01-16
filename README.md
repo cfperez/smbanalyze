@@ -61,3 +61,16 @@ FRET.save('saveTo.fret', fret)
 ```
 
 `fret` is a special "named tuple" from the collections package in the python library with more flexible usage, as shown above. Don't be confused; it's just a tuple in which each position also has a name which you can see with `fret._fields`.
+
+Plot the data:
+
+```python
+FRET.plot(fret, title='test1')
+
+# Rerunning this command overwrites the current figure
+# but if you want a new figure
+figure()
+FRET.plot(fret)
+
+# or display them all at once (for illustration, just using same fret object)
+FRET.plot([fret,fret,fret], title=('title1','title2','title3'))
