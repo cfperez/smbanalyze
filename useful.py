@@ -15,6 +15,9 @@ def toInt(s):
 	s = toNum(s)
 	return int(s) if s else None
 
+def negate(it):
+  return [-i for i in it]
+
 class dotdict(dict):
   def __init__(self,*args,**kwargs):
 	super(dotdict,self).__init__(*args,**kwargs)
