@@ -9,10 +9,10 @@ Load the package:
 Loading a single image:
 
 ```python
-image = Image.fromFile('filename.img')
-background = Image.fromFile('bg_filename.img', background=True)
+image = Image.fromFile('test1.img')
+background = Image.fromFile('background.img', background=True)
 
-image_bg = Image.fromFile('filename.img', background='bg_filename.img')
+image_bg = Image.fromFile('test1.img', background='background.img')
 
 # is true!
 image - background == image_bg
@@ -31,7 +31,7 @@ image_bg.show(10)
 Get out the donor/acceptor counts:
 
 ```python
-ROIs = Image.ROI.fromFile('roi.txt')
+ROIs = Image.ROI.fromFile('roi1.txt')
 image_bg.addROI(*ROIs)
 
 # or bottom,left and top,right and origin
