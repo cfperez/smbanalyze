@@ -24,13 +24,19 @@ def multiplot(*data, **kwargs):
 
 def plot(datalist, **kwargs):
   loc = kwargs.get('legend', 'best')
-  title = kwargs.get('title','')
+  titles = kwargs.get('title',('',))
 
   if not isinstance(datalist,list):
     datalist=[datalist]
 
+  if not (isinstance(titles,tuple) or isinstance(titles,list)):
+    titles = (titles,)
+
+  if len(titles) < len(datalist):
+    titles += (titles[-1],) * (len(datalist)-len(titles))
+
   figures=[]
-  for data in datalist:
+  for data,title in izip(datalist,titles):
     if len(datalist)>1 or kwargs.get('autofigure', False):
       figures += [plt.figure()]
     elif not kwargs.get('hold',False):
@@ -51,9 +57,8 @@ def plot(datalist, **kwargs):
     plt.ylabel('counts')
     plt.hold()
 
+    plt.title(title)
     plt.legend(loc=loc,ncol=2,prop={'size':'small'})
-
-  plt.title(title)
 
   return figures
 
