@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit,fmin_bfgs
 import numpy as np 
 
-from Experiment import parameters,kT
+from Constants import parameters,kT
 import useful
 
 class FitError(Exception):
