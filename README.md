@@ -16,4 +16,4 @@ image_bg_subtracted = Image.fromFile('filename.img', background='bg_filename.img
 
 # is true!
 image - background == image_bg_subtracted
-'''
+```
