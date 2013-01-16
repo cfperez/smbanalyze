@@ -155,7 +155,7 @@ def hist(*data, **kwargs):
 
   return bins,counts
 
-def calculate(stack, beta=Constants.beta, gamma=Constants.gamma, minsub=True):
+def calculate(stack, beta=Constants.beta, gamma=Constants.gamma, minsub=False):
   """Calculates FRET of a pull from an Image.Stack
 
   calculate( Image.Stack, beta = Image.beta, gamma = Image.gamma)
@@ -181,6 +181,9 @@ def save(filename, data):
     FileIO.savedat(filename, (data.time,data.donor,data.acceptor,data.fret), header='time donor acceptor FRET', fmt=('%.3f','%u','%u','%.5f'))
   except AttributeError:
     raise AttributeError('FRET.save expects argument with time, donor, acceptor, and fret attributes')
+
+def load(filename, **kwargs):
+  return FileIO.loadfret(filename, **kwargs)
 
 def processFiles(flist, roi='roi.txt', background=None, ext=FileIO.FRET_FILE):
   "processFiles(filelist, roi='roi.txt', background=None, ext=Fret_File_extension)"
