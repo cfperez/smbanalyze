@@ -57,7 +57,7 @@ fret.time, fret.donor, fret.acceptor, fret.fret
 T,donor,acceptor,f = fret
 
 # and save to a file
-FRET.save('saveTo.fret', fret)
+FRET.toFile('saveTo.fret', fret)
 ```
 
 `fret` is a special "named tuple" from the collections package in the python library with more flexible usage, as shown above. Don't be confused; it's just a tuple in which each position also has a name which you can see with `fret._fields`.
@@ -72,5 +72,12 @@ FRET.plot(fret, title='test1')
 figure()
 FRET.plot(fret)
 
-# or display them all at once (for illustration, just using same fret object)
-FRET.plot([fret,fret,fret], title=('title1','title2','title3'))
+# and if you have pulling data
+pull = FileIO.loadstr('test1.str')
+FRET.plot(fret, pull=pull)
+
+# and if you want to see an FEC
+FRET.plot(pull, FEC=True)
+# this works too, though they don't align
+FRET.plot(fret, pull, FEC=True)
+```
