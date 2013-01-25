@@ -1,19 +1,26 @@
 from functools import wraps
 from inspect import getargspec
+from itertools import izip_longest, takewhile
 
 import numpy as np
 
 def toNum(s):
   if s is None:
-	return None
+    return None
   try:
-	return int(s)
+    return int(s)
   except ValueError:
-	return float(s)
+    return float(s)
 
 def toInt(s):
-	s = toNum(s)
-	return int(s) if s else None
+  s = toNum(s)
+  return int(s) if s else None
+
+def isInt(s):
+  try:
+    return s == str(toInt(s))
+  except ValueError:
+    return False
 
 def negate(it):
   return [-i for i in it]
@@ -146,3 +153,25 @@ def trace(f):
 
   return _f
 
+def grouper(n, iterable, fillvalue=None):
+  "Collect data into fixed-length chunks"
+  args = [iter(iterable)] * n
+  return izip_longest(fillvalue=fillvalue, *args)
+
+def groupat(predicate, iterable, size=2):
+
+  _fill = lambda x: x+(None,)*(size-len(x))
+  out = ()
+  for x in iterable:
+    if predicate(x) and out:
+      yield _fill(out)
+      out = (x,)
+    else:
+      out += (x,)
+
+  yield _fill(out)
+
+if __name__=='__main__':
+  test_list = 'ABCDEF'
+  for x,y in grouper(2,test_list):
+    print x,y
