@@ -25,6 +25,7 @@ def multiplot(*data, **kwargs):
 def plot(datalist, **kwargs):
   loc = kwargs.get('legend', 'best')
   titles = kwargs.get('title',('',))
+  numplot = kwargs.get('numplot',2)
 
   if not isinstance(datalist,list):
     datalist=[datalist]
@@ -43,12 +44,12 @@ def plot(datalist, **kwargs):
       plt.clf()
 
     if hasattr(data,'fret'):
-      s = plt.subplot(212)
+      s = plt.subplot(numplot,1,2)
       plt.plot(data.time, data.fret)
       s.autoscale_view(tight=True)
       plt.xlabel('Seconds')
       plt.ylabel('FRET')
-      plt.subplot(211)
+      plt.subplot(numplot,1,1)
 
     plt.hold(True)
     plt.plot(data.time, data.donor, label='donor')
@@ -179,13 +180,13 @@ def calcToFile(stack, filename, **kwargs):
   FileIO.savedat(filename, (stack.time,stack.donor,stack.acceptor,fretdata), header='time donor acceptor FRET', fmt=('%.3f','%u','%u','%.5f'))
   return fretdata
 
-def save(filename, data):
+def toFile(filename, data):
   try:
     FileIO.savedat(filename, (data.time,data.donor,data.acceptor,data.fret), header='time donor acceptor FRET', fmt=('%.3f','%u','%u','%.5f'))
   except AttributeError:
     raise AttributeError('FRET.save expects argument with time, donor, acceptor, and fret attributes')
 
-def load(filename, **kwargs):
+def fromFile(filename, **kwargs):
   return FileIO.loadfret(filename, **kwargs)
 
 def processFiles(flist, roi='roi.txt', background=None, ext=FileIO.FRET_FILE):
@@ -203,7 +204,7 @@ def processFiles(flist, roi='roi.txt', background=None, ext=FileIO.FRET_FILE):
     img = Image.fromFile(fname) - BG
     img.addROI(*ROIs)
     output = calculate(img)
-    save(FileIO.change_extension(fname,ext), output)
+    toFile(FileIO.change_extension(fname,ext), output)
     all_output += [output]
 
   return all_output
