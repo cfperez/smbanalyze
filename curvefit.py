@@ -1,5 +1,6 @@
 import inspect
 from functools import wraps
+from itertools import izip
 from numpy import arccos, cos, exp, sqrt, log, fabs, pi
 
 import matplotlib.pyplot as plt
@@ -12,18 +13,9 @@ import useful
 class FitError(Exception):
   pass
 
-def broadcast(f,var=None):
-
-  @wraps(f)
-  def _f(X,*args):
-    if np.iterable(X):
-      return np.array([f(x,*args) for x in X])
-    else:
-      return f(X,*args)
-  _f.arglist = inspect.getargspec(f).args
-
-  return _f
-
+############################################################
+## Fitting Functions
+############################################################
 def gauss(x,mu,sigma,A):
   return A*np.exp( -(x-float(mu))**2 / (2*sigma**2) )
 
@@ -32,7 +24,6 @@ def doublegauss(x,mu,sigma,A,mu2,sigma2,A2):
 
 def MS(x,Lp,Lc,F0):
   "MS(x, Lp, Lc, K) = Marko-Siggia model of worm-like chain"
-
   x_ = x/float(Lc)
   A = kT(parameters['T'])/Lp
   return A * (0.25/(1-x_)**2 - 0.25 +x_) + F0
@@ -72,7 +63,9 @@ def MMS2(F,Lp,Lc,K):
       B = exp( log(-v-sqrt(0.015625 - ((Lp_*F-0.75)**3/108) ) ) )
       return -Lc*(fabs(A+B) + L)
 
-  return np.array([calc(u,v,L) for u,v,L in zip(U,V,L_)])
+  return np.array([calc(u,v,L) for u,v,L in izip(U,V,L_)])
+  #return calc(U,V,L_)
+MMS2.default = MS.default
 
 def MMS(x,Lp,Lc,K,startf=20.):
   x_ = x/float(Lc)
@@ -104,6 +97,21 @@ def funcBuilder(func,num):
 def apply(fitfunc,*args):
   return lambda x: fitfunc(x,*args)
 
+def broadcast(f,var=None):
+
+  @wraps(f)
+  def _f(X,*args):
+    if np.iterable(X):
+      return np.array([f(x,*args) for x in X])
+    else:
+      return f(X,*args)
+  _f.arglist = inspect.getargspec(f).args
+
+  return _f
+
+############################################################
+## Fit class
+############################################################
 class Fit(object):
   def __init__(self, fitfunc, x, y, **kwargs):
     "Initialize to a specific fitting function, optionally fitting to data specified"
@@ -112,8 +120,8 @@ class Fit(object):
 
     self.x = x
 
-    if isinstance(fitfunc,str):
-      fitfunc = eval(fitfunc)
+    #if isinstance(fitfunc,str):
+    #  fitfunc = eval(fitfunc)
 
     # Use inspection to get parameter names from fit function
     # assuming first argument is independent variable
@@ -149,12 +157,10 @@ class Fit(object):
     self.param_names = tuple(arg_names)
 
     if verbose:
-      print "Fitting with parameters {}".format(','.join(['{}={:.2f}'.format(*p) for p
+      print "Fitting with parameters {0}".format(','.join(['{0}={1:.2f}'.format(*p) for p
         in zip(self.param_names,self.params)]))
 
   def __call__(self,x=None):
-	#if x == self.x:
-	#  return self.fitY
 	return self.fitfunc(x,*self.params)
 	
   def __getitem__(self,key):
@@ -165,7 +171,7 @@ class Fit(object):
 
   def plot(self,x=None,**kwargs):
 	if x is None:
-	  x= self.x
+	  x = self.x
 	return plt.plot(x,self(x),**kwargs)
 
   def __repr__(self):
@@ -173,7 +179,7 @@ class Fit(object):
 	  return self.fitfunc.func_name + ': ' + \
 		'; '.join(name+'='+str(value) for name,value in zip(self.fitfunc.params,self.params))
 	else:
-	  return '<Fit {} using params {}'.format(self.fitfunc.func_name,list(self))
+	  return '<Fit {0} using params {1}'.format(self.fitfunc.func_name,list(self))
 
   def toFile(self,filename):
 	raise NotImplementedError
