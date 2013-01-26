@@ -70,7 +70,7 @@ def plot(data, pull=None, **kwargs):
 
   if hasPullData(data):
     x_coord = data.ext if FEC else data.sep
-    _subplot(x_coord, data.f, layout=next(layout), axes=('Sep (nm)','Force (pN)'))
+    _subplot(x_coord, data.f, '.', layout=next(layout), axes=('Sep (nm)','Force (pN)'))
 
 def subplotsNeeded(data):
   num = 0
