@@ -3,6 +3,7 @@ import re
 import collections
 from datetime import datetime
 import os
+import operator
 
 import numpy as np
 
@@ -20,63 +21,12 @@ add_cam_ext = lambda x: x+CAMERA_FILE if not x.endswith(CAMERA_FILE) else x
 add_fret_ext = lambda x: x+FRET_FILE if not x.endswith(FRET_FILE) else x
 add_pull_ext = lambda x: x+PULL_FILE if not x.endswith(PULL_FILE) else x
 
-_named_ = lambda n,p: r'(?P<%s>%s)' % (n,p)
-_opt_unit_ = lambda n,p,u: r'(?:_%s%s)?' % (_named_(n,p),u)
-_opt_ = lambda n,p: _opt_unit_(n,p,'')
-_opt_time_ = r'(?:_(?:(\d+)min)?(?:(\d+)s)?)?'
-_build_pattern_ = lambda *x: ''.join(x)+'(?:\.\w+)?$'
+LOAD_FUNCTIONS = dict((func.extension,func) for func in 
+  filter(lambda x: hasattr(x,'extension'), globals().values()))
 
-_ALPHANUM_ = r'[a-zA-Z0-9]+'
-
-FILENAME_SYNTAX = _build_pattern_( 
-	'_'.join( [
-	  _named_('construct',_ALPHANUM_),
-	  _named_('conditions','.*'),
-	  r's(?P<slide>\d+)(?:m(?P<mol>\d+))?'] ) +
-	_opt_('pull',r'\d+') + _opt_unit_('force',r'\d+','pN') + _opt_time_ + _opt_('series',r'\d+') \
-	+ _opt_('isBackground',r'background') )
-
-Pattern = re.compile(FILENAME_SYNTAX)
-
-FILENAME_FIELDS = ( 'construct', 'conditions', 'slide', 'mol', 'pull',
-  'force', 'min', 'sec', 'series', 'isBackground' )
-
-FileInfo = collections.namedtuple('FileInfo', FILENAME_FIELDS)
-
-# construct, conditions, slide, mol, pull
-basePattern = re.compile(r'^(?P<construct>[a-zA-Z0-9]+)_(.*)_s(\d+)(?:m(\d+))?'+_opt_('pull',r'\d+'))
-
-forcePattern = re.compile(r'_(\d+)pN')
-
-# min, sec, series
-timePattern = re.compile(r'_(?:(\d+)min)?(?:(\d+)s)?(?:_(\d+))?(?:_|$)')
-
-bgPattern = re.compile(r'_background')
-
-COMMENT_LINE = '#'
-
-
-def parseFilename(filename):
-	#construct,conditions,slide,mol,pull=basePattern.match(filename).groups()
-	#slide=int(slide); mol=int(mol); pull=int(pull)
-
-	#force=toNum(forcePattern.search(filename).group(1))
-
-	#min,sec,series=map(toNum, timePattern.search(filename).groups())
-
-	#background = bgPattern.search(filename) is not None
-	(construct, conditions, slide, mol, pull, force, min, sec,
-	  series, isBackground) = Pattern.match(filename).groups()
-
-	slide = toInt(slide)
-	mol = toInt(mol)
-	pull = toInt(pull) or 1
-	force = toNum(force)
-	min,sec,series = map(toInt,(min,sec,series))
-	series = (series or 1) if min or sec else series
-	isBackground = isBackground is not None
-
-	return FileInfo(construct,conditions,slide,mol,pull,force,min,sec,series,isBackground)
+def load(fname, **kwargs):
+  base,extension = os.path.splitext(fname)
+  return LOAD_FUNCTIONS[extension](fname,**kwargs)
 
 def loaddat(filename, **kwargs):
 
@@ -140,6 +90,7 @@ def loadimg(filename, datatype='>h', **kwargs):
 	    (filename, img_size[0], img_size[1], img_size[2]))
     
     return img
+loadimg.extension=IMAGE_FILE
 
 def loadcam(filename):
     "Return dictionary of camera settings as contained in .cam file"
@@ -162,6 +113,7 @@ def loadcam(filename):
 	    settings[key.lower()] = value
 
     return settings
+loadcam.extension=CAMERA_FILE
 
 
 def loadsettings(filename, **kwargs):
@@ -200,9 +152,72 @@ def savesettings(filename, file_mode, **settings):
 def loadfret(fname,**kwargs):
   header,data = loaddat(fname,**kwargs)
   return FretData(*data.T)
+loadfret.extension=FRET_FILE
 
 def loadstr(fname,**kwargs):
   header,data = loaddat(fname,comments=('#','/*'),**kwargs)
   if header != ['extension','force','trapdistance']:
 	raise IOError, "Stretch file must contain extension, force, and separation"
   return PullData(*data.T)
+loadstr.extension=PULL_FILE
+
+##################################################
+## Filename Parsing
+##################################################
+_named_ = lambda n,p: r'(?P<%s>%s)' % (n,p)
+_opt_unit_ = lambda n,p,u: r'(?:_%s%s)?' % (_named_(n,p),u)
+_opt_ = lambda n,p: _opt_unit_(n,p,'')
+_opt_time_ = r'(?:_(?:(\d+)min)?(?:(\d+)s)?)?'
+_build_pattern_ = lambda *x: ''.join(x)+'(?:\.\w+)?$'
+
+_ALPHANUM_ = r'[a-zA-Z0-9]+'
+
+FILENAME_SYNTAX = _build_pattern_( 
+	'_'.join( [
+	  _named_('construct',_ALPHANUM_),
+	  _named_('conditions','.*'),
+	  r's(?P<slide>\d+)(?:m(?P<mol>\d+))?'] ) +
+	_opt_('pull',r'\d+') + _opt_unit_('force',r'\d+','pN') + _opt_time_ + _opt_('series',r'\d+') \
+	+ _opt_('isBackground',r'background') )
+
+Pattern = re.compile(FILENAME_SYNTAX)
+
+FILENAME_FIELDS = ( 'construct', 'conditions', 'slide', 'mol', 'pull',
+  'force', 'min', 'sec', 'series', 'isBackground' )
+
+FileInfo = collections.namedtuple('FileInfo', FILENAME_FIELDS)
+
+# construct, conditions, slide, mol, pull
+basePattern = re.compile(r'^(?P<construct>[a-zA-Z0-9]+)_(.*)_s(\d+)(?:m(\d+))?'+_opt_('pull',r'\d+'))
+
+forcePattern = re.compile(r'_(\d+)pN')
+
+# min, sec, series
+timePattern = re.compile(r'_(?:(\d+)min)?(?:(\d+)s)?(?:_(\d+))?(?:_|$)')
+
+bgPattern = re.compile(r'_background')
+
+COMMENT_LINE = '#'
+
+
+def parseFilename(filename):
+	#construct,conditions,slide,mol,pull=basePattern.match(filename).groups()
+	#slide=int(slide); mol=int(mol); pull=int(pull)
+
+	#force=toNum(forcePattern.search(filename).group(1))
+
+	#min,sec,series=map(toNum, timePattern.search(filename).groups())
+
+	#background = bgPattern.search(filename) is not None
+	(construct, conditions, slide, mol, pull, force, min, sec,
+	  series, isBackground) = Pattern.match(filename).groups()
+
+	slide = toInt(slide)
+	mol = toInt(mol)
+	pull = toInt(pull) or 1
+	force = toNum(force)
+	min,sec,series = map(toInt,(min,sec,series))
+	series = (series or 1) if min or sec else series
+	isBackground = isBackground is not None
+
+	return FileInfo(construct,conditions,slide,mol,pull,force,min,sec,series,isBackground)
