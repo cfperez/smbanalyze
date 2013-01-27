@@ -219,12 +219,10 @@ COMMENT_LINE = '#'
 def parseFilename(filename):
   #construct,conditions,slide,mol,pull=basePattern.match(filename).groups()
   #slide=int(slide); mol=int(mol); pull=int(pull)
-
   #force=toNum(forcePattern.search(filename).group(1))
-
   #min,sec,series=map(toNum, timePattern.search(filename).groups())
-
   #background = bgPattern.search(filename) is not None
+
   (construct, conditions, slide, mol, pull, force, min, sec,
     series, isBackground) = Pattern.match(filename).groups()
 
