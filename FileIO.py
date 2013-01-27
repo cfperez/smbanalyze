@@ -9,7 +9,7 @@ from inspect import isfunction
 import numpy as np
 
 from Types import FretData, PullData
-from useful import toNum, dotdict, toInt
+from useful import toNum, toInt
 
 IMAGE_FILE = '.img'
 CAMERA_FILE = '.cam'
@@ -29,10 +29,31 @@ def load(fname, **kwargs):
   base,extension = os.path.splitext(fname)
   return LOAD_FUNCTIONS[extension](fname,**kwargs)
 
+def commentsToSettings(comments):
+  return parseSettings(comments,float)
+
+def loadfret(fname,**kwargs):
+  comments,header,data = loaddat(fname,**kwargs)
+  return FretData(*data.T)
+loadfret.extension=FRET_FILE
+
+def loadstr(fname,**kwargs):
+  metaparser = kwargs.pop('commentparser', None)
+  comments,header,data = loaddat(fname,comments=('#','/*'),**kwargs)
+  if header != ['extension','force','trapdistance']:
+    raise IOError, "Stretch file must contain extension, force, and separation"
+
+  if metaparser:
+    metadata = metaparser(comments) if isfunction(metaparser) else comments
+    return metadata,PullData(*data.T)
+
+  return PullData(*data.T)
+loadstr.extension=PULL_FILE
+
+
 def loaddat(filename, **kwargs):
 
   comment_line = kwargs.pop('comments', COMMENT_LINE)
-  metaparser = kwargs.pop('metaparser', None)
 
   colnames = None
   comments = ''
@@ -41,7 +62,7 @@ def loaddat(filename, **kwargs):
     position = 0
     for number,line in enumerate(fh):
       if np.any( map(line.startswith, comment_line) ):
-        comments += line
+        comments += line.strip(' '+''.join(comment_line))
       elif line.isspace():
         continue
       elif colnames:
@@ -53,11 +74,7 @@ def loaddat(filename, **kwargs):
     fh.seek(0)
     data = np.loadtxt(fh, skiprows=position, **kwargs)
 
-  if metaparser:
-    metadata = metaparser(comments) if isfunction(metaparser) else comments
-    return metadata, colnames, data
-
-  return colnames, data
+  return comments.splitlines(), colnames, data
 
 def savedat(filename, data, header='', comments='', fmt='%.9e', delimiter='\t'):
 
@@ -117,51 +134,48 @@ def loadcam(filename):
   return settings
 loadcam.extension=CAMERA_FILE
 
-
 def loadsettings(filename, **kwargs):
   "Return dictionary of key/value pairs from LabView-style configuration file"
 
   cast = kwargs.get('cast') or str
 
-  settings = dotdict()
   with open(filename) as f:
-    header = None
-    for line in f:
-      line = line.strip()
-      if line == '':
-        continue
+    return parseSettings(f,cast)
 
-      m = re.match(r'\[(\w+)\]',line)
-      if m:
-        header = m.group(1).lower()
-      else:
-        key,value = line.split('=')
-        settings[header][key.strip().lower()] = cast(value)
+def strip_blank(iter_str):
+  for line in iter_str:
+    line=line.strip()
+    if line != '': yield line
+      
+def parseSettings(input_iter, cast):
+  heading = None
+  settings = {}
+  for line in strip_blank(input_iter):
+    header,key,value = parseLineForSettings(line)
+    if not header:
+      if heading: settings[heading] = {key: cast(value)}
+      else: settings[key]=cast(value)
+    else:
+      heading=header
+  return settings
 
-    return settings
-
+def parseLineForSettings(line):
+  m = re.match(r'\[(\w+)\]',line)
+  if m:
+    header = m.group(1).lower()
+    return header,None,None
+  else:
+    key,value = line.split('=')
+    return None,key.strip().lower(),value.strip()
+  
 def savesettings(filename, file_mode, **settings):
   "save key/value object into LabView-style configuration file"
 
   with open(filename, file_mode) as f:
     for key in settings:
       f.write( '[%s]\n' % key.capitalize() )
-
       for key,value in settings[key].iteritems():
         f.write( '%s=%s\n' % (str(key.capitalize()),str(value)) )
-
-
-def loadfret(fname,**kwargs):
-  header,data = loaddat(fname,**kwargs)
-  return FretData(*data.T)
-loadfret.extension=FRET_FILE
-
-def loadstr(fname,**kwargs):
-  header,data = loaddat(fname,comments=('#','/*'),**kwargs)
-  if header != ['extension','force','trapdistance']:
-    raise IOError, "Stretch file must contain extension, force, and separation"
-  return PullData(*data.T)
-loadstr.extension=PULL_FILE
 
 ##################################################
 ## Filename Parsing
