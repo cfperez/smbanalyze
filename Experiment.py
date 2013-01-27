@@ -13,6 +13,9 @@ from Types import *
 class ExperimentError(Exception):
   pass
 
+def fromFiles(*filelist):
+  return [Pulling.fromFile(fname) for fname in filelist]
+
 class Base(object):
   ".fret .f .ext and other meta-data (sample rate, pull speeds, )"
   # also classmethods which change experimental constants like bead radii,
