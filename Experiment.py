@@ -14,6 +14,9 @@ from Types import *
 class ExperimentError(Exception):
   pass
 
+def fromGlob(*fglob):
+  return fromFiles(*glob.glob('*'+'*'.join(fglob)+'*.str'))
+
 def fromFiles(*filelist):
   return [Pulling.fromFile(fname) for fname in filelist]
 
@@ -36,15 +39,15 @@ class Base(object):
     raise AttributeError("'%s' has no attribute %s" % 
       (self.__class__.__name__,attr))
 
-  def plot(self):
-    raise NotImplementedError
+  def __repr__(self):
+    if hasattr(self,'file'):
+      return "<%s from '%s'>" % (self.__class__.__name__, self.file)
 
   def plot(self):
     raise NotImplementedError
 
-  @property
-  def molname(self):
-    return FRET.molname(self)
+  def plot(self):
+    raise NotImplementedError
 
 class Pulling(Base):
   "stretching curves of single molecule .str camera .cam image .img"
@@ -77,6 +80,7 @@ class Pulling(Base):
     else:
       fret = fretfile and FileIO.load(fretfile)
     meta,data = FileIO.load(strfile,commentparser=FileIO.commentsToSettings)
+
     newPull = cls(data,fret,**meta)
     newPull.file = basename
     try:
@@ -89,16 +93,6 @@ class Pulling(Base):
   def plot(self, **kwargs):
     kwargs.setdefault('FEC',not self.hasfret)
     FRET.plot(self._data, **kwargs)
-
-  def __len__(self):
-    return self.size
-
-  def __iter__(self):
-    return iter(self._array)
-
-  @property
-  def molname(self):
-    return 's{}m{}'.format(self.slide,self.mol)
 
 class OpenLoop(Base):
   "camera .cam image. img"
