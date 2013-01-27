@@ -14,7 +14,7 @@ from Types import *
 class ExperimentError(Exception):
   pass
 
-def fromGlob(*fglob):
+def fromMatch(*fglob):
   return fromFiles(*glob.glob('*'+'*'.join(fglob)+'*.str'))
 
 def fromFiles(*filelist):
