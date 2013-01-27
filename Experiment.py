@@ -4,7 +4,7 @@ import glob
 
 import numpy as np
 
-import FileIO
+import FileIO 
 import FRET
 import Image
 import Constants
@@ -83,8 +83,10 @@ class Base(object):
   ".fret .f .ext and other meta-data (sample rate, pull speeds, )"
   # also classmethods which change experimental constants like bead radii,
   # trap stiffnesses, etc.
-  def __init__(self, data, fields=None):
+  def __init__(self, data, **metadata):
     self._data=data
+    self.metadata=metadata
+    self.hasfret = hasFretData(self._data)
 
   @property
   def _fields(self):
@@ -118,19 +120,28 @@ class Pulling(Base):
 
   def __init__(self,pull,fret=None, **metadata):
     if hasPullFretData(pull) or fret is None:
-      super(Pulling,self).__init__(pull)
+      super(Pulling,self).__init__(pull, **metadata)
     elif fret is not None:
-      super(Pulling,self).__init__(PullFretData._make(pull+fret))
+      super(Pulling,self).__init__(PullFretData._make(pull+fret), **metadata)
 
-    self.hasfret = hasFretData(self._data)
 
   @classmethod
   def fromFile(cls,strfile,fretfile=None):
-    fret = fretfile and FileIO.load(fretfile)
+    basename,ext=os.path.splitext(strfile)
+    if not ext:
+      strfile = FileIO.add_pull_ext(basename)
+
+    # check if base + .fret exists if not specified already
+    # and use it, or else load/don't load fretfile
+    fretfileFromBase = FileIO.add_fret_ext(basename)
+    if not fretfile and os.path.exists(fretfileFromBase):
+      fret = FileIO.load(fretfileFromBase)
+    else:
+      fret = fretfile and FileIO.load(fretfile)
     return cls(FileIO.load(strfile),fret)
 
   def plot(self, **kwargs):
-    kwargs['FEC'] = not self.hasfret
+    kwargs.setdefault('FEC',not self.hasfret)
     FRET.plot(self._data, **kwargs)
 
   def __len__(self):
