@@ -85,7 +85,6 @@ class Base(object):
   # trap stiffnesses, etc.
   def __init__(self, data, fields=None):
     self._data=data
-    self._array=np.asarray(self._data).T
 
   @property
   def _fields(self):
@@ -96,11 +95,6 @@ class Base(object):
       return getattr(self._data,attr)
     raise AttributeError("'%s' has no attribute %s" % 
       (self.__class__.__name__,attr))
-
-  def _setattr(self,named):
-    for attr,val in named._asdict().iteritems():
-      self.fieldnames += (attr,)
-      setattr(self, attr, val)
 
   def plot(self):
     raise NotImplementedError
@@ -122,7 +116,7 @@ class Pulling(Base):
   # pull.plot(**kwargs) = sets up good defaults for title, names, etc.
   # pull.ext pull.f pull.sep pull.fret pull.donor
 
-  def __init__(self,pull,fret=None):
+  def __init__(self,pull,fret=None, **metadata):
     if hasPullFretData(pull) or fret is None:
       super(Pulling,self).__init__(pull)
     elif fret is not None:
@@ -136,10 +130,8 @@ class Pulling(Base):
     return cls(FileIO.load(strfile),fret)
 
   def plot(self, **kwargs):
+    kwargs['FEC'] = not self.hasfret
     FRET.plot(self._data, **kwargs)
-
-  def __getitem__(self,key):
-    return self._array[key]
 
   def __len__(self):
     return self.size
