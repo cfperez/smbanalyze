@@ -16,6 +16,14 @@ CAMERA_FILE = '.cam'
 FRET_FILE = '.fret'
 PULL_FILE = '.str'
 
+REGISTERED_EXT = (IMAGE_FILE,CAMERA_FILE,FRET_FILE,PULL_FILE)
+
+def splitext(fname):
+  basename,ext=os.path.splitext(fname)
+  if ext not in REGISTERED_EXT:
+    basename,ext=fname,''
+  return basename,ext
+
 change_extension = lambda x,y: os.path.splitext(x)[0]+y
 add_img_ext = lambda x: x+IMAGE_FILE if not x.endswith(IMAGE_FILE) else x
 add_cam_ext = lambda x: x+CAMERA_FILE if not x.endswith(CAMERA_FILE) else x
@@ -153,10 +161,11 @@ def parseSettings(input_iter, cast):
   for line in strip_blank(input_iter):
     header,key,value = parseLineForSettings(line)
     if not header:
-      if heading: settings[heading] = {key: cast(value)}
+      if heading: settings[heading][key] = cast(value)
       else: settings[key]=cast(value)
     else:
       heading=header
+      settings[heading]={}
   return settings
 
 def parseLineForSettings(line):

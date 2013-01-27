@@ -34,7 +34,7 @@ class Base(object):
     return self._data._fields
 
   def __getattr__(self,attr):
-    if attr in self._fields:
+    if attr in self.fields:
       return getattr(self._data,attr)
     raise AttributeError("'%s' has no attribute %s" % 
       (self.__class__.__name__,attr))
@@ -68,7 +68,7 @@ class Pulling(Base):
 
   @classmethod
   def fromFile(cls,strfile,fretfile=None):
-    basename,ext=os.path.splitext(strfile)
+    basename,ext=FileIO.splitext(strfile)
     if not ext:
       strfile = FileIO.add_pull_ext(basename)
 
