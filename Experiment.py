@@ -1,6 +1,7 @@
 import os
 import operator
 import glob
+import logging
 
 import numpy as np
 
@@ -76,7 +77,14 @@ class Pulling(Base):
     else:
       fret = fretfile and FileIO.load(fretfile)
     meta,data = FileIO.load(strfile,commentparser=FileIO.commentsToSettings)
-    return cls(data,fret,**meta)
+    newPull = cls(data,fret,**meta)
+    newPull.file = basename
+    try:
+      newPull.info = FileIO.parseFilename(basename)
+    except:
+      logging.warning('Problem parsing filename %s' % basename)
+
+    return newPull
 
   def plot(self, **kwargs):
     kwargs.setdefault('FEC',not self.hasfret)
