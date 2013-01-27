@@ -30,7 +30,7 @@ class Base(object):
     self.hasfret = hasFretData(self._data)
 
   @property
-  def _fields(self):
+  def fields(self):
     return self._data._fields
 
   def __getattr__(self,attr):
