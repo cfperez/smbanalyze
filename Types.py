@@ -2,6 +2,8 @@ from numpy import all
 
 import collections
 
+TYPE_CHECKING='STRICT'
+
 FretData_fields = ('time','donor','acceptor','fret')
 PullData_fields = ('ext','f','sep')
 
@@ -11,7 +13,10 @@ PullFretData = collections.namedtuple('PullingFretData',PullData_fields+FretData
 
 def _hasData(datatype):
   fields = getattr(datatype,'_fields',datatype)
-  return lambda obj: all(map(hasattr,[obj]*len(fields),fields))
+  if TYPE_CHECKING=='STRICT':
+    return lambda obj: all(map(hasattr,[obj]*len(fields),fields))
+  else:
+    return lambda obj: len(fields)==len(obj)
 
 hasFretData = _hasData(FretData)
 hasPullData = _hasData(PullData)
