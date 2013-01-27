@@ -13,72 +13,6 @@ from Types import *
 class ExperimentError(Exception):
   pass
 
-def loadPull(fileglob, **kwargs):
-  "Create a new Experiment subclass based on filetype and data"
-  verbose = kwargs.get('verbose')
-  recalc = kwargs.get('recalc')
-  roi = kwargs.get('roi_file')
-  #autoglob = kwargs.get('autoglob', True)
-  exact_match = kwargs.get('exact_match', False)
-
-  fret = []
-  pulldata = []
-  finfo = []
-  bg_files = None
-
-  if os.path.isfile(fileglob):
-    files = [fileglob]
-  else:
-    files = (exact_match and glob.glob(fileglob)) or glob.glob('*%s[._]*str'%fileglob)
-  if not files:
-    raise IOError("No files found using glob '%s'" % fileglob)
-
-  for filename in files:
-
-    basename,ext = os.path.splitext(filename)
-    fretfile = FileIO.add_fret_ext(basename)
-    imgfile = FileIO.add_img_ext(basename)
-
-    if recalc and not fret:
-      print "-- Recalculating FRET data --"
-      FRET.calcDirectory(fileglob, **kwargs)
-
-    if verbose:
-      print "Experiment.load: Processing %s..." % basename
-
-    if os.path.isfile(fretfile):
-      if verbose:
-        print "\tLoading fret from " + fretfile
-      fret += [FileIO.loadfret(fretfile)]
-    elif os.path.isfile(imgfile):
-      if verbose:
-        print "\tCalculating fret from " + imgfile
-
-      if not bg_files:
-        matched = FRET.matchImgFilestoBackground()
-        bg_files = dict([ (img,bg) for img,bg in matched if fileglob in img ])
-        if roi:
-          roi = Image.ROI.fromFile(roi)
-          Image.setDefaultROI(*roi)
-
-      image = Image.Stack(imgfile)
-      image -= Image.fromBackground(bg_files[imgfile])
-      fret += [(image.time,image.donor,image.acceptor,
-                FRET.calcToFile(image,fretfile))]
-    else:
-      if verbose:
-        print "\tNo .fret or .img file found"
-      fret += [None]
-
-    pullfile = FileIO.add_pull_ext(basename)
-    if verbose:
-      print "\tLoading pulling data from %s" % pullfile
-    pulldata += [FileIO.loadstr(pullfile)]
-    
-    finfo += [FileIO.parseFilename(filename)]
-
-  return Pulling(finfo,pulldata,fret)
-
 class Base(object):
   ".fret .f .ext and other meta-data (sample rate, pull speeds, )"
   # also classmethods which change experimental constants like bead radii,
@@ -138,7 +72,8 @@ class Pulling(Base):
       fret = FileIO.load(fretfileFromBase)
     else:
       fret = fretfile and FileIO.load(fretfile)
-    return cls(FileIO.load(strfile),fret)
+    meta,data = FileIO.load(strfile,commentparser=FileIO.commentsToSettings)
+    return cls(data,fret,**meta)
 
   def plot(self, **kwargs):
     kwargs.setdefault('FEC',not self.hasfret)
