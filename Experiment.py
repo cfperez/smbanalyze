@@ -4,12 +4,11 @@ import glob
 
 import numpy as np
 
-from useful import dotdict
 import FileIO
 import FRET
 import Image
 import Constants
-from Types import FretData,PullData,PullFretData
+from Types import *
 
 class ExperimentError(Exception):
   pass
@@ -80,23 +79,23 @@ def loadPull(fileglob, **kwargs):
 
   return Pulling(finfo,pulldata,fret)
 
-
-def constants(**kwargs):
-  for (key,val) in kwargs.iteritems():
-    if hasattr(Base,key):
-      pass
-
-class Container(object):
-  pass
-
 class Base(object):
   ".fret .f .ext and other meta-data (sample rate, pull speeds, )"
   # also classmethods which change experimental constants like bead radii,
   # trap stiffnesses, etc.
-  def __init__(self,*args):#,fret,fext):
-    self.fieldnames = ()
-    for arg in args:
-      self._setattr(arg)
+  def __init__(self, data, fields=None):
+    self._data=data
+    self._array=np.asarray(self._data).T
+
+  @property
+  def _fields(self):
+    return self._data._fields
+
+  def __getattr__(self,attr):
+    if attr in self._fields:
+      return getattr(self._data,attr)
+    raise AttributeError("'%s' has no attribute %s" % 
+      (self.__class__.__name__,attr))
 
   def _setattr(self,named):
     for attr,val in named._asdict().iteritems():
@@ -116,7 +115,6 @@ class Base(object):
 class Pulling(Base):
   "stretching curves of single molecule .str camera .cam image .img"
   # pull = Pulling(...)
-  # pull[0],pull[1], etc. acts like a list with each being different pull
   # pull.molname = 's1m4'
   # pull.construct = 'SJF'
   # pull.conditions = '1B 1.0 nM'
@@ -124,47 +122,29 @@ class Pulling(Base):
   # pull.plot(**kwargs) = sets up good defaults for title, names, etc.
   # pull.ext pull.f pull.sep pull.fret pull.donor
 
-  def __init__(self,finfo,pulls,fret=[None]):
-    if not isinstance(finfo,list):
-      finfo = [finfo]
-      pulls = [pulls]
+  def __init__(self,pull,fret=None):
+    if hasPullFretData(pull) or fret is None:
+      super(Pulling,self).__init__(pull)
+    elif fret is not None:
+      super(Pulling,self).__init__(PullFretData._make(pull+fret))
 
-    self.size = len(pulls)
+    self.hasfret = hasFretData(self._data)
 
-    if fret != [None] and len(fret) != self.size:
-      raise ExperimentError("Must have equal number of pulling curves and fret traces")
-
-    super(Pulling,self).__init__(finfo[0])#,fret,pulls)
-    self.pull = None
-
-    self._pulls = pulls
-    self._fret = fret
-    self.info = finfo
+  def plot(self, **kwargs):
+    FRET.plot(self._data, **kwargs)
 
   def __getitem__(self,key):
-    if self._fret[key] is not None:
-      return PullFretData(*(self._pulls[key]+self._fret[key]))
-      #return Base(self.info[key], self._pulls[key], self._fret[key])
-    else:
-      return PullData(*self._pulls[key])
+    return self._array[key]
 
   def __len__(self):
     return self.size
 
   def __iter__(self):
-    for i in range(self.size):
-      yield self[i]
+    return iter(self._array)
 
   @property
   def molname(self):
     return 's{}m{}'.format(self.slide,self.mol)
-
-  @property
-  def fret(self):
-    return np.concatenate(map(operator.attrgetter('fret'),self._fret))
-
-  def _concat_property(self, name):
-    return map( operator.attrgetter(name), getattr(self,name))
 
 class OpenLoop(Base):
   "camera .cam image. img"
