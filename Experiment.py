@@ -130,6 +130,11 @@ class Pulling(Base):
 
     self.hasfret = hasFretData(self._data)
 
+  @classmethod
+  def fromFile(cls,strfile,fretfile=None):
+    fret = fretfile and FileIO.load(fretfile)
+    return cls(FileIO.load(strfile),fret)
+
   def plot(self, **kwargs):
     FRET.plot(self._data, **kwargs)
 
