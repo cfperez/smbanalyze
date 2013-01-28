@@ -5,6 +5,7 @@ import logging
 import collections
 
 import numpy as np
+import matplotlib.pyplot as plt
 
 import FileIO 
 import FRET
@@ -72,7 +73,7 @@ class Base(object):
 
   def plot(self):
     raise NotImplementedError
-
+    
 class Pulling(Base):
   "stretching curves of single molecule .str camera .cam image .img"
   # pull = Pulling(...)
@@ -118,6 +119,9 @@ class Pulling(Base):
   def plot(self, **kwargs):
     kwargs.setdefault('FEC',not self.hasfret)
     FRET.plot(self._data, **kwargs)
+
+  def pickLimits(fig=plt.gcf()):
+    firstPoint,secondPoint = ginput()
 
 class OpenLoop(Base):
   "camera .cam image. img"
