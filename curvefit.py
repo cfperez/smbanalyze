@@ -2,6 +2,7 @@ import inspect
 from functools import wraps
 from itertools import izip
 from numpy import arccos, cos, exp, sqrt, log, fabs, pi
+from collections import OrderedDict
 
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit,fmin_bfgs
@@ -66,6 +67,7 @@ def MMS2(F,Lp,Lc,K):
   return np.array([calc(u,v,L) for u,v,L in izip(U,V,L_)])
   #return calc(U,V,L_)
 MMS2.default = MS.default
+MMS2.inverted = True
 
 def MMS(x,Lp,Lc,K,startf=20.):
   x_ = x/float(Lc)
@@ -120,24 +122,20 @@ class Fit(object):
 
     self.x = x
 
-    #if isinstance(fitfunc,str):
-    #  fitfunc = eval(fitfunc)
-
     # Use inspection to get parameter names from fit function
     # assuming first argument is independent variable
-    arg_names = getattr(fitfunc,'arglist',inspect.getargspec(fitfunc).args)[1:]
+    self.param_names = arg_names = getattr(fitfunc,'arglist',inspect.getargspec(fitfunc).args)[1:]
     fixed = kwargs.pop('fixed',())
     if not isinstance(fixed,tuple):
       fixed = (fixed,)
 
-    # Parameter names that are passed to fitting function
-    param_names = [ p for p in arg_names if p not in fixed ]
+    # Parameter names (from inspection) that we will fit to (not fixed)
+    free_params = [ p for p in arg_names if p not in fixed ]
 
-    # Use function defaults if defined
+    # Use parameter defaults defined by the fitfunc itself
     default = getattr(fitfunc,'default', {})
 
-    # Starting parameters 
-    p0 = [ kwargs.setdefault(p,default.get(p,1)) for p in param_names ]
+    starting_param = [ kwargs.setdefault(p,default.get(p,1)) for p in free_params ]
 
     if fixed:
       to_fix = dict( (param,kwargs[param]) for param in fixed )
@@ -146,25 +144,27 @@ class Fit(object):
     else:
       self.fitfunc = fitfunc
 
-    self.params,self.error = curve_fit(self.fitfunc,x,y,p0)
-    self.params = tuple(self.params)
-    self.fitY = self.fitfunc(x,*self.params)
+    if getattr(fitfunc,'inverted',False):
+      x,y=y,x
+
+    fit_params,self.error = curve_fit(self.fitfunc,x,y,starting_param)
+    self.fitY = self.fitfunc(x,*fit_params)
     self.residual = self.fitY-y
 
-    for i,p in enumerate(param_names):
-      setattr(self,p,self.params[i])
+    self.free_parameters = dict( zip(free_params,fit_params) )
+    self.__dict__.update(self.free_parameters)
 
-    self.param_names = tuple(arg_names)
+    self.parameters = dict(self.free_parameters).update(to_fix)
 
     if verbose:
       print "Fitting with parameters {0}".format(','.join(['{0}={1:.2f}'.format(*p) for p
-        in zip(self.param_names,self.params)]))
+        in zip(free_params,fit_params)]))
 
   def __call__(self,x=None):
-	return self.fitfunc(x,*self.params)
+	return self.fitfunc(x,*self.free_parameters.values)
 	
   def __getitem__(self,key):
-    return self.params[key]
+    return self.param_names.index(key)
 
   def __len__(self):
 	return len(self.param_names)
