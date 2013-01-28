@@ -5,27 +5,50 @@
 >>> figure()
 >>> FRET.hist(p)
 
+~~~~~~~~~~~
+How to make FRET and FEC alignment easier when manipulating data??
+When would this be needed?
+
+p.fret.atExt(750)
+p.atTime
+p.atSep
+p.where(p.ext<950)
+=> PullFretData or np.array up to ext950
+p.where(p.ext>750 and p.ext<950)
+p.betweenExtension(750,950)
+
+~~~~~~~~~
+
 # Check the quality of a tether
 # 1) Fit to MMS
 # 2) Check image if output looks bad => make loading image file easier
 
+# 1)
 # returns position of rips by extension? index?
+# sometimes rips are messy...
 >>> rips = p.findRips()
 [ 130 ]
 
->>> p.fitForceExtension(rips=self.findRips(), min_ext=750, max_force=15)
-  [ (ripIndex, ripExt, ripForce, ripSize) ]
+# Cluster without fitting? Use log(force) above ~1
+>>> p.findRipStates(num='auto', tolerance='auto')
 
->>> p.ripFits
+>>> p.fitForceExtension(rips=self.findRips(), min_ext=750, max_force=15)
+>>> p.fitForceExtension(mask=np.array(dtype=bool), ...)
   [<Fit with params Lc,Lp,F0,K>, <Fit with params Lc,Lp,F0,K,Lc2,Lp2,K2>]
 
 >>> p.ripInfo
   [ (ripIndex, ripExt, ripForce, ripSize) ]
-  
+
 >>> p.fitHandles() # fits up to first rip
   <Fit with params Lc,Lp,F0,K >
 
->>> p.fitRips(min,max)
+# -OR-
+
+>>> p.fitRips(ext=(),force=()) # ext=750 assumes min, force=20 assumes max
   [<Fit with params Lc,Lp,F0,K >, <Fit with params Lc,Lp,F0,K >]
 
->>> 
+# 2) Loading images
+
+>>> img = p.loadimg() # shorthand for below?
+>>> img = Image.fromFile(p.file)
+>>> img.show(0)
