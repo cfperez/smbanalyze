@@ -53,6 +53,9 @@ def plot(data, pull=None, **kwargs):
     data = PullFretData(*(pull+data))
 
   num = kwargs.get('numplot',subplotsNeeded(data))
+  if num==0:
+    raise ValueError("Don't know how to plot argument: missing named fields")
+
   layout = iter((num,1,x) for x in range(1,num+1))
 
   if hasFretData(data):
