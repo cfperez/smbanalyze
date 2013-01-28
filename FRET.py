@@ -69,8 +69,8 @@ def plot(data, pull=None, **kwargs):
     _subplot(data.time, data.fret, layout=next(layout), axes=('Seconds','FRET'))
 
   if hasPullData(data):
-    x_coord = data.ext if FEC else data.sep
-    _subplot(x_coord, data.f, '.', layout=next(layout), axes=('Sep (nm)','Force (pN)'))
+    x_coord,x_label = (data.ext,'Extension (nm)') if FEC else (data.sep,'Separation (nm)')
+    _subplot(x_coord, data.f, '.', layout=next(layout), axes=(x_label,'Force (pN)'))
 
 def subplotsNeeded(data):
   num = 0
