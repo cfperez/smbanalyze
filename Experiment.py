@@ -4,15 +4,57 @@ import glob
 
 import numpy as np
 
-from useful import dotdict
+from useful import isInt, groupat
 import FileIO
 import FRET
 import Image
 import Constants
-from Types import FretData,PullData,PullFretData
+from Types import *
 
 class ExperimentError(Exception):
   pass
+
+# Easy for few files
+#Experiment.fromFiles('s1m1.fret','s1m1.str',type='pull')
+
+# Harder for loop delay experiments
+#Experiment.fromFiles('s1m1.img','s1m1.str','s1m1_2_refold_1.0s.img',
+# 's1m1_2_up.img','s1m1_2_up.str')
+
+# Easier to use
+#Experiment.fromGlob('s1m1', type='refold')
+# Possible implementation: 
+def fromGlob(*globs, **kwargs):
+  exptype = kwargs.get('type','pull')
+  if exptype=='refold':
+    filenames = FileIO.find(globs)
+
+# Good abstraction for above
+#Experiment.fromData(pull_data, [fret_data,] type='pull')
+#Experiment.fromData(pull_fret_data_1, pull_fret_data_2, type='loopdelay')
+# RETURNS Experiment subclass that can:
+# 1) Keep track and make sense of metadata (loop times, stiffnesses)
+# 2) Provide structure/context for analysis functions that need that data
+# 3) Convenience functions for plotting and saving
+# 4) Ability to stack with other Experiments for global analysis
+# 5) Enable potential to develop summary outputs that save to database/file (external functions)
+
+def filelist(*globs):
+  globs = list(globs)
+  last = globs[-1]
+  if isInt(last):
+    globs[-1] = '_'+last
+
+  return glob.glob('*%s*' % '*'.join(globs))
+
+def fromData(*datalist, **kwargs):
+  "Create logical unit from data in memory"
+  exptype = kwargs.get('type','pull')
+  if exptype=='pull':
+    output = []
+    for pull,fret in groupat(hasPullData, datalist, size=2):
+      output += [Pulling(pull,fret)]
+    return output if len(output)>1 else output[-1]
 
 def loadPull(fileglob, **kwargs):
   "Create a new Experiment subclass based on filetype and data"
