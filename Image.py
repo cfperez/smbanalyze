@@ -38,7 +38,7 @@ def fromFile(filename, **kwargs):
 
   bg = kwargs.pop('background', False)
   try:
-    img = Stack(filename, **kwargs)
+    img = Stack(FileIO.add_img_ext(filename), **kwargs)
   except IOError:
     raise IOError("File %s can't be found/loaded" % filename)
 
