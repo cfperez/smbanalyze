@@ -1,0 +1,31 @@
+
+>>> p = Experiment.Pulling.fromFile('test1')
+
+>>> p.plot()
+>>> figure()
+>>> FRET.hist(p)
+
+# Check the quality of a tether
+# 1) Fit to MMS
+# 2) Check image if output looks bad => make loading image file easier
+
+# returns position of rips by extension? index?
+>>> rips = p.findRips()
+[ 130 ]
+
+>>> p.fitForceExtension(rips=self.findRips(), min_ext=750, max_force=15)
+  [ (ripIndex, ripExt, ripForce, ripSize) ]
+
+>>> p.ripFits
+  [<Fit with params Lc,Lp,F0,K>, <Fit with params Lc,Lp,F0,K,Lc2,Lp2,K2>]
+
+>>> p.ripInfo
+  [ (ripIndex, ripExt, ripForce, ripSize) ]
+  
+>>> p.fitHandles() # fits up to first rip
+  <Fit with params Lc,Lp,F0,K >
+
+>>> p.fitRips(min,max)
+  [<Fit with params Lc,Lp,F0,K >, <Fit with params Lc,Lp,F0,K >]
+
+>>> 
