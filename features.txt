@@ -9,21 +9,27 @@
 How to make FRET and FEC alignment easier when manipulating data??
 When would this be needed?
 
-p.fret.atExt(750)
-p.atTime
-p.atSep
-p.where(p.ext<950)
-=> PullFretData or np.array up to ext950
-p.where(p.ext>750 and p.ext<950)
-p.betweenExtension(750,950)
+>>> p.fret.atExt(750)
+>>> p.atTime
+>>> p.atSep
+>>> p.where(p.ext<950)
+  PullFretData(...) or np.array([]) up to ext 950
+>>> p.where(p.ext>750 and p.ext<950).plot() 
+>>> p.betweenExtension(750,950)
 
 ~~~~~~~~~
 
 # Check the quality of a tether
-# 1) Fit to MMS
+# 0) Validate data is aligned and nothing is missing
+# 1) Fit handles to MMS
 # 2) Check image if output looks bad => make loading image file easier
+# 3) Check fret/donor/acceptor counts are reasonable
+# 4) HAIRPIN: verify rips are coincident with fret changes!!
 
-# 1)
+# 1) FITTING
+
+>>> rip_position = p.chooseRip(fig)
+>>> fit_limits = p.pickLimits(fig=gcf())
 # returns position of rips by extension? index?
 # sometimes rips are messy...
 >>> rips = p.findRips()
@@ -32,7 +38,7 @@ p.betweenExtension(750,950)
 # Cluster without fitting? Use log(force) above ~1
 >>> p.findRipStates(num='auto', tolerance='auto')
 
->>> p.fitForceExtension(rips=self.findRips(), min_ext=750, max_force=15)
+>>> p.fitForceExtension(rips=self.findRips(), ext=750, force=15, start=index1, start=index2)
 >>> p.fitForceExtension(mask=np.array(dtype=bool), ...)
   [<Fit with params Lc,Lp,F0,K>, <Fit with params Lc,Lp,F0,K,Lc2,Lp2,K2>]
 
