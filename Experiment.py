@@ -2,6 +2,7 @@ import os
 import operator
 import glob
 import logging
+import collections
 
 import numpy as np
 
@@ -20,6 +21,19 @@ def fromMatch(*fglob):
 def fromFiles(*filelist):
   return [Pulling.fromFile(fname) for fname in filelist]
 
+class ExperimentList(collections.Sequence):
+  def __init__(self):
+    pass
+
+  def __len__(self):
+    pass
+
+  def __iter__(self):
+    pass
+
+  def __contains__(self):
+    pass
+
 class Base(object):
   ".fret .f .ext and other meta-data (sample rate, pull speeds, )"
   # also classmethods which change experimental constants like bead radii,
@@ -37,14 +51,24 @@ class Base(object):
     if attr in self.fields:
       return getattr(self._data,attr)
     raise AttributeError("'%s' has no attribute %s" % 
-      (self.__class__.__name__,attr))
+      (self,attr))
 
   def __repr__(self):
     if hasattr(self,'file'):
-      return "<%s from '%s'>" % (self.__class__.__name__, self.file)
+      return "<Experiment.%s from '%s'>" % (self.__class__.__name__, self.file)
+    else:
+      return super(Base,self).__repr__()
 
-  def plot(self):
-    raise NotImplementedError
+  @property
+  def pullData(self):
+    return PullData(*self._data[0:3])
+
+  @property
+  def fec(self):
+    try:
+      return np.asarray((self._data.ext,self._data.f)).T
+    except AttributeError:
+      raise ExperimentError('Experiment %s does not have FEC data' % self)
 
   def plot(self):
     raise NotImplementedError
@@ -65,7 +89,6 @@ class Pulling(Base):
     elif fret is not None:
       super(Pulling,self).__init__(PullFretData._make(pull+fret), **metadata)
 
-
   @classmethod
   def fromFile(cls,strfile,fretfile=None):
     basename,ext=FileIO.splitext(strfile)
@@ -75,11 +98,13 @@ class Pulling(Base):
     # check if base + .fret exists if not specified already
     # and use it, or else load/don't load fretfile
     fretfileFromBase = FileIO.add_fret_ext(basename)
+    camfileFromBase = FileIO.add_cam_ext(basename)
     if not fretfile and os.path.exists(fretfileFromBase):
       fret = FileIO.load(fretfileFromBase)
     else:
       fret = fretfile and FileIO.load(fretfile)
     meta,data = FileIO.load(strfile,commentparser=FileIO.commentsToSettings)
+    meta.update(FileIO.loadcam(camfileFromBase))
 
     newPull = cls(data,fret,**meta)
     newPull.file = basename
