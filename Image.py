@@ -1,5 +1,5 @@
 from __future__ import with_statement
-from operator import methodcaller
+from operator import methodcaller,itemgetter
 import os.path
 import copy
 import operator
@@ -38,7 +38,7 @@ def fromFile(filename, **kwargs):
 
   bg = kwargs.pop('background', False)
   try:
-    img = Stack(filename, **kwargs)
+    img = Stack(FileIO.add_img_ext(filename), **kwargs)
   except IOError:
     raise IOError("File %s can't be found/loaded" % filename)
 
@@ -137,10 +137,9 @@ Convert between 'absolute' and 'relative' coordinates:
 
     temp = []
     for name, roi in settings.items():
-      roi.filename = filename
-      roi.name = name
-      roi.origin = origin
-      temp.append( cls.copy(roi) )
+      corners=itemgetter('left','right','bottom','top')
+      temp.append(
+        cls.fromCorners(*corners(roi), name=name, origin=origin))
 
     return tuple(temp)
 

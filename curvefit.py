@@ -30,43 +30,44 @@ def MS(x,Lp,Lc,F0):
   return A * (0.25/(1-x_)**2 - 0.25 +x_) + F0
 MS.default = {'Lp':20,'Lc':1100,'F0':0.1}
 
-def MMS2(F,Lp,Lc,K):
+def MMS2(F,Lp,Lc,F0,K):
   "Calculates x(F) for Modified Marko-Siggia"
 
-  if not np.iterable(F):
-    F = [F]
-  F = np.asarray(F)
+  #if not np.iterable(F):
+  #  F = [F]
+  #F = np.asarray(F)
 
   # Normalize parameters
   Lp_ = Lp/kT(parameters['T'])
-  F_ = F/K
+  F_ = (F-F0)/K
 
   # Create variables for computation
   Q = 1 + F_
   P = F_ + Lp_*F + 0.25
 
-  U = -(Lp_*F - 0.75)**2 / 9   
-  V = -(Lp_*F - 0.75)**3 / 27 + 0.125
-  L_ = -(2*Q + P)/3
+  #U = -(Lp_*F - 0.75)**2 / 9.
+  #V = -(Lp_*F - 0.75)**3 / 27. + 0.125
+  #L_ = -(2*Q + P)/3.
+  L = -(2*Q + P)/3.
 
-  #u = -(P-Q)**2 / 9.0   #=(-1/9)*(Lp_*F - 3/4)**2
-  #v = -(P-Q)**3 / 27.0 + 0.125   #=(-1/27)*(Lp_*F - 3/4)**3 + 1/8
+  u = -(P-Q)**2 / 9.0   #=(-1/9)*(Lp_*F - 3/4)**2
+  v = -(P-Q)**3 / 27.0 + 0.125   #=(-1/27)*(Lp_*F - 3/4)**3 + 1/8
 
-  def calc(u,v,L):
-    if v**2+u**3 < 0.0:
-      theta = arccos(sqrt(-v**2/u**3)) / 3.0
-      if v<0:
-        return (2*sqrt(-u)*cos(theta+2*pi/3) - L)*Lc
-      else:
-        return (-2*sqrt(-u)*cos(theta) - L)*Lc
+  #def calc(u,v,L):
+  if v**2+u**3 < 0.0:
+    theta = arccos(sqrt(-v**2/u**3)) / 3.0
+    if v<0:
+      return (2*sqrt(-u)*cos(theta+2*pi/3.) - L)*Lc
     else:
-      A = exp( log(-v+sqrt(0.015625 - ((Lp_*F-0.75)**3/108) ) ) )
-      B = exp( log(-v-sqrt(0.015625 - ((Lp_*F-0.75)**3/108) ) ) )
-      return -Lc*(fabs(A+B) + L)
+      return (-2*sqrt(-u)*cos(theta) - L)*Lc
+  else:
+    A = exp( log(-v+sqrt(0.015625 - ((Lp_*F-0.75)**3/108.) ) ) )
+    B = exp( log(-v-sqrt(0.015625 - ((Lp_*F-0.75)**3/108.) ) ) )
+    return -Lc*(fabs(A+B) + L)
 
-  return np.array([calc(u,v,L) for u,v,L in izip(U,V,L_)])
+  #return np.array([calc(u,v,L) for u,v,L in izip(U,V,L_)])
   #return calc(U,V,L_)
-MMS2.default = MS.default
+MMS2.default = {'Lp':20,'Lc':1100,'F0':0.1, 'K': 1100}
 MMS2.inverted = True
 
 def MMS(x,Lp,Lc,K,startf=20.):
@@ -122,9 +123,15 @@ class Fit(object):
 
     self.x = x
 
+    if isinstance(fitfunc,str):
+      fitfunc = eval(fitfunc)
+
     # Use inspection to get parameter names from fit function
     # assuming first argument is independent variable
-    self.param_names = arg_names = getattr(fitfunc,'arglist',inspect.getargspec(fitfunc).args)[1:]
+    try:
+      arg_names = getattr(fitfunc,'arglist',inspect.getargspec(fitfunc).args)[1:]
+    except TypeError:
+      arg_names = kwargs.pop('parameters')
     fixed = kwargs.pop('fixed',())
     if not isinstance(fixed,tuple):
       fixed = (fixed,)

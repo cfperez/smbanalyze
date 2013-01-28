@@ -1,3 +1,5 @@
+# stiffness=0.25
+# sample_rate=200
 Extension Force TrapDistance
 7.03557E+2	-7.60360E-1	1.41500E+3
 7.06708E+2	-9.30735E-1	1.41735E+3
