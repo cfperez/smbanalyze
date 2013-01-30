@@ -18,46 +18,37 @@ PULL_FILE = '.str'
 
 REGISTERED_EXT = (IMAGE_FILE,CAMERA_FILE,FRET_FILE,PULL_FILE)
 
-def splitext(fname):
-  basename,ext=os.path.splitext(fname)
-  if ext not in REGISTERED_EXT:
-    basename,ext=fname,''
-  return basename,ext
-
-change_extension = lambda x,y: os.path.splitext(x)[0]+y
-add_img_ext = lambda x: x+IMAGE_FILE if not x.endswith(IMAGE_FILE) else x
-add_cam_ext = lambda x: x+CAMERA_FILE if not x.endswith(CAMERA_FILE) else x
-add_fret_ext = lambda x: x+FRET_FILE if not x.endswith(FRET_FILE) else x
-add_pull_ext = lambda x: x+PULL_FILE if not x.endswith(PULL_FILE) else x
-
-LOAD_FUNCTIONS = dict((func.extension,func) for func in 
-  filter(lambda x: hasattr(x,'extension'), globals().values()))
-
-def load(fname, **kwargs):
+def load(fname, comments=False, header=False, **kwargs):
   base,extension = os.path.splitext(fname)
-  return LOAD_FUNCTIONS[extension](fname,**kwargs)
-
-def commentsToSettings(comments):
-  return parseSettings(comments,float)
+  fromLoad =  LOAD_FUNCTIONS[extension](fname, **kwargs)
+  if isinstance(fromLoad, tuple):
+    loadComments, loadHeader, loadData = fromLoad
+    loadComments = comments(loadComments) if isfunction(comments) else loadComments
+    output = [loadData]
+    if header:
+      output.insert(0,loadHeader)
+    if comments:
+      output.insert(0,loadComments)
+    return tuple(output) if len(output)>1 else output[0]
+  else:
+    return fromLoad
 
 def loadfret(fname,**kwargs):
   comments,header,data = loaddat(fname,**kwargs)
-  return FretData(*data.T)
+  return comments, header, FretData(*data.T)
 loadfret.extension=FRET_FILE
 
-def loadstr(fname,**kwargs):
-  metaparser = kwargs.pop('commentparser', None)
-  comments,header,data = loaddat(fname,comments=('#','/*'),**kwargs)
-  if header != ['extension','force','trapdistance']:
+def loadstr(fname, comments=False, header=False, **kwargs):
+  filecomments,fileheader,data = loaddat(fname,comments='#',**kwargs)
+  if fileheader != ['extension','force','trapdistance']:
     raise IOError, "Stretch file must contain extension, force, and separation"
-
-  if metaparser:
-    metadata = metaparser(comments) if isfunction(metaparser) else comments
-    return metadata,PullData(*data.T)
-
-  return PullData(*data.T)
+  return filecomments, fileheader, PullData(*data.T)
 loadstr.extension=PULL_FILE
 
+def toSettings(lines):
+  # Careful! Using eval to cast so that lines can contain
+  # lists e.g. stiffness = [1,1.5]
+  return parseSettingsFromLines(lines, eval)
 
 def loaddat(filename, **kwargs):
 
@@ -84,40 +75,65 @@ def loaddat(filename, **kwargs):
 
   return comments.splitlines(), colnames, data
 
+def loadsettings(filename, **kwargs):
+  "Return dictionary of key/value pairs from LabView-style configuration file"
+
+  cast = kwargs.get('cast') or str
+
+  with open(filename) as f:
+    return parseSettingsFromLines(f,cast)
+
+def parseSettingsFromLines(lines, cast):
+  heading = None
+  settings = {}
+  for line in strip_blank(lines):
+    header,key,value = parseLineToSetting(line)
+    if not header:
+      if heading: settings[heading][key] = cast(value)
+      else: settings[key]=cast(value)
+    else:
+      heading=header
+      settings[heading]={}
+  return settings
+
+def parseLineToSetting(line):
+  m = re.match(r'\[(\w+)\]',line)
+  if m:
+    header = m.group(1).lower()
+    return header,None,None
+  else:
+    key,value = line.split('=')
+    return None,key.strip().lower().replace(' ','_'),value.strip()
+
+def strip_blank(iter_str):
+  for line in iter_str:
+    line=line.strip()
+    if line != '': yield line
+
 def savedat(filename, data, header='', comments='', fmt='%.9e', delimiter='\t'):
 
   newline = '\n' if comments else ''
-
   header = ''.join(map(lambda line: COMMENT_LINE+' '+line, comments.splitlines(True))) \
       + newline + header.replace(' ',delimiter)
-
   if type(data) == tuple:
     data = np.array(data).T
 
   with open(filename, 'w') as fh:
     fh.write(header + '\n')
-
     if hasattr(data,'dtype') and data.dtype.names:
         fh.write( delimiter.join(data.dtype.names) + '\n' )
-
     np.savetxt(fh, data, fmt=fmt, delimiter=delimiter)
-
 
 def loadimg(filename, datatype='>h', **kwargs):
   data = np.fromfile(filename, datatype)
-
   img_size = data[:3]
-
   img = np.delete( data, np.r_[:3, np.prod(img_size)+3:data.size] )
-
   try:
     img = img.reshape(img_size)
   except ValueError:
     raise IOError("Image file %s is corrupted, expected frame: %d, height: %d, width: %d" % 
         (filename, img_size[0], img_size[1], img_size[2]))
-  
   return img
-loadimg.extension=IMAGE_FILE
 
 def loadcam(filename):
   "Return dictionary of camera settings as contained in .cam file"
@@ -142,41 +158,6 @@ def loadcam(filename):
   return settings
 loadcam.extension=CAMERA_FILE
 
-def loadsettings(filename, **kwargs):
-  "Return dictionary of key/value pairs from LabView-style configuration file"
-
-  cast = kwargs.get('cast') or str
-
-  with open(filename) as f:
-    return parseSettings(f,cast)
-
-def strip_blank(iter_str):
-  for line in iter_str:
-    line=line.strip()
-    if line != '': yield line
-      
-def parseSettings(input_iter, cast):
-  heading = None
-  settings = {}
-  for line in strip_blank(input_iter):
-    header,key,value = parseLineForSettings(line)
-    if not header:
-      if heading: settings[heading][key] = cast(value)
-      else: settings[key]=cast(value)
-    else:
-      heading=header
-      settings[heading]={}
-  return settings
-
-def parseLineForSettings(line):
-  m = re.match(r'\[(\w+)\]',line)
-  if m:
-    header = m.group(1).lower()
-    return header,None,None
-  else:
-    key,value = line.split('=')
-    return None,key.strip().lower(),value.strip()
-  
 def savesettings(filename, file_mode, **settings):
   "save key/value object into LabView-style configuration file"
 
@@ -189,6 +170,18 @@ def savesettings(filename, file_mode, **settings):
 ##################################################
 ## Filename Parsing
 ##################################################
+def splitext(fname):
+  basename,ext=os.path.splitext(fname)
+  if ext not in REGISTERED_EXT:
+    basename,ext=fname,''
+  return basename,ext
+
+change_extension = lambda x,y: os.path.splitext(x)[0]+y
+add_img_ext = lambda x: x+IMAGE_FILE if not x.endswith(IMAGE_FILE) else x
+add_cam_ext = lambda x: x+CAMERA_FILE if not x.endswith(CAMERA_FILE) else x
+add_fret_ext = lambda x: x+FRET_FILE if not x.endswith(FRET_FILE) else x
+add_pull_ext = lambda x: x+PULL_FILE if not x.endswith(PULL_FILE) else x
+
 _named_ = lambda n,p: r'(?P<%s>%s)' % (n,p)
 _opt_unit_ = lambda n,p,u: r'(?:_%s%s)?' % (_named_(n,p),u)
 _opt_ = lambda n,p: _opt_unit_(n,p,'')
@@ -244,3 +237,7 @@ def parseFilename(filename):
   isBackground = isBackground is not None
 
   return FileInfo(construct,conditions,slide,mol,pull,force,min,sec,series,isBackground)
+
+LOAD_FUNCTIONS = dict((func.extension,func) for func in 
+  filter(lambda x: hasattr(x,'extension'), globals().values()))
+
