@@ -2,7 +2,6 @@ import inspect
 from functools import wraps
 from itertools import izip
 from numpy import arccos, cos, exp, sqrt, log, fabs, pi
-from collections import OrderedDict
 
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit,fmin_bfgs
