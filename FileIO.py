@@ -4,12 +4,13 @@ import collections
 from datetime import datetime
 import os
 import operator
+import glob
 from inspect import isfunction
 
 import numpy as np
 
 from Types import FretData, PullData
-from useful import toNum, toInt
+from useful import toNum, toInt, isInt
 
 IMAGE_FILE = '.img'
 CAMERA_FILE = '.cam'
@@ -18,12 +19,21 @@ PULL_FILE = '.str'
 
 REGISTERED_EXT = (IMAGE_FILE,CAMERA_FILE,FRET_FILE,PULL_FILE)
 
+def flist(*globs):
+  globs = list(globs)
+  last = globs[-1]
+  if isInt(last):
+    globs[-1] = '_'+last
+
+  return glob.glob('*%s*' % '*'.join(globs))
+
 def load(fname, comments=False, header=False, **kwargs):
   base,extension = os.path.splitext(fname)
   fromLoad =  LOAD_FUNCTIONS[extension](fname, **kwargs)
   if isinstance(fromLoad, tuple):
     loadComments, loadHeader, loadData = fromLoad
-    loadComments = comments(loadComments) if isfunction(comments) else loadComments
+    loadComments = comments(loadComments) if isfunction(comments) \
+                    else loadComments
     output = [loadData]
     if header:
       output.insert(0,loadHeader)
