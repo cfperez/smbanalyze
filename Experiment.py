@@ -28,7 +28,7 @@ class ExperimentError(Exception):
 def fromGlob(*globs, **kwargs):
   exptype = kwargs.get('type','pull')
   if exptype=='refold':
-    filenames = find(globs)
+    filenames = FileIO.flist(globs)
 
 # Good abstraction for above
 #Experiment.fromData(pull_data, [fret_data,] type='pull')
@@ -40,14 +40,6 @@ def fromGlob(*globs, **kwargs):
 # 4) Ability to stack with other Experiments for global analysis
 # 5) Enable potential to develop summary outputs that save to database/file (external functions)
 
-def find(*globs):
-  globs = list(globs)
-  last = globs[-1]
-  if isInt(last):
-    globs[-1] = '_'+last
-
-  return glob.glob('*%s*' % '*'.join(globs))
-
 def fromData(*datalist, **kwargs):
   "List of experiments from PullData and FretData type"
   exptype = kwargs.get('type','pull')
@@ -58,7 +50,7 @@ def fromData(*datalist, **kwargs):
     return output if len(output)>1 else output[-1]
 
 def fromMatch(*fglob):
-  return fromFiles(find(*fglob))
+  return fromFiles(FileIO.flist(*fglob))
 
 def fromFiles(*filelist):
   return [Pulling.fromFile(fname) for fname in filelist]
