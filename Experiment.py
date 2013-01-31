@@ -14,6 +14,10 @@ import Image
 import Constants
 from Types import *
 
+logger = logging.getLogger(__name__)
+logger.setLevel(Constants.logLevel)
+logger.addHandler(Constants.logHandler)
+
 class ExperimentError(Exception):
   pass
 
@@ -44,7 +48,7 @@ def find(*globs):
 
   return glob.glob('*%s*' % '*'.join(globs))
 
-def from(*datalist, **kwargs):
+def fromData(*datalist, **kwargs):
   "List of experiments from PullData and FretData type"
   exptype = kwargs.get('type','pull')
   if exptype=='pull':
@@ -113,13 +117,6 @@ class Base(object):
     
 class Pulling(Base):
   "stretching curves of single molecule .str camera .cam image .img"
-  # pull = Pulling(...)
-  # pull.molname = 's1m4'
-  # pull.construct = 'SJF'
-  # pull.conditions = '1B 1.0 nM'
-  #
-  # pull.plot(**kwargs) = sets up good defaults for title, names, etc.
-  # pull.ext pull.f pull.sep pull.fret pull.donor
 
   def __init__(self,pull,fret=None, **metadata):
     if hasPullFretData(pull) or fret is None:
@@ -141,7 +138,7 @@ class Pulling(Base):
       fret = FileIO.load(fretfileFromBase)
     else:
       fret = fretfile and FileIO.load(fretfile)
-    meta,data = FileIO.load(strfile,commentparser=FileIO.commentsToSettings)
+    meta,data = FileIO.load(strfile,comments=FileIO.toSettings)
     meta.update(FileIO.loadcam(camfileFromBase))
 
     newPull = cls(data,fret,**meta)
@@ -149,7 +146,7 @@ class Pulling(Base):
     try:
       newPull.info = FileIO.parseFilename(basename)
     except:
-      logging.warning('Problem parsing filename %s' % basename)
+      logger.warning('Problem parsing filename %s' % basename)
 
     return newPull
 
@@ -157,7 +154,8 @@ class Pulling(Base):
     kwargs.setdefault('FEC',not self.hasfret)
     FRET.plot(self._data, **kwargs)
 
-  def pickLimits(fig=plt.gcf()):
+  def pickLimits(fig=None):
+    if not fig: fig=plt.gcf()
     firstPoint,secondPoint = ginput()
 
 class OpenLoop(Base):
