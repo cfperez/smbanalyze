@@ -17,6 +17,27 @@ molID = lambda t: 's{0}m{1}'.format(t.slide,t.mol)
 molname = lambda t: 's{0}m{1}_{2}'.format(t.slide,t.mol,t.pull)
 pN = lambda f: 'f'+str(f)+'pN'
 
+def processFiles(flist, roi='roi.txt', background=None, ext=FileIO.FRET_FILE):
+  "processFiles(filelist, roi='roi.txt', background=None, ext=Fret_File_extension)"
+
+  if background:
+    BG = Image.fromFile(background,background=True)
+  else:
+    BG = Constants.default_background_subtract
+
+  if isinstance(roi,str):
+    roi = Image.ROI.fromFile(roi)
+
+  all_output = []
+  for fname in flist:
+    img = Image.fromFile(fname) - BG
+    img.addROI(*roi)
+    output = calculate(img)
+    toFile(FileIO.change_extension(fname,ext), output)
+    all_output += [output]
+
+  return all_output
+
 def multiplot(*data, **kwargs):
   names = kwargs.get('names',[None]*len(data))
   prefix = kwargs.get('prefix','')
@@ -118,6 +139,13 @@ def hist(*data, **kwargs):
 
   return bins,counts
 
+def calcToFile(stack, filename, **kwargs):
+  "calcToFile(fret, ImageStack, filename): saves donor, acceptor, FRET to 3 column text file"
+
+  fretdata = calculate(stack, **kwargs)
+  toFile(filename, fretdata)
+  return fretdata
+
 def calculate(stack, beta=Constants.beta, gamma=Constants.gamma, minsub=False):
   """Calculates FRET of a pull from an Image.Stack
 
@@ -132,13 +160,6 @@ def calculate(stack, beta=Constants.beta, gamma=Constants.gamma, minsub=False):
 
   return FretData(stack.time, donor, acceptor, acceptor/(acceptor+gamma*donor))
 
-def calcToFile(stack, filename, **kwargs):
-  "saveFRETdata(fret, ImageStack, filename): saves donor,acceptor, FRET to 3 column text file"
-
-  fretdata = calculate(stack, **kwargs)
-  FileIO.savedat(filename, (stack.time,stack.donor,stack.acceptor,fretdata), header='time donor acceptor FRET', fmt=('%.3f','%u','%u','%.5f'))
-  return fretdata
-
 def toFile(filename, data):
   try:
     FileIO.savedat(filename, (data.time,data.donor,data.acceptor,data.fret), header='time donor acceptor FRET', fmt=('%.3f','%u','%u','%.5f'))
@@ -147,24 +168,3 @@ def toFile(filename, data):
 
 def fromFile(filename, **kwargs):
   return FileIO.loadfret(filename, **kwargs)
-
-def processFiles(flist, roi='roi.txt', background=None, ext=FileIO.FRET_FILE):
-  "processFiles(filelist, roi='roi.txt', background=None, ext=Fret_File_extension)"
-
-  if background:
-    BG = Image.fromFile(background,background=True)
-  else:
-    BG = Constants.default_background_subtract
-
-  if isinstance(roi,str):
-    roi = Image.ROI.fromFile(roi)
-
-  all_output = []
-  for fname in flist:
-    img = Image.fromFile(fname) - BG
-    img.addROI(*roi)
-    output = calculate(img)
-    toFile(FileIO.change_extension(fname,ext), output)
-    all_output += [output]
-
-  return all_output
