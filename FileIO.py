@@ -33,22 +33,17 @@ def load(fname, comments=False, header=False, **kwargs):
   else:
     return fromLoad
 
-def loadfret(fname,**kwargs):
-  comments,header,data = loaddat(fname,**kwargs)
-  return comments, header, FretData(*data.T)
-loadfret.extension=FRET_FILE
-
-def loadstr(fname, comments=False, header=False, **kwargs):
+def loadstr(fname, **kwargs):
   filecomments,fileheader,data = loaddat(fname,comments='#',**kwargs)
   if fileheader != ['extension','force','trapdistance']:
     raise IOError, "Stretch file must contain extension, force, and separation"
   return filecomments, fileheader, PullData(*data.T)
 loadstr.extension=PULL_FILE
 
-def toSettings(lines):
+def toSettings(comments):
   # Careful! Using eval to cast so that lines can contain
   # lists e.g. stiffness = [1,1.5]
-  return parseSettingsFromLines(lines, eval)
+  return parseSettingsFromLines(comments.splitlines(), eval)
 
 def loaddat(filename, **kwargs):
 
@@ -59,6 +54,7 @@ def loaddat(filename, **kwargs):
 
   with open(filename,'rU') as fh:
     position = 0
+    # loop stops after grabbing column names
     for number,line in enumerate(fh):
       if np.any( map(line.startswith, comment_line) ):
         comments += line.strip(' '+''.join(comment_line))
@@ -73,7 +69,12 @@ def loaddat(filename, **kwargs):
     fh.seek(0)
     data = np.loadtxt(fh, skiprows=position, **kwargs)
 
-  return comments.splitlines(), colnames, data
+  return comments, colnames, data
+
+def loadfret(fname,**kwargs):
+  comments,header,data = loaddat(fname,**kwargs)
+  return comments, header, FretData(*data.T)
+loadfret.extension=FRET_FILE
 
 def loadsettings(filename, **kwargs):
   "Return dictionary of key/value pairs from LabView-style configuration file"
