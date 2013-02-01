@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import FileIO
 import FRET
 import useful
+import Constants
 
 ################################################################################
 ## EXCEPTIONS
@@ -307,6 +308,19 @@ class Stack:
 
     else:
         raise StackError, "Invalid constructor call using %s" % str(filename)
+
+  def calculate(stack, beta=Constants.beta, gamma=Constants.gamma, minsub=False):
+    """Calculates FRET of a pull from an Image.Stack
+
+    calculate( Image.Stack, beta = Constants.beta, gamma = Constants.gamma)
+
+    RETURNS array of calculated FRET for each frame
+    """
+    donor = stack.donor - (minsub and min(stack.donor))
+    acceptor = stack.acceptor - donor*beta
+    acceptor = acceptor - (minsub and min(acceptor))
+    stack.fret = acceptor/(acceptor+gamma*donor)
+    return FretData(stack.time, donor, acceptor, stack.fret)
 
   @property
   def frames(self):
