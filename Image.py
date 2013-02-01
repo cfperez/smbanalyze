@@ -272,14 +272,13 @@ class Stack:
       self._acceptorROIName = Stack.defaultAcceptorROI
 
 
-      camFile = camFile or (os.path.splitext(filename)[0] + '.cam')
-      
+      camFile = camFile or FileIO.change_extension(filename, '.cam')
       settings = FileIO.loadcam(camFile)
-      self._settings = []
-      for (setting, value) in settings.iteritems():
-        if not hasattr(self,setting):
+      self.metadata = {}
+      for setting,value in settings.iteritems():
+        self.metadata[setting] = value
+        if not hasattr(self, setting):
           setattr(self, setting, value)
-          self._settings += [setting]
 
       # check cam and img file correspondence
       if self._img.shape != (settings['frames'],settings['height'],settings['width']):
@@ -301,8 +300,8 @@ class Stack:
       self._donorROIName = filename._donorROIName
       self._acceptorROIName = filename._acceptorROIName
       self.origin = filename.origin
-      self._settings = filename._settings
-      for setting in self._settings:
+      self.metadata = filename.metadata
+      for setting in self.metadata:
         if not hasattr(self,setting.lower()):
           setattr(self, setting, getattr(filename,setting))
 
@@ -312,6 +311,9 @@ class Stack:
   @property
   def frames(self):
     return self._img.shape[0]
+
+  def __len__(self):
+    return self.frames()
 
   @property
   def time(self):
