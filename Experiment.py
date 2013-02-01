@@ -125,13 +125,12 @@ class Pulling(Base):
     # check if base + .fret exists if not specified already
     # and use it, or else load/don't load fretfile
     fretfileFromBase = FileIO.add_fret_ext(basename)
-    camfileFromBase = FileIO.add_cam_ext(basename)
     if not fretfile and os.path.exists(fretfileFromBase):
-      fret = FileIO.load(fretfileFromBase)
+      cam_metadata, fret = FRET.fromFile(fretfileFromBase)
     else:
-      fret = fretfile and FileIO.load(fretfile)
+      cam_metadata, fret = fretfile and FRET.fromFile(fretfile)
     meta,data = FileIO.load(strfile,comments=FileIO.toSettings)
-    meta.update(FileIO.loadcam(camfileFromBase))
+    meta.update(cam_metadata)
 
     newPull = cls(data,fret,**meta)
     newPull.file = basename

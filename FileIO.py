@@ -5,6 +5,7 @@ from datetime import datetime
 import os
 import operator
 import glob
+import ast
 from inspect import isfunction
 
 import numpy as np
@@ -51,9 +52,9 @@ def loadstr(fname, **kwargs):
 loadstr.extension=PULL_FILE
 
 def toSettings(comments):
-  # Careful! Using eval to cast so that lines can contain
+  # Careful! Using literal_eval to cast so that lines can contain
   # lists e.g. stiffness = [1,1.5]
-  return parseSettingsFromLines(comments.splitlines(), eval)
+  return parseSettingsFromLines(comments.splitlines(), ast.literal_eval)
 
 def loaddat(filename, **kwargs):
 
@@ -61,7 +62,6 @@ def loaddat(filename, **kwargs):
 
   colnames = None
   comments = ''
-
   with open(filename,'rU') as fh:
     position = 0
     # loop stops after grabbing column names
@@ -81,23 +81,34 @@ def loaddat(filename, **kwargs):
 
   return comments, colnames, data
 
-def loadfret(fname,**kwargs):
-  comments,header,data = loaddat(fname,**kwargs)
+def loadfret(filename, **kwargs):
+  comments,header,data = loaddat(filename,**kwargs)
   return comments, header, FretData(*data.T)
 loadfret.extension=FRET_FILE
 
+def savefret(filename, data, metadata=None, comments=''):
+  if comments:
+    comments += '\n'
+  if metadata:
+    comments += fromSettings(metadata)
+  try:
+    savedat(filename, (data.time,data.donor,data.acceptor,data.fret),
+      header='time donor acceptor FRET', 
+      fmt=('%.3f','%u','%u','%.5f'),
+      comments=comments)
+  except AttributeError:
+    raise ValueError('Expects data with time, donor, acceptor, and fret attributes')
+
 def loadsettings(filename, **kwargs):
   "Return dictionary of key/value pairs from LabView-style configuration file"
-
   cast = kwargs.get('cast') or str
-
   with open(filename) as f:
     return parseSettingsFromLines(f,cast)
 
 def parseSettingsFromLines(lines, cast):
   heading = None
   settings = {}
-  for line in strip_blank(lines):
+  for line in strip_blank_and_comments(lines):
     header,key,value = parseLineToSetting(line)
     if not header:
       if heading: settings[heading][key] = cast(value)
@@ -115,6 +126,10 @@ def parseLineToSetting(line):
   else:
     key,value = line.split('=')
     return None,key.strip().lower().replace(' ','_'),value.strip()
+
+def strip_blank_and_comments(iter_str):
+  for line in strip_blank(iter_str):
+    if line.count('=')>0: yield line
 
 def strip_blank(iter_str):
   for line in iter_str:
@@ -173,10 +188,25 @@ def savesettings(filename, file_mode, **settings):
   "save key/value object into LabView-style configuration file"
 
   with open(filename, file_mode) as f:
-    for key in settings:
-      f.write( '[%s]\n' % key.capitalize() )
-      for key,value in settings[key].iteritems():
-        f.write( '%s=%s\n' % (str(key.capitalize()),str(value)) )
+    f.write(fromSettings(settings))
+
+## !! Skipping datetime key when saving because parseSettingFromLine()
+## !! doesn't handle it yet
+def fromSettings(settings):
+  output = []
+  HEADING_FMT = '[%s]\n'
+  SETTING_FMT = '%s=%s\n'
+  for header,subHead in settings.iteritems():
+    try:
+      settingsInHeading = subHead.iteritems()
+      output += HEADING_FMT % header
+      for setting,value in settingsInHeading:
+        # UPDATE ME!
+        if setting.lower() == 'datetime': continue
+        output += SETTING_FMT % (setting,value)
+    except AttributeError:
+      output += SETTING_FMT % (header, subHead)
+  return ''.join(output)
 
 ##################################################
 ## Filename Parsing

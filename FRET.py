@@ -140,31 +140,25 @@ def hist(*data, **kwargs):
   return bins,counts
 
 def calcToFile(stack, filename, **kwargs):
-  "calcToFile(fret, ImageStack, filename): saves donor, acceptor, FRET to 3 column text file"
-
+  "Calculates and saves saves donor, acceptor, calculated FRET values to 3 column text file"
   fretdata = calculate(stack, **kwargs)
-  toFile(filename, fretdata)
+  toFile(filename, fretdata, stack.metadata)
   return fretdata
 
 def calculate(stack, beta=Constants.beta, gamma=Constants.gamma, minsub=False):
   """Calculates FRET of a pull from an Image.Stack
 
-  calculate( Image.Stack, beta = Image.beta, gamma = Image.gamma)
+  calculate( Image.Stack, beta = Constants.beta, gamma = Constants.gamma)
 
   RETURNS array of calculated FRET for each frame
   """
-
   donor = stack.donor - (minsub and min(stack.donor))
   acceptor = stack.acceptor - donor*beta
   acceptor = acceptor - (minsub and min(acceptor))
-
   return FretData(stack.time, donor, acceptor, acceptor/(acceptor+gamma*donor))
 
-def toFile(filename, data):
-  try:
-    FileIO.savedat(filename, (data.time,data.donor,data.acceptor,data.fret), header='time donor acceptor FRET', fmt=('%.3f','%u','%u','%.5f'))
-  except AttributeError:
-    raise AttributeError('FRET.save expects argument with time, donor, acceptor, and fret attributes')
+def toFile(filename, data, metadata, comments=''):
+  return FileIO.savefret(filename, data, metadata, comments)
 
 def fromFile(filename, **kwargs):
-  return FileIO.loadfret(filename, **kwargs)
+  return FileIO.load(filename, comments=FileIO.toSettings, **kwargs)
