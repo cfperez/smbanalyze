@@ -29,6 +29,8 @@ pulls[0].plot(FEC=True)
 
 Fit to the section before the rip:
 ```python
+# ext is the MINIMUM extension and force is the MAXIMUM force to fit to
+# can also use ext=(min,max) and force=(min,max)
 fit = pulls[0].fitForceExtension(ext=750, force=9)
 fit.plot(hold=True)
 ```
