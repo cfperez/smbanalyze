@@ -25,6 +25,15 @@ def isInt(s):
 def negate(it):
   return [-i for i in it]
 
+def broadcast(f):
+  @wraps(f)
+  def _f(X,*args,**kwargs):
+    if np.iterable(X):
+      return np.array([f(x,*args,**kwargs) for x in X])
+    else:
+      return f(X,*args)
+  return _f
+
 ## {{{ http://code.activestate.com/recipes/576693/ (r9)
 # Backport of OrderedDict() class that runs on Python 2.4, 2.5, 2.6, 2.7 and pypy.
 # Passes Python2.7's test suite and incorporates all the latest updates.
@@ -308,21 +317,6 @@ def static_args(f, **static):
 
   return _f
   
-def fix_args(f,**fixed):
-  "Return function f "
-  f_args = getargspec(f).args
-  fixed_i = map(f_args.index,fixed.keys())
-
-  @wraps(f)
-  def _f(*args):
-    args = list(args)
-    for i,fixed_arg in zip(fixed_i,fixed.values()):
-      args.insert(i,fixed_arg)
-    return f(*args)
-  _f.arglist=f_args
-
-  return _f
-
 def fcache(f,rounding=None):
   "Caches results of computation f with optional rounding"
   cache = {}
