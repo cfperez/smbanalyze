@@ -50,9 +50,10 @@ def fromData(*datalist, **kwargs):
     return output if len(output)>1 else output[-1]
 
 def fromMatch(*fglob):
-  return fromFiles(FileIO.flist(*fglob))
+  #fglob = fglob + ('str',)
+  return fromFiles(filter(lambda x: x.count('str')>0,FileIO.flist(*fglob)))
 
-def fromFiles(*filelist):
+def fromFiles(filelist):
   return [Pulling.fromFile(fname) for fname in filelist]
 
 class ExperimentList(collections.Sequence):
@@ -121,16 +122,18 @@ class Pulling(Base):
     basename,ext=FileIO.splitext(strfile)
     if not ext:
       strfile = FileIO.add_pull_ext(basename)
+    meta,data = FileIO.load(strfile,comments=FileIO.toSettings)
 
     # check if base + .fret exists if not specified already
     # and use it, or else load/don't load fretfile
     fretfileFromBase = FileIO.add_fret_ext(basename)
     if not fretfile and os.path.exists(fretfileFromBase):
-      cam_metadata, fret = FRET.fromFile(fretfileFromBase)
-    else:
-      cam_metadata, fret = fretfile and FRET.fromFile(fretfile)
-    meta,data = FileIO.load(strfile,comments=FileIO.toSettings)
-    meta.update(cam_metadata)
+      cam_metadata, fret = FileIO.load(fretfileFromBase, comments=FileIO.toSettings)
+      meta.update(cam_metadata)
+    elif fretfile and os.path.exists(fretfile):
+      cam_metadata, fret = fretfile and FileIO.load(fretfile, comments=FileIO.toSettings)
+      meta.update(cam_metadata)
+    else: fret=None
 
     newPull = cls(data,fret,**meta)
     newPull.file = basename
