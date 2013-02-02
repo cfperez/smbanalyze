@@ -30,15 +30,15 @@ def MS(x,Lp,Lc,F0):
 MS.default = {'Lp':20.,'Lc':1150.,'F0':0.1}
 
 @useful.broadcast
-def MSinv(F, Lp=20.0, Lc=1150.0, F0=0.1, K=1200.0):
+def MMS(F, Lp=20.0, Lc=1150.0, F0=0.1, K=1200.0):
   f = float(F-F0)* Lp / kT(parameters['T'])
   inverted_roots = roots([1, f-0.75, 0, -0.25])
   root_index = int(f>=0.75)*2
   root_of_inverted_MS = real(inverted_roots[root_index])
   return Lc * (1 - root_of_inverted_MS + (F-F0)/float(K))
-MSinv.default = {'Lp':20., 'Lc':1150., 'F0':0.1, 'K': 1200.}
-MSinv.inverted = True
-MSinv.arglist = ('F','Lp','Lc','F0','K')
+MMS.default = {'Lp':20., 'Lc':1150., 'F0':0.1, 'K': 1200.}
+MMS.inverted = True
+MMS.arglist = ('F','Lp','Lc','F0','K')
 
 ############################################################
 ## Fit class
