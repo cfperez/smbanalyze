@@ -33,7 +33,7 @@ def processFiles(flist, roi='roi.txt', background=None, ext=FileIO.FRET_FILE):
     img = Image.fromFile(fname) - BG
     img.addROI(*roi)
     output = calculate(img)
-    toFile(FileIO.change_extension(fname,ext), output)
+    toFile(FileIO.change_extension(fname,ext), output, img.metadata)
     all_output += [output]
 
   return all_output
