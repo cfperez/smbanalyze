@@ -129,7 +129,7 @@ def parseLineToSetting(line):
 
 def strip_blank_and_comments(iter_str):
   for line in strip_blank(iter_str):
-    if line.count('=')>0: yield line
+    if not line.startswith('#'): yield line
 
 def strip_blank(iter_str):
   for line in iter_str:
