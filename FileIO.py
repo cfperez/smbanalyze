@@ -202,9 +202,12 @@ def fromSettings(settings):
       output += HEADING_FMT % header
       for setting,value in settingsInHeading:
         # UPDATE ME!
-        if setting.lower() == 'datetime': continue
+        if setting == 'datetime': continue
+        print setting
         output += SETTING_FMT % (setting,value)
     except AttributeError:
+      # UPDATE ME!
+      if header == 'datetime': continue
       output += SETTING_FMT % (header, subHead)
   return ''.join(output)
 
