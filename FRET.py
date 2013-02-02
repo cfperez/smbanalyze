@@ -161,4 +161,4 @@ def toFile(filename, data, metadata, comments=''):
   return FileIO.savefret(filename, data, metadata, comments)
 
 def fromFile(filename, **kwargs):
-  return FileIO.load(filename, comments=FileIO.toSettings, **kwargs)
+  return FileIO.load(filename, **kwargs) #comments=FileIO.toSettings, **kwargs)
