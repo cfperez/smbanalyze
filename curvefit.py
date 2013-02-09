@@ -115,8 +115,7 @@ class Fit(object):
     return plt.plot(x,y,**kwargs)
 
   def __repr__(self):
-    return '<Fit {0} using parameters {1}'.format(
-      self.fitfunc.func_name, self.parameters)
+    return '<Fit using parameters {0}'.format(dict(self.parameters))
 
   def toFile(self,filename):
     raise NotImplementedError

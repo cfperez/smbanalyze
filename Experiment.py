@@ -176,8 +176,14 @@ class Pulling(Base):
     #while forceOffset>tolerance:
     #  pass
 
-  def adjustForceOffset(offset):
-    pass
+
+  def adjustForceOffset(self,offset):
+    def geometricMean(*args):
+      return 1/np.sum(map(lambda x: 1./x, args))
+    beadRadii = self.metadata.get('bead_radii', Constants.sumOfBeadRadii)
+    stiffness = geometricMean(*self.metadata.get('stiffness', Constants.stiffness))
+    self.f -= offset
+    self.ext = self.sep - beadRadii - self.f/stiffness
 
   def pickLimits(fig=None):
     if not fig: fig=plt.gcf()
