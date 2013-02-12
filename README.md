@@ -1,10 +1,48 @@
 # smbanalyze
 
-## Usage
-
 Load the package:
 
+    from matplotlib.pyplot import *
     from smbanalyze import *
+
+## Advanced Usage
+
+Process images using give roi file and background in the current directory:
+
+```python
+img_files = FileIO.flist('SJF', 'img')
+fret_data = FRET.processFiles(img_files, roi='roi.txt', background='SJF_background.img')
+```
+Remember you can change directories with `cd` and list contents with `ls`.
+
+Load a pulling experiment:
+
+```python
+pull = Experiment.Pulling.fromFile('SJF4_s1m1_4')
+pull.plot()
+
+# or from multiple files
+pulls = Experiment.fromMatch('SJF4', 's1m1')
+figure()
+pulls[0].plot(FEC=True)
+```
+
+Fit to the section before the rip:
+```python
+# ext is the MINIMUM extension and force is the MAXIMUM force to fit to
+# can also use ext=(min,max) and force=(min,max)
+fit = pulls[0].fitForceExtension(ext=750, force=9)
+fit.plot(hold=True)
+```
+Note that the default is the regular Marko Siggia curve. But Hallelujah! I figured out what
+was going on with the MMS curve fit, and made my own (better) version
+```python
+fitMMS = pulls[0].fitForceExtension(ext=750, force=9, fitfunc='MMS', fixed='K')
+fitMMS.plot(hold=True)
+```
+Note that this fit is more testy, and requires holding some parameters (like K) fixed, but my its pretty!
+
+## Basic Usage
 
 Loading a single image:
 

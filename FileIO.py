@@ -129,7 +129,7 @@ def parseLineToSetting(line):
 
 def strip_blank_and_comments(iter_str):
   for line in strip_blank(iter_str):
-    if line.count('=')>0: yield line
+    if not line.startswith('#'): yield line
 
 def strip_blank(iter_str):
   for line in iter_str:
@@ -202,9 +202,12 @@ def fromSettings(settings):
       output += HEADING_FMT % header
       for setting,value in settingsInHeading:
         # UPDATE ME!
-        if setting.lower() == 'datetime': continue
+        if setting == 'datetime': continue
+        print setting
         output += SETTING_FMT % (setting,value)
     except AttributeError:
+      # UPDATE ME!
+      if header == 'datetime': continue
       output += SETTING_FMT % (header, subHead)
   return ''.join(output)
 
