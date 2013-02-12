@@ -67,14 +67,14 @@ def loaddat(filename, **kwargs):
     # loop stops after grabbing column names
     for number,line in enumerate(fh):
       if np.any( map(line.startswith, comment_line) ):
-        comments += line.strip(' '+''.join(comment_line))
-      elif line.isspace():
-        continue
-      elif colnames:
-        position = number
-        break
-      elif any( map(str.isalnum, line.split()) ):
-        colnames = line.lower().split()
+        if not line.isspace():
+          comments += line.strip(''.join(comment_line))
+      else:
+        line = line.replace('\\t',' ')
+        if any( map(str.isalnum, line.split()) ):
+          colnames = line.lower().split()
+          position = number+1
+          break
 
     fh.seek(0)
     data = np.loadtxt(fh, skiprows=position, **kwargs)
@@ -139,7 +139,7 @@ def strip_blank(iter_str):
 def savedat(filename, data, header='', comments='', fmt='%.9e', delimiter='\t'):
 
   newline = '\n' if comments else ''
-  header = ''.join(map(lambda line: COMMENT_LINE+' '+line, comments.splitlines(True))) \
+  header = ''.join(map(lambda line: COMMENT_LINE[0]+' '+line, comments.splitlines(True))) \
       + newline + header.replace(' ',delimiter)
   if type(data) == tuple:
     data = np.array(data).T
@@ -256,7 +256,7 @@ timePattern = re.compile(r'_(?:(\d+)min)?(?:(\d+)s)?(?:_(\d+))?(?:_|$)')
 
 bgPattern = re.compile(r'_background')
 
-COMMENT_LINE = '#'
+COMMENT_LINE = ('#','/*')
 
 
 def parseFilename(filename):
