@@ -8,6 +8,7 @@ from scipy.optimize import curve_fit,fmin_bfgs
 import numpy as np 
 
 from Constants import parameters,kT
+from FRET import _subplot
 import useful
 
 class FitError(Exception):
@@ -39,6 +40,9 @@ def MMS(F, Lp=20.0, Lc=1150.0, F0=0.1, K=1200.0):
 MMS.default = {'Lp':20., 'Lc':1150., 'F0':0.1, 'K': 1200.}
 MMS.inverted = True
 MMS.arglist = ('F','Lp','Lc','F0','K')
+
+def MMS_rip(F, Lp0, Lc0, F0, K0, Lp1, Lc1, K1):
+  pass
 
 ############################################################
 ## Fit class
@@ -112,7 +116,7 @@ class Fit(object):
       x,y = self.fitOutput,self.x
     else:
       x,y = self.x,self.fitOutput
-    return plt.plot(x,y,**kwargs)
+    return _subplot(x,y,**kwargs)
 
   def __repr__(self):
     return '<Fit using parameters {0}'.format(dict(self.parameters))

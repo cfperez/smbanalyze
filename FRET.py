@@ -67,8 +67,9 @@ def plot(data, pull=None, **kwargs):
   title = kwargs.get('title','')
   FEC = kwargs.get('FEC',False)
 
-  hold=kwargs.get('hold',False)
-  plt.hold(hold)
+  hold=kwargs.get('hold', None)
+  if hold is not None:
+    plt.hold(hold)
 
   if pull and not hasPullData(data):
     data = PullFretData(*(pull+data))
