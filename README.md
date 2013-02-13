@@ -27,20 +27,21 @@ figure()
 pulls[0].plot(FEC=True)
 ```
 
-Fit to the section before the rip:
+Fit to the section before the rip and automatically plot if the figure is open:
 ```python
-# ext is the MINIMUM extension and force is the MAXIMUM force to fit to
-# can also use ext=(min,max) and force=(min,max)
-fit = pulls[0].fitForceExtension(ext=750, force=9)
-fit.plot(hold=True)
+# x is the MINIMUM extension and f is the MAXIMUM force to fit to
+# can also use x=(min,max) and f=(min,max)
+fit = pulls[0].fitForceExtension(x=750, f=9)
+# can also get the fit and parameters through
+pulls[0].fit.parameters
+pulls[0].fit['Lc']
 ```
 Note that the default is the regular Marko Siggia curve. But Hallelujah! I figured out what
 was going on with the MMS curve fit, and made my own (better) version
 ```python
-fitMMS = pulls[0].fitForceExtension(ext=750, force=9, fitfunc='MMS', fixed='K')
-fitMMS.plot(hold=True)
+fitMMS = pulls[0].fitForceExtension(x=750, f=9, fitfunc='MMS')
 ```
-Note that this fit is more testy, and requires holding some parameters (like K) fixed, but my its pretty!
+Note that this fit is more testy (e.g. K parameter is auto-fixed to 1200 by default).
 
 ## Basic Usage
 
