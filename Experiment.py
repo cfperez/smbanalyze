@@ -1,3 +1,4 @@
+import pdb
 import os
 import operator
 import glob
@@ -22,10 +23,6 @@ logger.addHandler(Constants.logHandler)
 
 class ExperimentError(Exception):
   pass
-
-# Harder for loop delay experiments
-# >>> Experiment.fromFiles('s1m1.img','s1m1.str','s1m1_2_refold_1.0s.img',
-# 's1m1_2_up.img','s1m1_2_up.str')
 
 def fromGlob(*globs, **kwargs):
   exptype = kwargs.get('type','pull')
@@ -148,8 +145,12 @@ class Pulling(Base):
   def plot(self, **kwargs):
     kwargs.setdefault('FEC', not self.hasfret)
     FRET.plot(self._data, **kwargs)
+    if hasattr(self,'fit'):
+      self.fit.plot(linewidth=2)
 
-  def fitForceExtension(self, ext=None, force=None, start=0, stop=-1, fitfunc='MS', **kwargs):
+  def fitForceExtension(self, ext=None, force=None, start=0, stop=-1, **kwargs):
+    kwargs.setdefault('fitfunc', 'MS')
+
     ext_fit,f_fit = self.ext[start:stop],self.f[start:stop]
     if force is None: force=[np.max(f_fit)]
     try:
@@ -158,8 +159,9 @@ class Pulling(Base):
       min_f, max_f = min(f_fit), force
     except ValueError:
       min_f, max_f = min(f_fit), force[0]
+    if max_f>max(f_fit): max_f=max(f_fit)
 
-    if ext is None: ext=[min(ext_fit)]
+    if ext is None or ext<min(ext_fit): ext=[min(ext_fit)]
     try:
       min_ext, max_ext = ext
     except TypeError:
@@ -171,11 +173,17 @@ class Pulling(Base):
     mask = between(ext_fit, min_ext, max_ext) # & between(f_fit, min_f, max_f)
     ext_fit,f_fit = ext_fit[mask],f_fit[mask]
 
-    return Fit(fitfunc, ext_fit, f_fit, **kwargs)
+    kwargs.setdefault('Lc', max(ext_fit)*1.05)
+    try:
+      if kwargs['fitfunc'].startswith('MMS'):
+        kwargs.setdefault('fixed', 'K')
+    except: pass
+
+    self.fit = Fit(ext_fit, f_fit, **kwargs)
+    return self.fit
 
     #while forceOffset>tolerance:
     #  pass
-
 
   def adjustForceOffset(self,offset):
     def geometricMean(*args):

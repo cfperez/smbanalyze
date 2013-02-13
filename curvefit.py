@@ -40,6 +40,7 @@ def MMS(F, Lp=20.0, Lc=1150.0, F0=0.1, K=1200.0):
 MMS.default = {'Lp':20., 'Lc':1150., 'F0':0.1, 'K': 1200.}
 MMS.inverted = True
 MMS.arglist = ('F','Lp','Lc','F0','K')
+MMS.name = 'MMS'
 
 def MMS_rip(F, Lp0, Lc0, F0, K0, Lp1, Lc1, K1):
   pass
@@ -48,13 +49,17 @@ def MMS_rip(F, Lp0, Lc0, F0, K0, Lp1, Lc1, K1):
 ## Fit class
 ############################################################
 class Fit(object):
-  def __init__(self, fitfunc, x, y, **kwargs):
+  def __init__(self, x, y, fitfunc, **kwargs):
     "Initialize to a specific fitting function, optionally fitting to data specified"
 
     verbose = kwargs.get('verbose',True)
 
     if isinstance(fitfunc,str):
+      name = fitfunc
       fitfunc = eval(fitfunc)
+      fitfunc.name = name
+    else:
+      fitfunc.name = getattr(fitfunc, '__name__', 'UNKOWN')
 
     # Use inspection to get parameter names from fit function
     # assuming first argument is independent variable
@@ -119,7 +124,8 @@ class Fit(object):
     return _subplot(x,y,**kwargs)
 
   def __repr__(self):
-    return '<Fit using parameters {0}'.format(dict(self.parameters))
+    return '<Fit function "{0}" using parameters {1}'.format(self.fitfunc.name, 
+        dict(self.parameters))
 
   def toFile(self,filename):
     raise NotImplementedError
