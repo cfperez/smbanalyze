@@ -14,7 +14,7 @@ def toNum(s):
 
 def toInt(s):
   s = toNum(s)
-  return int(s) if s else None
+  return int(s) if s is not None else None
 
 def isInt(s):
   try:
