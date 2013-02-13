@@ -1,15 +1,16 @@
 import inspect
+from operator import isSequenceType
 from functools import wraps, partial, update_wrapper
 from itertools import izip
-from numpy import arccos, cos, exp, sqrt, log, fabs, pi, roots, real
 
+from numpy import arccos, cos, exp, sqrt, log, fabs, pi, roots, real
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit,fmin_bfgs
 import numpy as np 
 
 from Constants import parameters,kT
 from FRET import _subplot
-import useful
+from useful import OrderedDict
 
 class FitError(Exception):
   pass
@@ -32,15 +33,15 @@ MS.default = {'Lp':20.,'Lc':1150.,'F0':0.1}
 
 @useful.broadcast
 def MMS(F, Lp=20.0, Lc=1150.0, F0=0.1, K=1200.0):
+  "Modified Marko-Siggia model as a function of force"
   f = float(F-F0)* Lp / kT(parameters['T'])
   inverted_roots = roots([1, f-0.75, 0, -0.25])
   root_index = int(f>=0.75)*2
   root_of_inverted_MS = real(inverted_roots[root_index])
   return Lc * (1 - root_of_inverted_MS + (F-F0)/float(K))
-MMS.default = {'Lp':20., 'Lc':1150., 'F0':0.1, 'K': 1200.}
+MMS.default = {'Lp':30., 'Lc':1150., 'F0':0.1, 'K': 1200.}
 MMS.inverted = True
 MMS.arglist = ('F','Lp','Lc','F0','K')
-MMS.name = 'MMS'
 
 def MMS_rip(F, Lp0, Lc0, F0, K0, Lp1, Lc1, K1):
   pass
@@ -49,66 +50,65 @@ def MMS_rip(F, Lp0, Lc0, F0, K0, Lp1, Lc1, K1):
 ## Fit class
 ############################################################
 class Fit(object):
-  def __init__(self, x, y, fitfunc, **kwargs):
+  def __init__(self, x, y, fitfunc, fixed=(), verbose=False, **user_parameters):
     "Initialize to a specific fitting function, optionally fitting to data specified"
 
-    verbose = kwargs.get('verbose',True)
-
     if isinstance(fitfunc,str):
-      name = fitfunc
       fitfunc = eval(fitfunc)
-      fitfunc.name = name
-    else:
-      fitfunc.name = getattr(fitfunc, '__name__', 'UNKOWN')
+    self.fitfunc = fitfunc
+    self.inverted = getattr(fitfunc, 'inverted', False)
 
     # Use inspection to get parameter names from fit function
     # assuming first argument is independent variable
-    try:
-      arg_names = getattr(fitfunc,'arglist',inspect.getargspec(fitfunc).args)[1:]
-    except AttributeError:
-      arg_names = kwargs.pop('parameters')
-    fixed = kwargs.pop('fixed',())
-    if not isinstance(fixed,tuple):
+    arg_names = getattr(fitfunc, 'arglist', inspect.getargspec(fitfunc).args)[1:]
+    fit_parameters = OrderedDict.fromkeys(arg_names)
+    valid_args = frozenset(arg_names)
+
+    if not set(user_parameters.keys()) <= valid_args:
+      raise FitError('Keyword arguments can only set valid fit parameters')
+
+    fit_defaults = getattr(fitfunc, 'default', {}).items() or \
+      zip( reversed(arg_names), reversed(fitfunc.func_defaults))
+
+    fit_parameters.update(fit_defaults, **user_parameters)
+
+    if isinstance(fixed, str):
       fixed = (fixed,)
+    elif not isSequenceType(fixed):
+      raise ValueError("Argument 'fixed' must be a string or a tuple: %s" % fixed)
+    elif not set(fixed) <= valid_args:
+      raise FitError('Fixed argument must specify one of: %s' % valid_args)
 
-    # Parameter names (from inspection) that we will fit to (not fixed)
-    free_params = [ p for p in arg_names if p not in fixed ]
+    free_parameters = valid_args - set(fixed)
 
-    # Use parameter defaults defined by the fitfunc itself
-    default = getattr(fitfunc,'default', {})
-
-    starting_param = [ kwargs.setdefault(p,default.get(p,1)) for p in free_params ]
+    starting_p = [ param for key,param in fit_parameters.iteritems()
+        if key not in fixed ]
 
     if fixed:
-      to_fix = useful.OrderedDict( (param,kwargs.get(param,default[param])) for param in fixed )
-      self.__dict__.update(to_fix)
-      self.fitfunc = partial(fitfunc, **to_fix)
-    else:
-      self.fitfunc = fitfunc
-      to_fix = {}
+      fixed_parameters = OrderedDict( filter(lambda item: item[0] in fixed,
+                                fit_parameters.items()) )
+      fitfunc = partial(fitfunc, **fixed_parameters)
 
-    self.inverted = getattr(fitfunc, 'inverted', False)
     if self.inverted:
       x,y=y,x
     self.x = x
 
-    fit_params,self.error = curve_fit(self.fitfunc,x,y,starting_param)
-    self.fitOutput = self.fitfunc(x,*fit_params)
+    fit_params, self.error = curve_fit(fitfunc, x, y, starting_p)
+    self.fitOutput = fitfunc(x, *fit_params)
     self.residual = self.fitOutput-y
 
-    self.free_parameters = useful.OrderedDict( zip(free_params,fit_params) )
-    self.__dict__.update(self.free_parameters)
+    self.fixed = fixed
+    self.parameters = fit_parameters.copy()
+    try:
+      fit_params = fit_params.tolist()
+      for param in fit_parameters:
+        if param in free_parameters:
+          self.parameters[param] = fit_params.pop(0)
+    except IndexError:
+      raise FitError("Free/fix parameter mismatch!")
 
-    self.parameters = useful.OrderedDict(self.free_parameters)
-    if to_fix:
-      self.parameters.update(to_fix)
-
-    if verbose:
-      print "Fitting with parameters {0}".format(','.join(['{0}={1:.2f}'.format(*p) for p
-        in zip(self.free_parameters,fit_params)]))
-
-  def __call__(self,x=None):
-    return self.fitfunc(x,*self.free_parameters.values())
+  def __call__(self, x=None):
+    return self.fitfunc(x, *self.parameters.values())
 	
   def __getitem__(self,key):
     return self.parameters[key]
@@ -121,11 +121,12 @@ class Fit(object):
       x,y = self.fitOutput,self.x
     else:
       x,y = self.x,self.fitOutput
+    kwargs.setdefault('linewidth', 2)
     return _subplot(x,y,**kwargs)
 
   def __repr__(self):
-    return '<Fit function "{0}" using parameters {1}'.format(self.fitfunc.name, 
-        dict(self.parameters))
+    return "<Fit function '{0}' using parameters {1}".format(self.fitfunc.func_name, 
+        ', '.join(['{0}={1:.2f}'.format(*p) for p in self.parameters.items()]))
 
   def toFile(self,filename):
     raise NotImplementedError

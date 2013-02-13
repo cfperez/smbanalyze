@@ -115,6 +115,9 @@ class Pulling(Base):
     elif fret is not None:
       super(Pulling,self).__init__(PullFretData._make(pull+fret), **metadata)
 
+    self.figure = None
+    self.fit = None
+
   @classmethod
   def fromFile(cls,strfile,fretfile=None):
     basename,ext=FileIO.splitext(strfile)
@@ -145,41 +148,47 @@ class Pulling(Base):
   def plot(self, **kwargs):
     kwargs.setdefault('FEC', not self.hasfret)
     FRET.plot(self._data, **kwargs)
-    if hasattr(self,'fit'):
-      self.fit.plot(linewidth=2)
+    self.figure = plt.gcf()
+    if self.fit:
+      self.fit.plot(hold=True)
 
-  def fitForceExtension(self, ext=None, force=None, start=0, stop=-1, **kwargs):
-    kwargs.setdefault('fitfunc', 'MS')
+  def fitForceExtension(self, x=None, f=None, start=0, stop=-1, **fitOptions):
+    fitOptions.setdefault('fitfunc', 'MS')
 
     ext_fit,f_fit = self.ext[start:stop],self.f[start:stop]
-    if force is None: force=[np.max(f_fit)]
+    if f is None: f=[np.max(f_fit)]
     try:
-      min_f, max_f = force
+      min_f, max_f = f
     except TypeError:
-      min_f, max_f = min(f_fit), force
+      min_f, max_f = min(f_fit), f
     except ValueError:
-      min_f, max_f = min(f_fit), force[0]
+      min_f, max_f = min(f_fit), f[0]
     if max_f>max(f_fit): max_f=max(f_fit)
 
-    if ext is None or ext<min(ext_fit): ext=[min(ext_fit)]
+    if x is None or x<min(ext_fit): x=[min(ext_fit)]
     try:
-      min_ext, max_ext = ext
+      min_ext, max_ext = x
     except TypeError:
-      min_ext, max_ext = ext, ext_fit[min(where(f_fit>=max_f)[0])-1] #np.max(ext_fit)
+      min_ext, max_ext = x, ext_fit[min(where(f_fit>=max_f)[0])-1] #np.max(ext_fit)
     except ValueError:
-      min_ext, max_ext = ext[0], ext_fit[min(where(f_fit>=max_f)[0])-1] #np.max(ext_fit)
+      min_ext, max_ext = x[0], ext_fit[min(where(f_fit>=max_f)[0])-1] #np.max(ext_fit)
 
     between = lambda s,a,b: (s>=a) & (s<=b)
     mask = between(ext_fit, min_ext, max_ext) # & between(f_fit, min_f, max_f)
     ext_fit,f_fit = ext_fit[mask],f_fit[mask]
 
-    kwargs.setdefault('Lc', max(ext_fit)*1.05)
+    fitOptions.setdefault('Lc', max(ext_fit)*1.05)
     try:
-      if kwargs['fitfunc'].startswith('MMS'):
-        kwargs.setdefault('fixed', 'K')
+      if fitOptions['fitfunc'].startswith('MMS'):
+        fitOptions.setdefault('fixed', 'K')
     except: pass
 
-    self.fit = Fit(ext_fit, f_fit, **kwargs)
+    self.fit = Fit(ext_fit, f_fit, **fitOptions)
+
+    if self.figure and plt.fignum_exists(self.figure.number):
+      plt.figure(self.figure.number)
+      self.fit.plot(hold=True)
+
     return self.fit
 
     #while forceOffset>tolerance:
