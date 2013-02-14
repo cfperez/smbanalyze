@@ -38,7 +38,7 @@ def processFiles(flist, roi='roi.txt', background=None, ext=FileIO.FRET_FILE):
 
   return all_output
 
-def multiplot(*data, **kwargs):
+def plotall(*data, **kwargs):
   names = kwargs.get('names',[None]*len(data))
   prefix = kwargs.get('prefix','')
   title = kwargs.get('title','')
