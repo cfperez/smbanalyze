@@ -152,10 +152,32 @@ class Pulling(Base):
     if self.fit:
       self.fit.plot(hold=True)
 
+  def fitRip(self, x=None, f=None, start=0, stop=-1, **fitOptions):
+    pass
+    
   def fitForceExtension(self, x=None, f=None, start=0, stop=-1, **fitOptions):
     fitOptions.setdefault('fitfunc', 'MS')
 
-    ext_fit,f_fit = self.ext[start:stop],self.f[start:stop]
+    ext_fit, f_fit = self._constrainFitDataFromLimits(x, f, (start,stop))
+
+    fitOptions.setdefault('Lc', max(ext_fit)*1.05)
+    try:
+      if fitOptions['fitfunc'].startswith('MMS'):
+        fitOptions.setdefault('fixed', 'K')
+    except AttributeError: pass
+
+    self.fit = Fit(ext_fit, f_fit, **fitOptions)
+
+    if self.figure and plt.fignum_exists(self.figure.number):
+      plt.figure(self.figure.number)
+      self.fit.plot(hold=True)
+
+    return self.fit
+
+  def _constrainFitDataFromLimits(self, x, f, limits):
+    start, stop = limits
+
+    ext_fit,f_fit = self.ext[start:stop], self.f[start:stop]
     if f is None: f=[np.max(f_fit)]
     try:
       min_f, max_f = f
@@ -169,30 +191,14 @@ class Pulling(Base):
     try:
       min_ext, max_ext = x
     except TypeError:
-      min_ext, max_ext = x, ext_fit[min(where(f_fit>=max_f)[0])-1] #np.max(ext_fit)
+      min_ext, max_ext = x, ext_fit[min(where(f_fit>=max_f)[0])-1]
     except ValueError:
-      min_ext, max_ext = x[0], ext_fit[min(where(f_fit>=max_f)[0])-1] #np.max(ext_fit)
+      min_ext, max_ext = x[0], ext_fit[min(where(f_fit>=max_f)[0])-1]
 
     between = lambda s,a,b: (s>=a) & (s<=b)
-    mask = between(ext_fit, min_ext, max_ext) # & between(f_fit, min_f, max_f)
-    ext_fit,f_fit = ext_fit[mask],f_fit[mask]
+    mask = between(ext_fit, min_ext, max_ext)
 
-    fitOptions.setdefault('Lc', max(ext_fit)*1.05)
-    try:
-      if fitOptions['fitfunc'].startswith('MMS'):
-        fitOptions.setdefault('fixed', 'K')
-    except: pass
-
-    self.fit = Fit(ext_fit, f_fit, **fitOptions)
-
-    if self.figure and plt.fignum_exists(self.figure.number):
-      plt.figure(self.figure.number)
-      self.fit.plot(hold=True)
-
-    return self.fit
-
-    #while forceOffset>tolerance:
-    #  pass
+    return ext_fit[mask], f_fit[mask]
 
   def adjustForceOffset(self,offset):
     def geometricMean(*args):
