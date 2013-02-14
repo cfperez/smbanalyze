@@ -32,6 +32,20 @@ def broadcast(f):
       return np.array([f(x,*args,**kwargs) for x in X])
     else:
       return f(X,*args)
+  _f.arglist = getargspec(f).args
+  return _f
+
+def fix_args(f, **fixed):
+  ind_var = [fixed.pop('independent_var', 'x')]
+  f_args = getattr(f, 'arglist', None) or getargspec(f).args
+
+  @wraps(f)
+  def _f(*args, **kwargs):
+    newkwargs = kwargs.copy()
+    pos_args = filter(lambda x: x not in fixed, f_args)
+    newkwargs.update(zip(pos_args,args), **fixed)
+    return f(**newkwargs)
+
   return _f
 
 ## {{{ http://code.activestate.com/recipes/576693/ (r9)

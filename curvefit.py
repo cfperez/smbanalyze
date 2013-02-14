@@ -1,6 +1,5 @@
 import inspect
 from operator import isSequenceType
-from functools import wraps, partial, update_wrapper
 from itertools import izip
 
 from numpy import arccos, cos, exp, sqrt, log, fabs, pi, roots, real
@@ -10,7 +9,7 @@ import numpy as np
 
 from Constants import parameters,kT
 from FRET import _subplot
-from useful import OrderedDict
+from useful import OrderedDict, fix_args
 
 class FitError(Exception):
   pass
@@ -32,7 +31,7 @@ def MS(x,Lp,Lc,F0):
 MS.default = {'Lp':20.,'Lc':1150.,'F0':0.1}
 
 @useful.broadcast
-def MMS(F, Lp=20.0, Lc=1150.0, F0=0.1, K=1200.0):
+def MMS(F, Lp, Lc, F0, K):
   "Modified Marko-Siggia model as a function of force"
   f = float(F-F0)* Lp / kT(parameters['T'])
   inverted_roots = roots([1, f-0.75, 0, -0.25])
@@ -41,10 +40,11 @@ def MMS(F, Lp=20.0, Lc=1150.0, F0=0.1, K=1200.0):
   return Lc * (1 - root_of_inverted_MS + (F-F0)/float(K))
 MMS.default = {'Lp':30., 'Lc':1150., 'F0':0.1, 'K': 1200.}
 MMS.inverted = True
-MMS.arglist = ('F','Lp','Lc','F0','K')
 
-def MMS_rip(F, Lp0, Lc0, F0, K0, Lp1, Lc1, K1):
-  pass
+def MMS_rip(F, Lp=30., Lc=1150., F0=0., K=1200., Lp1=2.5, Lc1=0., K1=1100.):
+  return MMS(F, Lp, Lc, F0, K) + MMS(F, Lp1, Lc1, F0, K1)
+MMS_rip.default = dict(MMS.default, Lp1=2.5, Lc1=0., K1=1100.)
+MMS_rip.inverted = True
 
 ############################################################
 ## Fit class
@@ -69,7 +69,6 @@ class Fit(object):
 
     fit_defaults = getattr(fitfunc, 'default', {}).items() or \
       zip( reversed(arg_names), reversed(fitfunc.func_defaults))
-
     fit_parameters.update(fit_defaults, **user_parameters)
 
     if isinstance(fixed, str):
@@ -87,7 +86,7 @@ class Fit(object):
     if fixed:
       fixed_parameters = OrderedDict( filter(lambda item: item[0] in fixed,
                                 fit_parameters.items()) )
-      fitfunc = partial(fitfunc, **fixed_parameters)
+      fitfunc = fix_args(fitfunc, **fixed_parameters)
 
     if self.inverted:
       x,y=y,x
