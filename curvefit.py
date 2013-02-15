@@ -27,7 +27,7 @@ def MS(x,Lp,Lc,F0):
   "Marko-Siggia model of worm-like chain"
   x_ = x/float(Lc)
   A = kT(parameters['T'])/Lp
-  return A * (0.25/(1-x_)**2 - 0.25 +x_) + F0
+  return A * (0.25/(1-x_)**2 - 0.25 +x_) - F0
 MS.default = {'Lp':20.,'Lc':1150.,'F0':0.1}
 
 @useful.broadcast
@@ -41,7 +41,7 @@ def MMS(F, Lp, Lc, F0, K):
 MMS.default = {'Lp':30., 'Lc':1150., 'F0':0.1, 'K': 1200.}
 MMS.inverted = True
 
-def MMS_rip(F, Lp=30., Lc=1150., F0=0., K=1200., Lp1=2.5, Lc1=0., K1=1100.):
+def MMS_rip(F, Lp=30., Lc=1150., F0=0.1, K=1200., Lp1=2.5, Lc1=0., K1=1100.):
   return MMS(F, Lp, Lc, F0, K) + MMS(F, Lp1, Lc1, F0, K1)
 MMS_rip.default = dict(MMS.default, Lp1=2.5, Lc1=0., K1=1100.)
 MMS_rip.inverted = True
@@ -50,8 +50,10 @@ MMS_rip.inverted = True
 ## Fit class
 ############################################################
 class Fit(object):
-  def __init__(self, x, y, fitfunc, fixed=(), verbose=False, **user_parameters):
+  def __init__(self, x, y, fitfunc, fixed=(), name='', verbose=False, **user_parameters):
     "Initialize to a specific fitting function, optionally fitting to data specified"
+
+    self.name = name
 
     if isinstance(fitfunc,str):
       fitfunc = eval(fitfunc)
