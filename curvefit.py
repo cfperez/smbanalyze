@@ -9,7 +9,7 @@ import numpy as np
 
 from Constants import parameters,kT
 from FRET import _subplot
-from useful import OrderedDict, fix_args
+from useful import OrderedDict, fix_args, broadcast
 
 class FitError(Exception):
   pass
@@ -30,7 +30,7 @@ def MS(x,Lp,Lc,F0):
   return A * (0.25/(1-x_)**2 - 0.25 +x_) - F0
 MS.default = {'Lp':20.,'Lc':1150.,'F0':0.1}
 
-@useful.broadcast
+@broadcast
 def MMS(F, Lp, Lc, F0, K):
   "Modified Marko-Siggia model as a function of force"
   f = float(F-F0)* Lp / kT(parameters['T'])
