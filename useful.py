@@ -31,8 +31,9 @@ def broadcast(f):
     if np.iterable(X):
       return np.array([f(x,*args,**kwargs) for x in X])
     else:
-      return f(X,*args)
+      return f(X,*args,**kwargs)
   _f.arglist = getargspec(f).args
+  _f.broadcast = True
   return _f
 
 def fix_args(f, **fixed):
@@ -40,7 +41,7 @@ def fix_args(f, **fixed):
   f_args = getattr(f, 'arglist', None) or getargspec(f).args
   pos_args = filter(lambda x: x not in fixed, f_args)
 
-  if pos_args:
+  if getattr(f, 'broadcast', False):
     @wraps(f)
     def _f(*args, **kwargs):
       newkwargs = kwargs.copy()
@@ -51,6 +52,7 @@ def fix_args(f, **fixed):
     @wraps(f)
     def _f(*args, **kwargs):
       newkwargs = kwargs.copy()
+      newkwargs.update(zip(pos_args,args), **fixed)
       return f(**newkwargs)
 
   return _f
