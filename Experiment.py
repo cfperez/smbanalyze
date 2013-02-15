@@ -116,7 +116,10 @@ class Pulling(Base):
       super(Pulling,self).__init__(PullFretData._make(pull+fret), **metadata)
 
     self.figure = None
-    self.fit = None
+    self.handles = None
+    self.rips = []
+    self.lastFit = None
+    self._appendNewRip = True
 
   @classmethod
   def fromFile(cls,strfile,fretfile=None):
@@ -142,19 +145,38 @@ class Pulling(Base):
       newPull.info = FileIO.parseFilename(basename)
     except:
       logger.warning('Problem parsing filename %s' % basename)
-
     return newPull
 
-  def plot(self, **kwargs):
-    kwargs.setdefault('FEC', not self.hasfret)
-    FRET.plot(self._data, **kwargs)
-    self.figure = plt.gcf()
-    if self.fit:
-      self.fit.plot(hold=True)
+  def fitHandles(self, x=None, f=None, **fitOptions):
+    fitOptions.update(fitfunc='MMS')
+    self.handles = self.fitForceExtension(x, f, **fitOptions)
+    return self.handles
 
-  def fitRip(self, x=None, f=None, start=0, stop=-1, **fitOptions):
-    pass
+  def fitRip(self, x=None, f=None, guess=10, **fitOptions):
+    if not self.handles:
+      raise ExperimentError("Must fitHandles() before fitting rip!")
+    parameters = self.handles.parameters.copy()
+    parameters.update(Lc1=guess)
+    fitOptions.update( {'fixed': ('K','K1','Lc','Lp','F0','Lp1'), 
+          'fitfunc': 'MMS_rip'}, **parameters)
+    rip = self.fitForceExtension(x, f, **fitOptions)
+    self.addRip(rip)
+    return rip['Lc1']
     
+  def addRip(self, newFit):
+    if self._appendNewRip:
+      self.rips += [newFit]
+      self._appendNewRip = False
+    else:
+      self.rips[-1] = newFit
+
+  def nextRip(self):
+    self._appendNewRip = True
+
+  @property
+  def ripSizes(self):
+    return map(operator.itemgetter('Lc1'), self.rips)
+
   def fitForceExtension(self, x=None, f=None, start=0, stop=-1, **fitOptions):
     fitOptions.setdefault('fitfunc', 'MS')
 
@@ -166,18 +188,19 @@ class Pulling(Base):
         fitOptions.setdefault('fixed', 'K')
     except AttributeError: pass
 
-    self.fit = Fit(ext_fit, f_fit, **fitOptions)
+    fit = Fit(ext_fit, f_fit, **fitOptions)
+    self.lastFit = fit
 
-    if self.figure and plt.fignum_exists(self.figure.number):
+    if self.figure and self.figure.get_axes():
       plt.figure(self.figure.number)
-      self.fit.plot(hold=True)
+      fit.plot(hold=True)
 
-    return self.fit
+    return fit
 
-  def _constrainFitDataFromLimits(self, x, f, limits):
+  def _constrainFitDataFromLimits(self, x, f, limits=(0,-1)):
     start, stop = limits
-
     ext_fit,f_fit = self.ext[start:stop], self.f[start:stop]
+
     if f is None: f=[np.max(f_fit)]
     try:
       min_f, max_f = f
@@ -187,7 +210,7 @@ class Pulling(Base):
       min_f, max_f = min(f_fit), f[0]
     if max_f>max(f_fit): max_f=max(f_fit)
 
-    if x is None or x<min(ext_fit): x=[min(ext_fit)]
+    if x is None: x=[min(ext_fit)]
     try:
       min_ext, max_ext = x
     except TypeError:
@@ -200,17 +223,43 @@ class Pulling(Base):
 
     return ext_fit[mask], f_fit[mask]
 
+  def fitFEC(self, x=None, f=None, tolerance=0.5, **fitOptions):
+    offset = 0
+    loops = 0
+    while True:
+      loops += 1
+      self.adjustForceOffset(offset)
+      fit=self.fitForceExtension(x,f,**fitOptions)
+      offset = abs(fit['F0'])
+      if offset < tolerance or loops>10: break
+    return fit
+    
+  @property
+  def fits(self):
+    if self.handles:
+      return [self.handles]+self.rips
+    else:
+      return [self.lastFit] if self.lastFit else []
+
   def adjustForceOffset(self,offset):
-    def geometricMean(*args):
-      return 1/np.sum(map(lambda x: 1./x, args))
-    beadRadii = self.metadata.get('bead_radii', Constants.sumOfBeadRadii)
-    stiffness = geometricMean(*self.metadata.get('stiffness', Constants.stiffness))
-    self.f -= offset
-    self.ext = self.sep - beadRadii - self.f/stiffness
+    if offset>0:
+      def geometricMean(*args):
+        return 1/np.sum(map(lambda x: 1./x, args))
+      beadRadii = self.metadata.get('bead_radii', Constants.sumOfBeadRadii)
+      stiffness = geometricMean(*self.metadata.get('stiffness', Constants.stiffness))
+      self.f -= offset
+      self.ext = self.sep - beadRadii - self.f/stiffness
+
+  def plot(self, **kwargs):
+    kwargs.setdefault('FEC', not self.hasfret)
+    FRET.plot(self._data, **kwargs)
+    self.figure = plt.gcf()
+    for fit in self.fits:
+      fit.plot(hold=True)
 
   def pickLimits(fig=None):
     if not fig: fig=plt.gcf()
-    firstPoint,secondPoint = ginput()
+    firstPoint,secondPoint = ginput(2)
 
 class OpenLoop(Base):
   "camera .cam image. img"
