@@ -38,13 +38,20 @@ def broadcast(f):
 def fix_args(f, **fixed):
   ind_var = [fixed.pop('independent_var', 'x')]
   f_args = getattr(f, 'arglist', None) or getargspec(f).args
+  pos_args = filter(lambda x: x not in fixed, f_args)
 
-  @wraps(f)
-  def _f(*args, **kwargs):
-    newkwargs = kwargs.copy()
-    pos_args = filter(lambda x: x not in fixed, f_args)
-    newkwargs.update(zip(pos_args,args), **fixed)
-    return f(**newkwargs)
+  if pos_args:
+    @wraps(f)
+    def _f(*args, **kwargs):
+      newkwargs = kwargs.copy()
+      newkwargs.update(zip(pos_args,args), **fixed)
+      first = newkwargs.pop(pos_args[0])
+      return f(first, **newkwargs)
+  else:
+    @wraps(f)
+    def _f(*args, **kwargs):
+      newkwargs = kwargs.copy()
+      return f(**newkwargs)
 
   return _f
 
