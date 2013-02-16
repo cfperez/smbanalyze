@@ -129,6 +129,10 @@ class Fit(object):
     return "<Fit function '{0}' using parameters {1}".format(self.fitfunc.func_name, 
         ', '.join(['{0}={1:.2f}'.format(*p) for p in self.parameters.items()]))
 
+  def __str__(self):
+    return self.fitfunc.func_name + ' fit: ' + \
+      ' '.join('{0}={1:.2f}'.format(p,v) for p,v in self.parameters.items())
+
   def toFile(self,filename):
     raise NotImplementedError
 
