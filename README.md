@@ -48,10 +48,10 @@ Note that this fit is more testy (e.g. K parameter is auto-fixed to 1200 by defa
 Loading a single image:
 
 ```python
-image = Image.fromFile('test1.img')
+image = Image.fromFile('test_s1m1.img')
 background = Image.fromFile('background.img', background=True)
 
-image_bg = Image.fromFile('test1.img', background='background.img')
+image_bg = Image.fromFile('test_s1m1.img', background='background.img')
 
 # is true!
 image - background == image_bg
@@ -112,7 +112,7 @@ figure()
 FRET.plot(fret)
 
 # and if you have pulling data
-pull = FileIO.loadstr('test1.str')
+pull = FileIO.loadstr('test_s1m1.str')
 FRET.plot(fret, pull=pull)
 
 # and if you want to see an FEC
