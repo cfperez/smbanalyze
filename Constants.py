@@ -14,4 +14,4 @@ default_background_subtract = 100
 
 logHandler = logging.StreamHandler()
 logHandler.setFormatter(logging.Formatter('%(asctime)s | %(name)s:%(levelname)s: %(message)s'))
-logLevel = logging.DEBUG
+logLevel = logging.FATAL

@@ -53,8 +53,34 @@ When would this be needed?
 >>> p.fitRips(ext=(),force=()) # ext=750 assumes min, force=20 assumes max
   [<Fit with params Lc,Lp,F0,K >, <Fit with params Lc,Lp,F0,K >]
 
+>>> p.fitHandles() # Uses MMS_rip
+>>> p.fitRip(x=(992,1020)) # Uses MMS_rip and previous fit results
+17.57
+
+>>> p.addRip() # Adds expectation that a new fit will be added
+>>> p.fitRip(x=1020) # Uses original handle fit results
+10
+
+>>> p.fits
+[<Fit ...>, <Fit ...>, <Fit ...>]
+
+>>> p.ripInfo
+[ 17.57, 10 ]
+
+# Fit of the upper
+>>> p.fit[1]
+<Fit with params ...>
+
+p.fitLowerFEC
+p.fitUpperFEC
+
 # 2) Loading images
 
 >>> img = p.loadimg() # shorthand for below?
 >>> img = Image.fromFile(p.file)
 >>> img.show(0)
+
+# LOADING DATA
+
+flist = FileIO.filelist('SJF','s1m1')
+FRET.processFiles()
