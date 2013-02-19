@@ -33,7 +33,7 @@ def testTwoConstantArgsWithKeywords():
   assert result(66) == f(66, 20, 30)
 
 def testMSfixedparams():
-  for x in range(100,1000,100):
+  for x in range(500,1000,100):
     yield MSfitfunc, x
 
 def MSfitfunc(X):
@@ -42,7 +42,7 @@ def MSfitfunc(X):
   assert fixed(X) == MS(X, **to_fix)
 
 def testMMSfixedParams():
-  for x in range(100,1000,100):
+  for x in range(500,1000,100):
     yield MMSfitfunc, x
   
 def MMSfitfunc(X):
