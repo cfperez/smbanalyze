@@ -158,7 +158,7 @@ Convert between 'absolute' and 'relative' coordinates:
       return cls( (left,bottom), (right,top), **kwargs )
 
   @classmethod
-  def toFile(cls, filename, *ROIs):
+  def save(cls, filename, *ROIs):
     "save(filename, *ROIs): Save ROI(s) to a LabView config file format"
     mode = 'w'
     for roi in ROIs:
