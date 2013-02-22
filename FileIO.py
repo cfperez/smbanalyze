@@ -203,7 +203,6 @@ def fromSettings(settings):
       for setting,value in settingsInHeading:
         # UPDATE ME!
         if setting == 'datetime': continue
-        print setting
         output += SETTING_FMT % (setting,value)
     except AttributeError:
       # UPDATE ME!
