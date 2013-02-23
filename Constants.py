@@ -10,7 +10,7 @@ gamma = 1.16
 sumOfBeadRadii = 715
 stiffness = (1.6, 0.24)
 
-default_background_subtract = 100
+default_background_subtract = 94
 
 logHandler = logging.StreamHandler()
 logHandler.setFormatter(logging.Formatter('%(asctime)s | %(name)s:%(levelname)s: %(message)s'))
