@@ -253,7 +253,8 @@ class Pulling(Base):
 
   def plot(self, **kwargs):
     kwargs.setdefault('FEC', not self.hasfret)
-    FRET.plot(self._data, **kwargs)
+    title=self.file or ''
+    FRET.plot(self._data, title=title, **kwargs)
     self.figure = plt.gcf()
     for fit in self.fits:
       fit.plot(hold=True)
