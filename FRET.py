@@ -1,13 +1,9 @@
-import os
-import glob
-import re
 import operator
 from itertools import izip
 
 import matplotlib.pyplot as plt
 from numpy import concatenate
 
-import useful
 import Image
 import FileIO
 import Constants
