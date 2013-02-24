@@ -10,7 +10,7 @@ from inspect import isfunction
 
 import numpy as np
 
-from Types import FretData, PullData
+from types import FretData, PullData
 from useful import toNum, toInt, isInt
 
 IMAGE_FILE = '.img'

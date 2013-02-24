@@ -4,10 +4,10 @@ from itertools import izip
 import matplotlib.pyplot as plt
 from numpy import concatenate
 
-import Image
-import FileIO
-import Constants
-from Types import PullFretData,FretData,hasPullData,hasFretData
+import image
+import fileIO
+import constants
+from types import PullFretData,FretData,hasPullData,hasFretData
 
 molID = lambda t: 's{0}m{1}'.format(t.slide,t.mol)
 molname = lambda t: 's{0}m{1}_{2}'.format(t.slide,t.mol,t.pull)
@@ -17,25 +17,25 @@ def info(s):
   print s
 
 def processFiles(flist, roi='roi.txt', background=None, 
-	verbose=True, ext=FileIO.FRET_FILE):
+	verbose=True, ext=fileIO.FRET_FILE):
   "processFiles(filelist, roi='roi.txt', background=None, ext=Fret_File_extension)"
 
   if background:
-    BG = Image.fromFile(background,background=True)
+    BG = image.fromFile(background,background=True)
   else:
-    BG = Constants.default_background_subtract
+    BG = constants.default_background_subtract
 
   if isinstance(roi,str):
-    roi = Image.ROI.fromFile(roi)
+    roi = image.ROI.fromFile(roi)
 
   all_output = []
   for fname in flist:
     if verbose: info('Opening %s...' % fname)
-    img = Image.fromFile(fname) - BG
+    img = image.fromFile(fname) - BG
     img.addROI(*roi)
     output = calculate(img)
     if verbose: info('Saving .fret data to file...')
-    toFile(FileIO.change_extension(fname,ext), output, img.metadata)
+    toFile(fileIO.change_extension(fname,ext), output, img.metadata)
     all_output += [output]
 
   return all_output
@@ -148,10 +148,10 @@ def calcToFile(stack, filename, **kwargs):
   toFile(filename, fretdata, stack.metadata)
   return fretdata
 
-def calculate(stack, beta=Constants.beta, gamma=Constants.gamma, minsub=False):
-  """Calculates FRET of a pull from an Image.Stack
+def calculate(stack, beta=constants.beta, gamma=constants.gamma, minsub=False):
+  """Calculates FRET of a pull from an image.Stack
 
-  calculate( Image.Stack, beta = Constants.beta, gamma = Constants.gamma)
+  calculate( image.Stack, beta = constants.beta, gamma = constants.gamma)
 
   RETURNS array of calculated FRET for each frame
   """
@@ -161,7 +161,7 @@ def calculate(stack, beta=Constants.beta, gamma=Constants.gamma, minsub=False):
   return FretData(stack.time, donor, acceptor, acceptor/(acceptor+gamma*donor))
 
 def toFile(filename, data, metadata, comments=''):
-  return FileIO.savefret(filename, data, metadata, comments)
+  return fileIO.savefret(filename, data, metadata, comments)
 
 def fromFile(filename, **kwargs):
-  return FileIO.load(filename, **kwargs) #comments=FileIO.toSettings, **kwargs)
+  return fileIO.load(filename, **kwargs) #comments=fileIO.toSettings, **kwargs)

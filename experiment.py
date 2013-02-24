@@ -9,17 +9,16 @@ from numpy import where, min, max
 import numpy as np
 import matplotlib.pyplot as plt
 
-import FileIO 
+import fileIO 
 from curvefit import Fit
 from useful import isInt, groupat
-import FRET
-import Image
-import Constants
-from Types import *
+import fret
+import constants
+from types import *
 
 logger = logging.getLogger(__name__)
-logger.setLevel(Constants.logLevel)
-logger.addHandler(Constants.logHandler)
+logger.setLevel(constants.logLevel)
+logger.addHandler(constants.logHandler)
 
 class ExperimentError(Exception):
   pass
@@ -34,7 +33,7 @@ def fromData(*datalist, **kwargs):
     return output if len(output)>1 else output[-1]
 
 def fromMatch(*fglob):
-  files = filter(lambda x: x.count('str')>0,FileIO.flist(*fglob))
+  files = filter(lambda x: x.count('str')>0,fileIO.flist(*fglob))
   if not files:
     raise ExperimentError("No files found matching glob '%s'" % fglob)
   return fromFiles(files)
@@ -120,26 +119,26 @@ class Pulling(Base):
 
   @classmethod
   def fromFile(cls,strfile,fretfile=None):
-    basename,ext=FileIO.splitext(strfile)
+    basename,ext=fileIO.splitext(strfile)
     if not ext:
-      strfile = FileIO.add_pull_ext(basename)
-    meta,data = FileIO.load(strfile,comments=FileIO.toSettings)
+      strfile = fileIO.add_pull_ext(basename)
+    meta,data = fileIO.load(strfile,comments=fileIO.toSettings)
 
     # check if base + .fret exists if not specified already
     # and use it, or else load/don't load fretfile
-    fretfileFromBase = FileIO.add_fret_ext(basename)
+    fretfileFromBase = fileIO.add_fret_ext(basename)
     if not fretfile and os.path.exists(fretfileFromBase):
-      cam_metadata, fret = FileIO.load(fretfileFromBase, comments=FileIO.toSettings)
+      cam_metadata, fret = fileIO.load(fretfileFromBase, comments=fileIO.toSettings)
       meta.update(cam_metadata)
     elif fretfile and os.path.exists(fretfile):
-      cam_metadata, fret = fretfile and FileIO.load(fretfile, comments=FileIO.toSettings)
+      cam_metadata, fret = fretfile and fileIO.load(fretfile, comments=fileIO.toSettings)
       meta.update(cam_metadata)
     else: fret=None
 
     newPull = cls(data,fret,**meta)
     newPull.file = basename
     try:
-      newPull.info = FileIO.parseFilename(basename)
+      newPull.info = fileIO.parseFilename(basename)
     except:
       logger.warning('Problem parsing filename %s' % basename)
     return newPull
@@ -246,15 +245,15 @@ class Pulling(Base):
     if offset>0:
       def geometricMean(*args):
         return 1/np.sum(map(lambda x: 1./x, args))
-      beadRadii = self.metadata.get('bead_radii', Constants.sumOfBeadRadii)
-      stiffness = geometricMean(*self.metadata.get('stiffness', Constants.stiffness))
+      beadRadii = self.metadata.get('bead_radii', constants.sumOfBeadRadii)
+      stiffness = geometricMean(*self.metadata.get('stiffness', constants.stiffness))
       self.f -= offset
       self.ext = self.sep - beadRadii - self.f/stiffness
 
   def plot(self, **kwargs):
     kwargs.setdefault('FEC', not self.hasfret)
     title=self.file or ''
-    FRET.plot(self._data, title=title, **kwargs)
+    fret.plot(self._data, title=title, **kwargs)
     self.figure = plt.gcf()
     for fit in self.fits:
       fit.plot(hold=True)

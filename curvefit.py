@@ -7,8 +7,8 @@ import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit,fmin_bfgs
 import numpy as np 
 
-from Constants import parameters,kT
-from FRET import _subplot
+from constants import parameters,kT
+from fret import _subplot
 from useful import OrderedDict, fix_args, broadcast
 
 class FitError(Exception):

@@ -7,10 +7,9 @@ import operator
 import numpy as np
 import matplotlib.pyplot as plt
 
-import FileIO
-import FRET
+import fileIO
 import useful
-import Constants
+import constants
 
 ################################################################################
 ## EXCEPTIONS
@@ -39,7 +38,7 @@ def fromFile(filename, **kwargs):
 
   bg = kwargs.pop('background', False)
   try:
-    img = Stack(FileIO.add_img_ext(filename), **kwargs)
+    img = Stack(fileIO.add_img_ext(filename), **kwargs)
   except IOError:
     raise IOError("File %s can't be found/loaded" % filename)
 
@@ -134,7 +133,7 @@ Convert between 'absolute' and 'relative' coordinates:
   @classmethod
   def fromFile(cls, filename, origin='absolute'):
     "Load ROI(s) from a LabView config file and return tuple of Image.ROI objects"
-    settings = FileIO.loadsettings(filename, cast=useful.toInt)
+    settings = fileIO.loadsettings(filename, cast=useful.toInt)
 
     temp = []
     for name, roi in settings.items():
@@ -199,7 +198,7 @@ Convert between 'absolute' and 'relative' coordinates:
 
   def toFile(self, filename=None, mode='w'):
     self.filename = filename or self.filename
-    FileIO.savesettings(self.filename, mode,
+    fileIO.savesettings(self.filename, mode,
       **{self.name: self.toDict()} )
 
   def _convert(self,origin):
@@ -267,14 +266,14 @@ class Stack:
     #################################################
     if isinstance(filename, str):
       self.filename = filename
-      self._img = FileIO.loadimg(filename)
+      self._img = fileIO.loadimg(filename)
       self._roi = {}
       self._donorROIName = Stack.defaultDonorROI
       self._acceptorROIName = Stack.defaultAcceptorROI
 
 
-      camFile = camFile or FileIO.change_extension(filename, '.cam')
-      settings = FileIO.loadcam(camFile)
+      camFile = camFile or fileIO.change_extension(filename, '.cam')
+      settings = fileIO.loadcam(camFile)
       self.metadata = {}
       for setting,value in settings.iteritems():
         self.metadata[setting] = value
@@ -309,10 +308,10 @@ class Stack:
     else:
         raise StackError, "Invalid constructor call using %s" % str(filename)
 
-  def calculate(stack, beta=Constants.beta, gamma=Constants.gamma, minsub=False):
+  def calculate(stack, beta=constants.beta, gamma=constants.gamma, minsub=False):
     """Calculates FRET of a pull from an Image.Stack
 
-    calculate( Image.Stack, beta = Constants.beta, gamma = Constants.gamma)
+    calculate( Image.Stack, beta = constants.beta, gamma = constants.gamma)
 
     RETURNS array of calculated FRET for each frame
     """
