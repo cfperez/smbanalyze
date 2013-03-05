@@ -15,3 +15,5 @@ default_background_subtract = 94
 logHandler = logging.StreamHandler()
 logHandler.setFormatter(logging.Formatter('%(asctime)s | %(name)s:%(levelname)s: %(message)s'))
 logLevel = logging.FATAL
+
+DEFAULT_FIGURE_TYPE = '.png'
