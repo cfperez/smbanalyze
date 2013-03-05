@@ -1,6 +1,6 @@
 import numpy as np
 
-from smbanalyze import curvefit, FileIO
+from smbanalyze import curvefit, fileIO
 
 X = None
 Y = None

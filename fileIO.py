@@ -18,6 +18,7 @@ PULL_FILE = '.str'
 
 REGISTERED_EXT = (IMAGE_FILE,CAMERA_FILE,FRET_FILE,PULL_FILE)
 
+
 def flist(*globs):
   globs = list(globs)
   last = globs[-1]
@@ -25,6 +26,7 @@ def flist(*globs):
     globs[-1] = '_'+last
 
   return glob.glob('*%s*' % '*'.join(globs))
+fmatch = flist
 
 def load(fname, comments=False, header=False, **kwargs):
   base,extension = os.path.splitext(fname)

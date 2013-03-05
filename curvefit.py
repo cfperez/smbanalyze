@@ -11,7 +11,7 @@ except ImportError:
   from curve_fit import curve_fit
 
 from constants import parameters,kT
-from plotting import _subplot
+from fplot import _subplot
 from useful import OrderedDict, fix_args, broadcast
 
 class FitError(Exception):

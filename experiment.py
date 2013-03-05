@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import fileIO 
 from curvefit import Fit
 from useful import isInt, groupat
-import fret
+import fplot
 import constants
 from datatypes import *
 
@@ -253,7 +253,7 @@ class Pulling(object):
   def plot(self, **kwargs):
     kwargs.setdefault('FEC', not self.fret)
     title=self.filename or ''
-    fret.plot(self.fret, self.fec, title=title, **kwargs)
+    fplot.plot(self.fret, self.fec, title=title, **kwargs)
     self.figure = plt.gcf()
     for fit in self.fits:
       fit.plot(hold=True)
@@ -261,6 +261,13 @@ class Pulling(object):
   def pickLimits(fig=None):
     if not fig: fig=plt.gcf()
     firstPoint,secondPoint = ginput(2)
+
+  def savefig(self, filename=None, path='.'):
+    if not self.figure:
+      raise ExperimentError('No figure found for object {0}'.format(self))
+    else:
+      filename = filename or self.file+constants.DEFAULT_FIGURE_TYPE
+      self.figure.savefig(filename, bbox_inches='tight', pad_inches=0.1)
 
 class OpenLoop(Base):
   "camera .cam image. img"
