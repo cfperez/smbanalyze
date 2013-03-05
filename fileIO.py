@@ -3,14 +3,12 @@ import re
 import collections
 from datetime import datetime
 import os
-import operator
 import glob
 import ast
 from inspect import isfunction
 
 import numpy as np
 
-from types import FretData, PullData
 from useful import toNum, toInt, isInt
 
 IMAGE_FILE = '.img'
@@ -48,7 +46,7 @@ def loadstr(fname, **kwargs):
   filecomments,fileheader,data = loaddat(fname,comments='#',**kwargs)
   if fileheader != ['extension','force','trapdistance']:
     raise IOError, "Stretch file must contain extension, force, and separation"
-  return filecomments, fileheader, PullData(*data.T)
+  return filecomments, fileheader, data
 loadstr.extension=PULL_FILE
 
 def toSettings(comments):
@@ -83,7 +81,7 @@ def loaddat(filename, **kwargs):
 
 def loadfret(filename, **kwargs):
   comments,header,data = loaddat(filename,**kwargs)
-  return comments, header, FretData(*data.T)
+  return comments, header, data
 loadfret.extension=FRET_FILE
 
 def savefret(filename, data, metadata=None, comments=''):

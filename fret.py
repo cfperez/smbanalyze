@@ -2,12 +2,13 @@ import operator
 from itertools import izip
 
 import matplotlib.pyplot as plt
+from plotting import _subplot
 from numpy import concatenate
 
 import image
 import fileIO
 import constants
-from types import PullFretData,FretData,hasPullData,hasFretData
+from datatypes import TrapData, hasTrapData, hasFretData
 
 molID = lambda t: 's{0}m{1}'.format(t.slide,t.mol)
 molname = lambda t: 's{0}m{1}_{2}'.format(t.slide,t.mol,t.pull)
@@ -73,10 +74,10 @@ def plot(data, pull=None, **kwargs):
   if hold is not None:
     plt.hold(hold)
 
-  if pull and not hasPullData(data):
-    data = PullFretData(*(pull+data))
+  if not pull and hasTrapData(data):
+    pull = TrapData.fromObject(data)
 
-  num = kwargs.get('numplot',subplotsNeeded(data))
+  num = kwargs.get('numplot',subplotsNeeded(data,pull))
   if num==0:
     raise ValueError("Don't know how to plot argument: missing named fields")
 
@@ -95,35 +96,20 @@ def plot(data, pull=None, **kwargs):
   if hasattr(data,'fret'):
     _subplot(data.time, data.fret, layout=next(layout), axes=('Seconds','FRET'))
 
-  if hasPullData(data):
-    x_coord,x_label = (data.ext,'Extension (nm)') if FEC else (data.sep,'Separation (nm)')
-    _subplot(x_coord, data.f, '.', layout=next(layout), axes=(x_label,'Force (pN)'))
+  if pull:
+    x_coord,x_label = (pull.ext,'Extension (nm)') if FEC else (pull.sep,'Separation (nm)')
+    _subplot(x_coord, pull.f, '.', layout=next(layout), axes=(x_label,'Force (pN)'))
 
-def subplotsNeeded(data):
+def subplotsNeeded(data,pull):
   num = 0
   if hasFretData(data):
     num += 2
   elif hasattr(data,'fret'):
     num += 1
-  if hasPullData(data):
+  if pull and hasTrapData(pull):
     num += 1
 
   return num
-
-def _subplot(*args,**kwargs):
-  sub = kwargs.pop('layout',())
-  axes = kwargs.pop('axes', ())
-
-  if sub:
-    plt.subplot(*sub)
-  plt.plot(*args,**kwargs)
-  plt.gca().autoscale_view(tight=True)
-  if axes:
-    try:
-      plt.xlabel(axes[0])
-      plt.ylabel(axes[1])
-    except IndexError:
-      raise ValueError('_subplot expects labels for BOTH axes')
 
 def hist(*data, **kwargs):
   bins = kwargs.get('bins',50)
@@ -158,10 +144,10 @@ def calculate(stack, beta=constants.beta, gamma=constants.gamma, minsub=False):
   donor = stack.donor - (minsub and min(stack.donor))
   acceptor = stack.acceptor - donor*beta
   acceptor = acceptor - (minsub and min(acceptor))
-  return FretData(stack.time, donor, acceptor, acceptor/(acceptor+gamma*donor))
+  return FretData.fromFields(stack.time, donor, acceptor, acceptor/(acceptor+gamma*donor))
 
 def toFile(filename, data, metadata, comments=''):
   return fileIO.savefret(filename, data, metadata, comments)
 
 def fromFile(filename, **kwargs):
-  return fileIO.load(filename, **kwargs) #comments=fileIO.toSettings, **kwargs)
+  return fileIO.load(filename, **kwargs)

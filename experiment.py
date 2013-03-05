@@ -1,5 +1,5 @@
 import pdb
-import os
+from os.path import exists
 import operator
 import glob
 import logging
@@ -14,7 +14,7 @@ from curvefit import Fit
 from useful import isInt, groupat
 import fret
 import constants
-from types import *
+from datatypes import *
 
 logger = logging.getLogger(__name__)
 logger.setLevel(constants.logLevel)
@@ -28,17 +28,19 @@ def fromData(*datalist, **kwargs):
   exptype = kwargs.get('type','pull')
   if exptype=='pull':
     output = []
-    for pull,fret in groupat(hasPullData, datalist, size=2):
+    for pull,fret in groupat(hasTrapData, datalist, size=2):
       output += [Pulling(pull,fret)]
     return output if len(output)>1 else output[-1]
 
 def fromMatch(*fglob):
+  'Load experiments from files using concatenation of argument list as a glob'
   files = filter(lambda x: x.count('str')>0,fileIO.flist(*fglob))
   if not files:
     raise ExperimentError("No files found matching glob '%s'" % fglob)
   return fromFiles(files)
 
 def fromFiles(*filelist):
+  'Load experiments from a list of files or an argument list'
   filelist = collapseArgList(filelist)
   return [Pulling.fromFile(fname) for fname in filelist]
 
@@ -102,14 +104,21 @@ class Base(object):
   def plot(self):
     raise NotImplementedError
     
-class Pulling(Base):
+class Pulling(object):
   "stretching curves of single molecule .str camera .cam image .img"
 
-  def __init__(self,pull,fret=None, **metadata):
-    if hasPullFretData(pull) or fret is None:
-      super(Pulling,self).__init__(pull, **metadata)
-    elif fret is not None:
-      super(Pulling,self).__init__(PullFretData._make(pull+fret), **metadata)
+  def __init__(self, pull, fret=None, **metadata):
+    if not hasTrapData(pull):
+      raise ExperimentError("Argument 'pull' must contain trapping data")
+    if fret and not hasFretData(fret):
+      raise ExperimentError("Argument 'fret' must contain FRET data")
+
+    self.fec = pull
+    self.fret = fret
+    self.metadata = pull.metadata
+    if fret:
+      self.metadata.update(fret.metadata)
+    self.metadata.update(metadata)
 
     self.figure = None
     self.handles = None
@@ -122,21 +131,23 @@ class Pulling(Base):
     basename,ext=fileIO.splitext(strfile)
     if not ext:
       strfile = fileIO.add_pull_ext(basename)
-    meta,data = fileIO.load(strfile,comments=fileIO.toSettings)
+    #meta,data = fileIO.load(strfile,comments=fileIO.toSettings)
+    pull = TrapData.fromFile(strfile)
+    metadata = {}
 
     # check if base + .fret exists if not specified already
     # and use it, or else load/don't load fretfile
     fretfileFromBase = fileIO.add_fret_ext(basename)
-    if not fretfile and os.path.exists(fretfileFromBase):
-      cam_metadata, fret = fileIO.load(fretfileFromBase, comments=fileIO.toSettings)
-      meta.update(cam_metadata)
-    elif fretfile and os.path.exists(fretfile):
-      cam_metadata, fret = fretfile and fileIO.load(fretfile, comments=fileIO.toSettings)
-      meta.update(cam_metadata)
-    else: fret=None
+    if not fretfile and exists(fretfileFromBase):
+      #metadata, fret = fileIO.load(fretfileFromBase, comments=fileIO.toSettings)
+      fretfile = fretfileFromBase
+    elif fretfile and not exists(fretfile):
+      raise ExperimentError("Fret file {0} not found".format(fretfile))
 
-    newPull = cls(data,fret,**meta)
-    newPull.file = basename
+    fret = FretData.fromFile(fretfile) if fretfile else None
+
+    newPull = cls(pull, fret, **metadata)
+    newPull.filename = basename
     try:
       newPull.info = fileIO.parseFilename(basename)
     except:
@@ -174,26 +185,15 @@ class Pulling(Base):
     return map(operator.itemgetter('Lc1'), self.rips)
 
   def fitForceExtension(self, x=None, f=None, start=0, stop=-1, **fitOptions):
-    fitOptions.setdefault('fitfunc', 'MS')
-
-    ext_fit, f_fit = self._constrainFitDataFromLimits(x, f, (start,stop))
-
-    if len(ext_fit)==0 or len(f_fit)==0:
-      raise ExperimentError('Provided constraints (%s, %s) are outside of data' %
-            (x, f))
-
-    fitOptions.setdefault('Lc', max(ext_fit)*1.05)
-    try:
-      if fitOptions['fitfunc'].startswith('MMS'):
-        fitOptions.setdefault('fixed', 'K')
-    except AttributeError: pass
-
-    fit = Fit(ext_fit, f_fit, **fitOptions)
+    "Fit WLC to Pulling curve and plot"
+    fit = self.fec.fit(x,f,start,stop,**fitOptions)
     self.lastFit = fit
 
     if self.figure and self.figure.get_axes():
       plt.figure(self.figure.number)
       fit.plot(hold=True)
+      #args, kwargs = fit._to_plot()
+      #fret.plot(*args, hold=True, **kwargs)
 
     return fit
 
@@ -251,9 +251,9 @@ class Pulling(Base):
       self.ext = self.sep - beadRadii - self.f/stiffness
 
   def plot(self, **kwargs):
-    kwargs.setdefault('FEC', not self.hasfret)
-    title=self.file or ''
-    fret.plot(self._data, title=title, **kwargs)
+    kwargs.setdefault('FEC', not self.fret)
+    title=self.filename or ''
+    fret.plot(self.fret, self.fec, title=title, **kwargs)
     self.figure = plt.gcf()
     for fit in self.fits:
       fit.plot(hold=True)

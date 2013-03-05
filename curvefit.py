@@ -3,12 +3,15 @@ from operator import isSequenceType
 from itertools import izip
 
 from numpy import arccos, cos, exp, sqrt, log, fabs, pi, roots, real
-import matplotlib.pyplot as plt
-from scipy.optimize import curve_fit,fmin_bfgs
 import numpy as np 
 
+try:
+  from scipy.optimize import curve_fit
+except ImportError:
+  from curve_fit import curve_fit
+
 from constants import parameters,kT
-from fret import _subplot
+from plotting import _subplot
 from useful import OrderedDict, fix_args, broadcast
 
 class FitError(Exception):
@@ -117,13 +120,17 @@ class Fit(object):
   def __len__(self):
     return len(self.parameters)
 
-  def plot(self,**kwargs):
+  def _to_plot(self, **kwargs):
     if self.inverted:
       x,y = self.fitOutput,self.x
     else:
       x,y = self.x,self.fitOutput
     kwargs.setdefault('linewidth', 2)
-    return _subplot(x,y,**kwargs)
+    return (x,y), kwargs
+
+  def plot(self, **kwargs):
+    args, kwargs = self._to_plot()
+    return _subplot(*args,**kwargs)
 
   def __repr__(self):
     return "<Fit function '{0}' using parameters {1}".format(self.fitfunc.func_name, 

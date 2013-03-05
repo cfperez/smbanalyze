@@ -1,15 +1,15 @@
 import operator
-from smbanalyze import Experiment, FileIO
+from smbanalyze import experiment, fileIO
 
 def attrgetter(attr):
   return lambda x: map(operator.attrgetter(attr), x)
 
-filegetter = lambda f: attrgetter('file')(f)
+filegetter = lambda f: attrgetter('filename')(f)
 
 def setUp():
   global pulls, LOADED_FILES
-  pulls = Experiment.fromMatch('test/test')
-  LOADED_FILES = [r'test\test_s1m1', r'test\test_s1m2', r'test\test_s1m3']
+  pulls = experiment.fromMatch('test/test')
+  LOADED_FILES = [r'test/test_s1m1', r'test/test_s1m2', r'test/test_s1m3']
 
 def testRipFitting():
   pull = pulls[2]
@@ -23,21 +23,18 @@ def testFECfitting():
   pass
 
 def testPullingLoad():
-  pullLoad = [
-    Experiment.Pulling.fromFile(r'test\test_s1m1.str'),
-    Experiment.Pulling.fromFile(r'test\test_s1m2'),
-    Experiment.Pulling.fromFile(r'test\test_s1m3'),]
-  assert map(repr, pullLoad) == map(repr, pulls)
+  pullLoad = [ experiment.Pulling.fromFile(f) for f in LOADED_FILES ]
+  assert filegetter(pullLoad) == LOADED_FILES
 
 def testPullingLoadWithFret():
   pass
 
-def testExperimentFromMatch():
+def testexperimentFromMatch():
   filenames = filegetter(pulls)
-  assert filenames == LOADED_FILES
+  assert set(filenames) == set(LOADED_FILES)
 
-def testExperimentFromFiles():
-  loaded = Experiment.fromFiles(LOADED_FILES)
+def testexperimentFromFiles():
+  loaded = experiment.fromFiles(LOADED_FILES)
   assert filegetter(loaded) == LOADED_FILES
 
 def testFromFile():
