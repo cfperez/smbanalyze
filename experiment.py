@@ -5,12 +5,11 @@ import glob
 import logging
 import collections
 
-from numpy import where, min, max
-import numpy as np
+from numpy import where, min, max, asarray, sum
 import matplotlib.pyplot as plt
 
 import fileIO 
-from curvefit import Fit
+from curvefit import Fit, fitWLC
 from useful import isInt, groupat
 import fplot
 import constants
@@ -97,7 +96,7 @@ class Base(object):
   @property
   def fec(self):
     try:
-      return np.asarray((self._data.ext,self._data.f)).T
+      return asarray((self._data.ext,self._data.f)).T
     except AttributeError:
       raise ExperimentError('Experiment %s does not have FEC data' % self)
 
@@ -155,7 +154,6 @@ class Pulling(object):
     return newPull
 
   def fitHandles(self, x=None, f=None, **fitOptions):
-    fitOptions.update(fitfunc='MMS')
     self.handles = self.fitForceExtension(x, f, **fitOptions)
     return self.handles
 
@@ -186,14 +184,14 @@ class Pulling(object):
 
   def fitForceExtension(self, x=None, f=None, start=0, stop=-1, **fitOptions):
     "Fit WLC to Pulling curve and plot"
-    fit = self.fec.fit(x,f,start,stop,**fitOptions)
+    mask = self.fec.maskFromLimits(x, f, (start,stop))
+    fitOptions.setdefault('Lc', max(self.fec.ext)*1.05)
+    fit = fitWLC(self.fec.ext, self.fec.f, mask=mask, **fitOptions)
     self.lastFit = fit
 
     if self.figure and self.figure.get_axes():
       plt.figure(self.figure.number)
       fit.plot(hold=True)
-      #args, kwargs = fit._to_plot()
-      #fret.plot(*args, hold=True, **kwargs)
 
     return fit
 
@@ -201,7 +199,7 @@ class Pulling(object):
     start, stop = limits
     ext_fit,f_fit = self.ext[start:stop], self.f[start:stop]
 
-    if f is None: f=[np.max(f_fit)]
+    if f is None: f=[max(f_fit)]
     try:
       min_f, max_f = f
     except TypeError:
@@ -244,7 +242,7 @@ class Pulling(object):
   def adjustForceOffset(self,offset):
     if offset>0:
       def geometricMean(*args):
-        return 1/np.sum(map(lambda x: 1./x, args))
+        return 1/sum(map(lambda x: 1./x, args))
       beadRadii = self.metadata.get('bead_radii', constants.sumOfBeadRadii)
       stiffness = geometricMean(*self.metadata.get('stiffness', constants.stiffness))
       self.f -= offset

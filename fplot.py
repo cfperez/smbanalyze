@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 
-from datatypes import TrapData,hasPullData,hasFretData
+from datatypes import TrapData,hasTrapData,hasFretData
 
 def plotall(objList, **kwargs):
   for obj in objList:
@@ -11,17 +11,24 @@ def plot(data, pull=None, **kwargs):
   loc = kwargs.get('legend', 'best')
   title = kwargs.get('title','')
   FEC = kwargs.get('FEC',False)
-  displayFRET = kwargs.get('show_fret', True)
+  displayFRET = kwargs.get('show_fret', hasattr(data,'fret'))
 
   hold=kwargs.get('hold', None)
   if hold is not None:
     plt.hold(hold)
 
+  if hasattr(data, '_to_plot'):
+    args, kwargs = data._to_plot()
+    return _subplot(*args, **kwargs)
+
   if not pull and hasTrapData(data):
     pull = TrapData.fromObject(data)
 
-  num = kwargs.get('numplot',subplotsNeeded(data))
-  if not displayFRET: num -= 1
+  #num = kwargs.get('numplot', 2 if hasFretData(data) else 0)
+  if not displayFRET and data: num = 1
+  elif hasFretData(data): num = 2
+  else: num = 0
+  if pull: num += 1
   if num==0:
     raise ValueError("Don't know how to plot argument: missing named fields")
 
@@ -52,7 +59,7 @@ def subplotsNeeded(data):
     num += 2
   elif hasattr(data,'fret'):
     num += 1
-  if hasPullData(data):
+  if hasTrapData(data):
     num += 1
 
   return num

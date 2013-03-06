@@ -1,9 +1,9 @@
+import collections
+
 from numpy import all, where, asarray, sign, ndarray
 
-from curvefit import Fit
 from fileIO import load, toSettings
 
-import collections
 
 TYPE_CHECKING = 'STRICT'
 
@@ -39,7 +39,7 @@ class AbstractData(object):
   def copy(self):
     return self.__class__.fromObject(self)
 
-  def near(self, **kwargs):
+  def at(self, **kwargs):
     if len(kwargs)>1:
       raise ValueError('Use only one keyword representing a field')
 
@@ -70,32 +70,10 @@ class AbstractData(object):
   def __repr__(self):
     return repr(self.data)
 
-  def fit(self):
-    raise NotImplementedError
-
 class TrapData(AbstractData):
   _fields = TrapData_fields
 
-  def fit(self, x=None, f=None, start=0, stop=-1, **fitOptions):
-    "Fit stretching data to WLC model"
-    fitOptions.setdefault('fitfunc', 'MS')
-
-    ext_fit, f_fit = self._constrainFromLimits(x, f, (start,stop))
-
-    if len(ext_fit)==0 or len(f_fit)==0:
-      raise ValueError('Provided constraints (%s, %s) are outside of data' %
-            (x, f))
-
-    fitOptions.setdefault('Lc', max(ext_fit)*1.05)
-    try:
-      if fitOptions['fitfunc'].startswith('MMS'):
-        fitOptions.setdefault('fixed', 'K')
-    except AttributeError: pass
-
-    fit = Fit(ext_fit, f_fit, **fitOptions)
-    return fit
-
-  def _constrainFromLimits(self, x, f, limits=(0,-1)):
+  def maskFromLimits(self, x, f, limits=(0,-1)):
     start, stop = limits
     ext_fit,f_fit = self.ext[start:stop], self.f[start:stop]
 
@@ -119,7 +97,7 @@ class TrapData(AbstractData):
     between = lambda s,a,b: (s>=a) & (s<=b)
     mask = between(ext_fit, min_ext, max_ext)
 
-    return ext_fit[mask], f_fit[mask]
+    return mask
 
 class FretData(AbstractData):
   _fields = FretData_fields

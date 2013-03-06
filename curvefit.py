@@ -17,6 +17,17 @@ from useful import OrderedDict, fix_args, broadcast
 class FitError(Exception):
   pass
 
+def fitWLC(x, f, mask=None, **fitOptions):
+  "Fit stretching data to WLC model"
+  fitOptions.setdefault('fitfunc', 'MMS')
+  try:
+    if fitOptions['fitfunc'].startswith('MMS'):
+      fitOptions.setdefault('fixed', 'K')
+  except AttributeError: pass
+
+  fit = Fit(x, f, mask=mask, **fitOptions)
+  return fit
+
 ############################################################
 ## Fitting Functions
 ############################################################
@@ -53,15 +64,17 @@ MMS_rip.inverted = True
 ## Fit class
 ############################################################
 class Fit(object):
-  def __init__(self, x, y, fitfunc, fixed=(), name='', verbose=False, **user_parameters):
+  def __init__(self, x, y, fitfunc, fixed=(), mask=None, verbose=False, **user_parameters):
     "Initialize to a specific fitting function, optionally fitting to data specified"
-
-    self.name = name
 
     if isinstance(fitfunc,str):
       fitfunc = eval(fitfunc)
     self.fitfunc = fitfunc
     self.inverted = getattr(fitfunc, 'inverted', False)
+
+    self.mask = np.logical_not(mask)
+    #to_masked = lambda ar: np.ma.array(ar, self.mask)
+    to_masked = lambda ar: ar[mask]
 
     # Use inspection to get parameter names from fit function
     # assuming first argument is independent variable
@@ -93,8 +106,9 @@ class Fit(object):
                                 fit_parameters.items()) )
       fitfunc = fix_args(fitfunc, **fixed_parameters)
 
+    x, y = to_masked(x), to_masked(y)
     if self.inverted:
-      x,y=y,x
+      x,y = y,x
     self.x = x
 
     fit_params, self.error = curve_fit(fitfunc, x, y, starting_p)
