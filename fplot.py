@@ -34,7 +34,6 @@ def plot(data, pull=None, **kwargs):
     _subplot(data.time, data.donor, label='donor')
     _subplot(data.time, data.acceptor, label='acceptor',axes=('','counts'))
     plt.hold(hold)
-    #plt.title(title)
     plt.legend(loc=loc,ncol=2,prop={'size':'small'})
     if displayFRET:
       _subplot(data.time, data.fret, layout=next(layout), 

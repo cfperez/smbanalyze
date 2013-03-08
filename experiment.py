@@ -1,7 +1,5 @@
-import pdb
 import os
-import operator
-import glob
+from operator import itemgetter
 import logging
 import collections
 
@@ -35,7 +33,7 @@ def fromData(*datalist, **kwargs):
 def fromMatch(*fglob):
   files = filter(lambda x: x.count('str')>0,fileIO.flist(*fglob))
   if not files:
-    raise ExperimentError("No files found matching glob '%s'" % fglob)
+    raise ExperimentError("No files found matching glob '{0}'".format(fglob))
   return fromFiles(files)
 
 def fromFiles(*filelist):
@@ -63,6 +61,42 @@ class ExperimentList(collections.Sequence):
   def __contains__(self):
     pass
 
+class Figure:
+  def __init__(self, fignumber=None):
+    if fignumber:
+      self.figure = plt.figure(fignumber)
+    else:
+      self.figure = plt.gcf()
+
+  @classmethod
+  def fromCurrent(cls):
+    return cls()
+
+  @property
+  def exists(self):
+    return plt.fignum_exists(self.figure.number)
+
+  def makeCurrent(self):
+    return plt.figure(self.figure.number)
+
+  def plot(self, *args, **kwargs):
+    self.makeCurrent()
+    return fplot.plot(*args, **kwargs)
+
+  def clear(self):
+    self.figure.clf()
+    self.figure.show()
+
+  def save(self, filename=None):
+    if filename:
+      base, ext = os.path.splitext(filename)
+      if ext[1:] not in ('emf', 'eps', 'pdf', 'png', 'ps', 'raw', 'rgba', 'svg', 'svgz'):
+        filename += constants.DEFAULT_FIGURE_EXT
+    else:
+      filename = 'Figure {0}{1}'.format(self.figure.number, constants.DEFAULT_FIGURE_EXT)
+
+    self.figure.savefig(filename, bbox_inches='tight', pad_inches=0.1)
+
 class Base(object):
   ".fret .f .ext and other meta-data (sample rate, pull speeds, )"
   # also classmethods which change experimental constants like bead radii,
@@ -83,8 +117,8 @@ class Base(object):
       (self,attr))
 
   def __repr__(self):
-    if hasattr(self,'file'):
-      return "<Experiment.%s from '%s'>" % (self.__class__.__name__, self.file)
+    if hasattr(self,'filename'):
+      return "<Experiment.%s from '%s'>" % (self.__class__.__name__, self.filename)
     else:
       return super(Base,self).__repr__()
 
@@ -119,6 +153,7 @@ class Pulling(Base):
 
   @classmethod
   def fromFile(cls,strfile,fretfile=None):
+    'Load stretching data and corresponding fret data from files'
     basename,ext=fileIO.splitext(strfile)
     if not ext:
       strfile = fileIO.add_pull_ext(basename)
@@ -136,7 +171,7 @@ class Pulling(Base):
     else: fret=None
 
     newPull = cls(data,fret,**meta)
-    newPull.file = basename
+    newPull.filename = basename
     try:
       newPull.info = fileIO.parseFilename(basename)
     except:
@@ -144,15 +179,18 @@ class Pulling(Base):
     return newPull
 
   def fitHandles(self, x=None, f=None, **fitOptions):
-    fitOptions.update(fitfunc='MMS')
+    'Fit a WLC model to the lower part of the FEC corresponding to the handle stretching'
+    fitOptions.setdefault(fitfunc='MMS')
     self.handles = self.fitForceExtension(x, f, **fitOptions)
     return self.handles
 
   def fitRip(self, x=None, f=None, guess=10, **fitOptions):
+    'Fit a WLC model to the upper part of the FEC after the rip'
     if not self.handles:
       raise ExperimentError("Must fitHandles() before fitting rip!")
     parameters = self.handles.parameters.copy()
     parameters.update(Lc1=guess)
+    parameters.setdefault('K', 1100)
     fitOptions.update( {'fixed': ('K','K1','Lc','Lp','F0','Lp1'), 
           'fitfunc': 'MMS_rip'}, **parameters)
     rip = self.fitForceExtension(x, f, **fitOptions)
@@ -171,7 +209,7 @@ class Pulling(Base):
 
   @property
   def ripSizes(self):
-    return map(operator.itemgetter('Lc1'), self.rips)
+    return map(itemgetter('Lc1'), self.rips)
 
   def fitForceExtension(self, x=None, f=None, start=0, stop=-1, **fitOptions):
     fitOptions.setdefault('fitfunc', 'MS')
@@ -191,8 +229,8 @@ class Pulling(Base):
     fit = Fit(ext_fit, f_fit, **fitOptions)
     self.lastFit = fit
 
-    if self.figure and self.figure.get_axes():
-      plt.figure(self.figure.number)
+    if self.figure.exists:
+      self.figure.makeCurrent()
       fit.plot(hold=True)
 
     return fit
@@ -241,8 +279,8 @@ class Pulling(Base):
     else:
       return [self.lastFit] if self.lastFit else []
 
-  def adjustForceOffset(self,offset):
-    if offset>0:
+  def adjustForceOffset(self, offset):
+    if offset!=0:
       def geometricMean(*args):
         return 1/np.sum(map(lambda x: 1./x, args))
       beadRadii = self.metadata.get('bead_radii', constants.sumOfBeadRadii)
@@ -252,9 +290,9 @@ class Pulling(Base):
 
   def plot(self, **kwargs):
     kwargs.setdefault('FEC', not self.hasfret)
-    title=self.file or ''
+    title=self.filename or ''
     fplot.plot(self._data, title=title, **kwargs)
-    self.figure = plt.gcf()
+    self.figure = Figure.fromCurrent()
     for fit in self.fits:
       fit.plot(hold=True)
 
@@ -263,11 +301,11 @@ class Pulling(Base):
     firstPoint,secondPoint = ginput(2)
 
   def savefig(self, filename=None, path='.'):
-    if not self.figure:
-      raise ExperimentError('No figure found for object {0}'.format(self))
-    else:
-      filename = filename or self.file+constants.DEFAULT_FIGURE_TYPE
-      self.figure.savefig(filename, bbox_inches='tight', pad_inches=0.1)
+    if not self.figure or not self.figure.exists:
+      raise ExperimentError('No figure available for object {0}'.format(self))
+    else: 
+      filename = filename or self.filename
+      self.figure.save(filename)
 
 class OpenLoop(Base):
   "camera .cam image. img"
