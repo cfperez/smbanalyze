@@ -23,7 +23,7 @@ def plot(data, pull=None, **kwargs):
   num = kwargs.get('numplot',subplotsNeeded(data))
   if not displayFRET: num -= 1
   if num==0:
-    raise ValueError("Don't know how to plot argument: missing named fields")
+    raise ValueError("Don't know how to plot argument: maybe missing named fields")
 
   layout = iter((num,1,x) for x in range(1,num+1))
 
@@ -48,13 +48,12 @@ def plot(data, pull=None, **kwargs):
 
 def subplotsNeeded(data):
   num = 0
-  if hasFretData(data):
-    num += 2
-  elif hasattr(data,'fret'):
+  if hasattr(data, 'donor') and hasattr(data, 'acceptor'):
+    num += 1
+  if hasattr(data,'fret'):
     num += 1
   if hasPullData(data):
     num += 1
-
   return num
 
 def _subplot(*args,**kwargs):
