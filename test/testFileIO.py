@@ -1,1 +1,1 @@
-from smbanalyze import FileIO as fio
+from smbanalyze import fileIO as fio

@@ -61,33 +61,45 @@ class ExperimentList(collections.Sequence):
   def __contains__(self):
     pass
 
-class Figure:
+class Figure(object):
   def __init__(self, fignumber=None):
-    if fignumber:
-      self.figure = plt.figure(fignumber)
-    else:
-      self.figure = plt.gcf()
+    self.figure = plt.figure(fignumber) if fignumber else None
 
   @classmethod
   def fromCurrent(cls):
-    return cls()
+    return cls(plt.gcf().number)
+
+  def new(self):
+    self.figure = plt.figure()
 
   @property
   def exists(self):
-    return plt.fignum_exists(self.figure.number)
+    return self.figure is not None and plt.fignum_exists(self.figure.number)
 
   def makeCurrent(self):
-    return plt.figure(self.figure.number)
+    if not self.exists:
+      raise RuntimeError('Figure object does not exist')
+    plt.figure(self.figure.number)
+    return self
 
   def plot(self, *args, **kwargs):
-    self.makeCurrent()
-    return fplot.plot(*args, **kwargs)
+    if not self.exists:
+      self.new()
+    else:
+      self.makeCurrent()
+
+    try:
+      # Treat the first argument as an object that can plot itself...
+      return args[0].plot(*args[1:], **kwargs)
+    except AttributeError:
+      # ...unless it can't
+      return fplot.plot(*args, **kwargs)
 
   def clear(self):
     self.figure.clf()
     self.figure.show()
 
-  def save(self, filename=None):
+  def toFile(self, filename=None):
     if filename:
       base, ext = os.path.splitext(filename)
       if ext[1:] not in ('emf', 'eps', 'pdf', 'png', 'ps', 'raw', 'rgba', 'svg', 'svgz'):
@@ -145,7 +157,7 @@ class Pulling(Base):
     elif fret is not None:
       super(Pulling,self).__init__(PullFretData._make(pull+fret), **metadata)
 
-    self.figure = None
+    self.figure = Figure()
     self.handles = None
     self.rips = []
     self.lastFit = None
@@ -180,7 +192,7 @@ class Pulling(Base):
 
   def fitHandles(self, x=None, f=None, **fitOptions):
     'Fit a WLC model to the lower part of the FEC corresponding to the handle stretching'
-    fitOptions.setdefault(fitfunc='MMS')
+    fitOptions.setdefault('fitfunc','MMS')
     self.handles = self.fitForceExtension(x, f, **fitOptions)
     return self.handles
 
@@ -195,7 +207,7 @@ class Pulling(Base):
           'fitfunc': 'MMS_rip'}, **parameters)
     rip = self.fitForceExtension(x, f, **fitOptions)
     self.addRip(rip)
-    return rip['Lc1']
+    return rip
     
   def addRip(self, newFit):
     if self._appendNewRip:
@@ -230,8 +242,7 @@ class Pulling(Base):
     self.lastFit = fit
 
     if self.figure.exists:
-      self.figure.makeCurrent()
-      fit.plot(hold=True)
+      self.figure.plot(fit, hold=True)
 
     return fit
 
@@ -289,12 +300,11 @@ class Pulling(Base):
       self.ext = self.sep - beadRadii - self.f/stiffness
 
   def plot(self, **kwargs):
-    kwargs.setdefault('FEC', not self.hasfret)
+    kwargs.setdefault('FEC', self.fits or not self.hasfret)
     title=self.filename or ''
-    fplot.plot(self._data, title=title, **kwargs)
-    self.figure = Figure.fromCurrent()
+    self.figure.plot(self._data, title=title, **kwargs)
     for fit in self.fits:
-      fit.plot(hold=True)
+      self.figure.plot(fit, hold=True)
 
   def pickLimits(fig=None):
     if not fig: fig=plt.gcf()
@@ -305,7 +315,7 @@ class Pulling(Base):
       raise ExperimentError('No figure available for object {0}'.format(self))
     else: 
       filename = filename or self.filename
-      self.figure.save(filename)
+      self.figure.toFile(filename)
 
 class OpenLoop(Base):
   "camera .cam image. img"
