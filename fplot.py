@@ -24,7 +24,6 @@ def plot(data, pull=None, **kwargs):
   if not pull and hasTrapData(data):
     pull = TrapData.fromObject(data)
 
-  #num = kwargs.get('numplot', 2 if hasFretData(data) else 0)
   if not displayFRET and data: num = 1
   elif hasFretData(data): num = 2
   else: num = 0
@@ -55,13 +54,12 @@ def plot(data, pull=None, **kwargs):
 
 def subplotsNeeded(data):
   num = 0
-  if hasFretData(data):
-    num += 2
-  elif hasattr(data,'fret'):
+  if hasattr(data, 'donor') and hasattr(data, 'acceptor'):
     num += 1
-  if hasTrapData(data):
+  if hasattr(data,'fret'):
     num += 1
-
+  if hasPullData(data):
+    num += 1
   return num
 
 def _subplot(*args,**kwargs):
