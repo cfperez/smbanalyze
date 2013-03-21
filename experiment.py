@@ -114,20 +114,13 @@ class Base(object):
   ".fret .f .ext and other meta-data (sample rate, pull speeds, )"
   # also classmethods which change experimental constants like bead radii,
   # trap stiffnesses, etc.
-  def __init__(self, data, **metadata):
-    self._data=data
-    self.metadata=metadata
-    self.hasfret = hasFretData(self._data)
-
-  @property
-  def fields(self):
-    return self._data._fields
-
-  def __getattr__(self,attr):
-    if attr in self.fields:
-      return getattr(self._data,attr)
-    raise AttributeError("'%s' has no attribute %s" % 
-      (self,attr))
+  def __init__(self, pull, fret, **metadata):
+    self.fec = pull
+    self.fret = fret
+    self.metadata = pull.metadata
+    if fret:
+      self.metadata.update(fret.metadata)
+    self.metadata.update(metadata)
 
   def __repr__(self):
     if hasattr(self,'filename'):
@@ -138,21 +131,10 @@ class Base(object):
   def __str__(self):
     return self.__repr__()
 
-  @property
-  def pullData(self):
-    return PullData(*self._data[0:3])
-
-  @property
-  def fec(self):
-    try:
-      return asarray((self._data.ext,self._data.f)).T
-    except AttributeError:
-      raise ExperimentError('Experiment %s does not have FEC data' % self)
-
   def plot(self):
     raise NotImplementedError
     
-class Pulling(object):
+class Pulling(Base):
   "stretching curves of single molecule .str camera .cam image .img"
 
   def __init__(self, pull, fret=None, **metadata):
@@ -161,12 +143,7 @@ class Pulling(object):
     if fret and not hasFretData(fret):
       raise ExperimentError("Argument 'fret' must contain FRET data")
 
-    self.fec = pull
-    self.fret = fret
-    self.metadata = pull.metadata
-    if fret:
-      self.metadata.update(fret.metadata)
-    self.metadata.update(metadata)
+    super(Pulling, self).__init__(pull, fret, **metadata)
 
     self.figure = Figure()
     self.handles = None
@@ -180,7 +157,6 @@ class Pulling(object):
     basename,ext=fileIO.splitext(strfile)
     if not ext:
       strfile = fileIO.add_pull_ext(basename)
-    #meta,data = fileIO.load(strfile,comments=fileIO.toSettings)
     pull = TrapData.fromFile(strfile)
     metadata = {}
 
@@ -247,32 +223,6 @@ class Pulling(object):
       self.figure.plot(fit, hold=True)
 
     return fit
-
-  def _constrainFitDataFromLimits(self, x, f, limits=(0,-1)):
-    start, stop = limits
-    ext_fit,f_fit = self.ext[start:stop], self.f[start:stop]
-
-    if f is None: f=[max(f_fit)]
-    try:
-      min_f, max_f = f
-    except TypeError:
-      min_f, max_f = min(f_fit), f
-    except ValueError:
-      min_f, max_f = min(f_fit), f[0]
-    if max_f>max(f_fit): max_f=max(f_fit)
-
-    if x is None: x=[min(ext_fit)]
-    try:
-      min_ext, max_ext = x
-    except TypeError:
-      min_ext, max_ext = x, ext_fit[min(where(f_fit>=max_f)[0])-1]
-    except ValueError:
-      min_ext, max_ext = x[0], ext_fit[min(where(f_fit>=max_f)[0])-1]
-
-    between = lambda s,a,b: (s>=a) & (s<=b)
-    mask = between(ext_fit, min_ext, max_ext)
-
-    return ext_fit[mask], f_fit[mask]
 
   def fitFEC(self, x=None, f=None, tolerance=0.5, **fitOptions):
     offset = 0
