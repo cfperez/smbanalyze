@@ -4,7 +4,6 @@ from datatypes import TrapData,hasTrapData,hasFretData
 
 def plotall(objList, **kwargs):
   for obj in objList:
-    plt.figure()
     obj.plot(**kwargs)
 
 def plot(data, pull=None, **kwargs):
