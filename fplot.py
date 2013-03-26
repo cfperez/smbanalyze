@@ -12,7 +12,7 @@ def plot(data, pull=None, **kwargs):
   FEC = kwargs.get('FEC',False)
   displayFRET = kwargs.get('show_fret', hasattr(data,'fret'))
 
-  hold=kwargs.get('hold', None)
+  hold=kwargs.pop('hold', None)
   if hold is not None:
     plt.hold(hold)
 
@@ -23,7 +23,7 @@ def plot(data, pull=None, **kwargs):
   if not pull and hasTrapData(data):
     pull = TrapData.fromObject(data)
 
-  if not displayFRET and data: num = 1
+  if not displayFRET and data is not None: num = 1
   elif hasFretData(data): num = 2
   else: num = 0
   if pull: num += 1
@@ -32,11 +32,12 @@ def plot(data, pull=None, **kwargs):
 
   layout = iter((num,1,x) for x in range(1,num+1))
 
+  ax1 = None
   if hasFretData(data):
     plt.subplot(*next(layout))
     not hold and plt.cla()
     plt.hold(True)
-    _subplot(data.time, data.donor, label='donor')
+    ax1 = _subplot(data.time, data.donor, label='donor')
     _subplot(data.time, data.acceptor, label='acceptor',axes=('','counts'))
     plt.hold(hold)
     plt.legend(loc=loc,ncol=2,prop={'size':'small'})
@@ -44,11 +45,13 @@ def plot(data, pull=None, **kwargs):
       _subplot(data.time, data.fret, layout=next(layout), 
                 axes=('Seconds','FRET'))
 
+  ax2 = None
   if pull:
     x_coord,x_label = (pull.ext,'Extension (nm)') if FEC else (pull.sep,'Separation (nm)')
-    _subplot(x_coord, pull.f, '.', layout=next(layout), axes=(x_label,'Force (pN)'))
+    ax2 = _subplot(x_coord, pull.f, '.', layout=next(layout), axes=(x_label,'Force (pN)'))
 
-  plt.gcf().get_axes()[0].set_title(title)
+  first_plot = ax1 if ax1 else ax2
+  first_plot.set_title(title)
   plt.show()
 
 def subplotsNeeded(data):
@@ -64,17 +67,23 @@ def subplotsNeeded(data):
 def _subplot(*args,**kwargs):
   sub = kwargs.pop('layout',())
   axes = kwargs.pop('axes', ())
+  hold = kwargs.get('hold', None)
 
   if sub:
-    plt.subplot(*sub)
+    ax = plt.subplot(*sub)
+  else:
+    ax = plt.gca()
+  if hold is not None:
+    plt.hold(hold)
   plt.plot(*args,**kwargs)
-  plt.gca().autoscale_view(tight=True)
+  ax.autoscale_view(tight=True)
   if axes:
     try:
       plt.xlabel(axes[0])
       plt.ylabel(axes[1])
     except IndexError:
       raise ValueError('_subplot expects labels for BOTH axes')
+  return ax
 
 def hist(*data, **kwargs):
   bins = kwargs.get('bins',50)
