@@ -49,7 +49,7 @@ def collapseArgList(arglist):
   else:
     return arglist
 
-class ExperimentList(collections.Sequence):
+class List(collections.Sequence):
   def __init__(self):
     pass
 
@@ -88,7 +88,6 @@ class Figure(object):
       self.new()
     else:
       self.makeCurrent()
-
     try:
       # Treat the first argument as an object that can plot itself...
       return args[0].plot(*args[1:], **kwargs)
@@ -108,6 +107,7 @@ class Figure(object):
     else:
       filename = 'Figure {0}{1}'.format(self.figure.number, constants.DEFAULT_FIGURE_EXT)
 
+    self.figure.set_size_inches(9,7.5)
     self.figure.savefig(filename, bbox_inches='tight', pad_inches=0.1)
 
 class Base(object):
