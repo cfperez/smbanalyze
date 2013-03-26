@@ -143,7 +143,7 @@ class Fit(object):
     return (x,y), kwargs
 
   def plot(self, **kwargs):
-    args, kwargs = self._to_plot()
+    args, kwargs = self._to_plot(**kwargs)
     return _subplot(*args,**kwargs)
 
   def __repr__(self):
