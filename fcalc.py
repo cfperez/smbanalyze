@@ -64,7 +64,7 @@ def calculate(stack, beta=constants.beta, gamma=constants.gamma, minsub=False):
   donor = stack.donor - (minsub and min(stack.donor))
   acceptor = stack.acceptor - donor*beta
   acceptor = acceptor - (minsub and min(acceptor))
-  return FretData(stack.time, donor, acceptor, acceptor/(acceptor+gamma*donor))
+  return FretData.fromFields(stack.time, donor, acceptor, acceptor/(acceptor+gamma*donor))
 
 def toFile(filename, data, metadata, comments=''):
   return fileIO.savefret(filename, data, metadata, comments)
