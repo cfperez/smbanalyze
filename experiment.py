@@ -253,8 +253,8 @@ class Pulling(Base):
 
   def plot(self, **kwargs):
     kwargs.setdefault('FEC', self.fits or not self.fret)
-    title=self.filename or ''
-    self.figure.plot(self.fret, self.fec, title=title, **kwargs)
+    kwargs.setdefault('title', self.filename or '')
+    self.figure.plot(self.fret, self.fec, **kwargs)
     for fit in self.fits:
       self.figure.plot(fit, hold=True)
 
@@ -267,7 +267,7 @@ class Pulling(Base):
       raise ExperimentError('No figure available for experiment {0}'.format(str(self)))
     else: 
       filename = filename or self.filename
-      self.figure.toFile(filename, bbox_inches='tight', pad_inches=0.1)
+      self.figure.toFile(filename)
 
 class OpenLoop(Base):
   "camera .cam image. img"
