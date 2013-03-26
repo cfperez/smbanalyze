@@ -70,4 +70,5 @@ def toFile(filename, data, metadata, comments=''):
   return fileIO.savefret(filename, data, metadata, comments)
 
 def fromFile(filename, **kwargs):
+  return FretData.fromFile(filename)
   return fileIO.load(filename, **kwargs)

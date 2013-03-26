@@ -23,9 +23,13 @@ class AbstractData(object):
       raise ValueError('Constructor method only takes object with AbstractData interface')
 
   @classmethod
+  def name(cls):
+    return cls.__name__.lower()
+
+  @classmethod
   def fromFile(cls, filename):
     meta, data = load(filename, comments=toSettings)
-    meta[cls.__name__+'_filename'] = filename
+    meta[cls.name()+'_filename'] = filename
     me = cls(data, **meta)
     return me
 
@@ -38,6 +42,9 @@ class AbstractData(object):
 
   def copy(self):
     return self.__class__.fromObject(self)
+
+  def __len__(self):
+    return len(self.data)
 
   def at(self, **kwargs):
     if len(kwargs)>1:
