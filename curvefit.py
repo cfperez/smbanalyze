@@ -23,6 +23,7 @@ def gauss(x,mu,sigma,A):
 def doublegauss(x,mu,sigma,A,mu2,sigma2,A2):
   return gauss(x,mu,sigma,A)+gauss(x,mu2,sigma2,A2)
 
+@broadcast
 def MS(x,Lp,Lc,F0):
   "Marko-Siggia model of worm-like chain"
   x_ = x/float(Lc)
