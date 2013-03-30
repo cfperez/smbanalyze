@@ -224,7 +224,7 @@ class Pulling(Base):
     return map(itemgetter('Lc1'), self.rips)
 
   def fitForceExtension(self, x=None, f=None, start=0, stop=-1, **fitOptions):
-    fitOptions.setdefault('fitfunc', 'MS')
+    fitOptions.setdefault('fitfunc', 'MMS')
 
     ext_fit, f_fit = self._constrainFitDataFromLimits(x, f, (start,stop))
 
@@ -235,7 +235,8 @@ class Pulling(Base):
     fitOptions.setdefault('Lc', max(ext_fit)*1.05)
     try:
       if fitOptions['fitfunc'].startswith('MMS'):
-        fitOptions.setdefault('fixed', 'K')
+        init = (fitOptions.get('fixed', ()))
+        fitOptions['fixed']=  init+('K',)
     except AttributeError: pass
 
     fit = Fit(ext_fit, f_fit, **fitOptions)
