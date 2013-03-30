@@ -1,18 +1,26 @@
 import numpy as np
 
-from smbanalyze import curvefit, fileIO
+from smbanalyze import curvefit
 
 X = None
 Y = None
-params = [27, 1046, 1200]
+params = (27, 1046, 0, 1200)
 
 def setUp():
   pass
-  #global X,Y
+  global X,F,fit_params
+  X = range(700,1100,10)
+  F = range(0,21,1)
+  fit_params = (30, 1150, 0, 1e6)
   #data = FileIO.loadPull('/Users/blocklab/Analysis/2012.09.06/SJF4_1B_0.5nM_s1m6.str')
   #X = data.ext[:152]
   #Y = data.f[:152]
   
+def testMSandMMSequivalent():
+  msForce = curvefit.MS(X, *fit_params[:-1])
+  mmsExt = curvefit.MMS(msForce, *fit_params)
+  assert max(abs(mmsExt-X)) < 0.05
+
 def testMMSreturntype():
   pass
   #for x in X[0::20]:
