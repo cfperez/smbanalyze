@@ -46,6 +46,12 @@ class AbstractData(object):
   def __len__(self):
     return len(self.data)
 
+  def __eq__(self, other):
+    return all(self.data==other.data) and self.metadata==other.metadata
+
+  def __ne__(self, other):
+    return not self==other
+
   def at(self, **kwargs):
     if len(kwargs)>1:
       raise ValueError('Use only one keyword representing a field')
