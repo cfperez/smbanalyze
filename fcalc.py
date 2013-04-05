@@ -18,6 +18,9 @@ BACKGROUND = 'background'
 def info(s):
   print s
 
+def warning(s):
+  print s
+
 def processMatch(*fglob, **kwargs):
   '''Process image files found using fmatch() of arguments
 
@@ -41,12 +44,17 @@ def processFiles(flist, roi='roi.txt', background=None,
     roi = image.ROI.fromFile(roi)
 
   for fname in flist:
-    if verbose: info('Opening %s...' % fname)
-    img = image.fromFile(fname) - BG
-    img.addROI(*roi)
-    output = calculate(img)
-    if verbose: info('Saving .fret data to file...')
-    toFile(fileIO.change_extension(fname,ext), output, img.metadata)
+    try:
+      if verbose: info('Opening %s...' % fname)
+      img = image.fromFile(fname) - BG
+      img.addROI(*roi)
+      output = calculate(img)
+      if verbose: info('Saving .fret data to file...')
+      toFile(fileIO.change_extension(fname,ext), output, img.metadata)
+    except IOError as e:
+      warning("Error processing file {0}: {1}".format(
+        fname, e.strerror)
+      )
 
 def calcToFile(stack, filename, **kwargs):
   "Calculates and saves saves donor, acceptor, calculated FRET values to 3 column text file"
