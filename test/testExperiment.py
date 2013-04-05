@@ -48,6 +48,18 @@ def testExperimentFromFiles():
   loaded = experiment.fromFiles(LOADED_FILES)
   assert filegetter(loaded) == LOADED_FILES
 
+def testPullingSave():
+  pull = pulls[0]
+  fname = 'test/save_s1m1.exp'
+  pull.save(fname)
+  assert path.exists(fname)
+
+def testPullingLoad():
+  pull = experiment.Pulling.load('test/save_s1m1.exp')
+  assert type(pull) == experiment.Pulling
+  assert pull.fec == pulls[0].fec
+  assert pull.fret == pulls[0].fret
+
 def testExperimentPlot():
   for a_pull in pulls:
     a_pull.figure = FigStub()

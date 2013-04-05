@@ -2,6 +2,7 @@ import os.path as path
 from operator import itemgetter
 import logging
 import collections
+import cPickle as pickle
 
 from numpy import where, min, max, asarray, sum
 import matplotlib.pyplot as plt
@@ -268,6 +269,16 @@ class Pulling(Base):
     else: 
       filename = filename or self.filename
       self.figure.toFile(filename)
+
+  @classmethod
+  def load(cls, filename):
+    return pickle.load(open(filename,'rb'))
+
+  def save(self, filename=None):
+    filename = filename or self.filename
+    if not filename:
+     raise ExperimentError('Specify a filename')
+    pickle.dump( self, open(filename,'wb') )
 
 class OpenLoop(Base):
   "camera .cam image. img"
