@@ -7,7 +7,7 @@ from numpy import concatenate
 import image
 import fileIO
 import constants
-from types import PullFretData,FretData,hasPullData,hasFretData
+from datatypes import FretData
 
 molID = lambda t: 's{0}m{1}'.format(t.slide,t.mol)
 molname = lambda t: 's{0}m{1}_{2}'.format(t.slide,t.mol,t.pull)
@@ -16,6 +16,9 @@ pN = lambda f: 'f'+str(f)+'pN'
 BACKGROUND = 'background'
 
 def info(s):
+  print s
+
+def warning(s):
   print s
 
 def processMatch(*fglob, **kwargs):
@@ -41,12 +44,17 @@ def processFiles(flist, roi='roi.txt', background=None,
     roi = image.ROI.fromFile(roi)
 
   for fname in flist:
-    if verbose: info('Opening %s...' % fname)
-    img = image.fromFile(fname) - BG
-    img.addROI(*roi)
-    output = calculate(img, **calcOptions)
-    if verbose: info('Saving .fret data to file...')
-    toFile(fileIO.change_extension(fname,ext), output, img.metadata)
+    try:
+      if verbose: info('Opening %s...' % fname)
+      img = image.fromFile(fname) - BG
+      img.addROI(*roi)
+      output = calculate(img, **calcOptions)
+      if verbose: info('Saving .fret data to file...')
+      toFile(fileIO.change_extension(fname,ext), output, img.metadata)
+    except IOError as e:
+      warning("Error processing file {0}: {1}".format(
+        fname, e.strerror)
+      )
 
 def calcToFile(stack, filename, **kwargs):
   "Calculates and saves saves donor, acceptor, calculated FRET values to 3 column text file"
@@ -64,10 +72,11 @@ def calculate(stack, beta=constants.beta, gamma=constants.gamma, minsub=False):
   donor = stack.donor - (minsub and min(stack.donor))
   acceptor = stack.acceptor - donor*beta
   acceptor = acceptor - (minsub and min(acceptor))
-  return FretData(stack.time, donor, acceptor, acceptor/(acceptor+gamma*donor))
+  return FretData.fromFields(stack.time, donor, acceptor, acceptor/(acceptor+gamma*donor))
 
 def toFile(filename, data, metadata, comments=''):
   return fileIO.savefret(filename, data, metadata, comments)
 
 def fromFile(filename, **kwargs):
+  return FretData.fromFile(filename)
   return fileIO.load(filename, **kwargs)

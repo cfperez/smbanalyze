@@ -84,3 +84,12 @@ p.fitUpperFEC
 
 flist = FileIO.filelist('SJF','s1m1')
 FRET.processFiles()
+
+strdata = TrapData.fromFile('test.str')
+x,f,sep = strdata[0:10] # array like
+strdata.x[0:10]
+strdata.near(x=900)
+strdata.near(f=15)
+strdata.where('x>300') # array like
+strdata.fit(x=..., f= ...) # <= constraints are subclassed by _constrainFromLimits
+

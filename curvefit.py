@@ -3,9 +3,12 @@ from operator import isSequenceType
 from itertools import izip
 
 from numpy import arccos, cos, exp, sqrt, log, fabs, pi, roots, real
-import matplotlib.pyplot as plt
-from scipy.optimize import curve_fit,fmin_bfgs
 import numpy as np 
+
+try:
+  from scipy.optimize import curve_fit
+except ImportError:
+  from curve_fit import curve_fit
 
 from constants import parameters,kT
 from fplot import _subplot
@@ -13,6 +16,17 @@ from useful import OrderedDict, fix_args, broadcast
 
 class FitError(Exception):
   pass
+
+def fitWLC(x, f, mask=None, **fitOptions):
+  "Fit stretching data to WLC model"
+  fitOptions.setdefault('fitfunc', 'MMS')
+  try:
+    if fitOptions['fitfunc'].startswith('MMS'):
+      fitOptions.setdefault('fixed', 'K')
+  except AttributeError: pass
+
+  fit = Fit(x, f, mask=mask, **fitOptions)
+  return fit
 
 ############################################################
 ## Fitting Functions
@@ -51,15 +65,17 @@ MMS_rip.inverted = True
 ## Fit class
 ############################################################
 class Fit(object):
-  def __init__(self, x, y, fitfunc, fixed=(), name='', verbose=False, **user_parameters):
+  def __init__(self, x, y, fitfunc, fixed=(), mask=None, verbose=False, **user_parameters):
     "Initialize to a specific fitting function, optionally fitting to data specified"
-
-    self.name = name
 
     if isinstance(fitfunc,str):
       fitfunc = eval(fitfunc)
     self.fitfunc = fitfunc
     self.inverted = getattr(fitfunc, 'inverted', False)
+
+    self.mask = np.logical_not(mask)
+    #to_masked = lambda ar: np.ma.array(ar, self.mask)
+    to_masked = lambda ar: ar[mask]
 
     # Use inspection to get parameter names from fit function
     # assuming first argument is independent variable
@@ -91,8 +107,9 @@ class Fit(object):
                                 fit_parameters.items()) )
       fitfunc = fix_args(fitfunc, **fixed_parameters)
 
+    x, y = to_masked(x), to_masked(y)
     if self.inverted:
-      x,y=y,x
+      x,y = y,x
     self.x = x
 
     fit_params, self.error = curve_fit(fitfunc, x, y, starting_p)
@@ -118,13 +135,17 @@ class Fit(object):
   def __len__(self):
     return len(self.parameters)
 
-  def plot(self,**kwargs):
+  def _to_plot(self, **kwargs):
     if self.inverted:
       x,y = self.fitOutput,self.x
     else:
       x,y = self.x,self.fitOutput
     kwargs.setdefault('linewidth', 2)
-    return _subplot(x,y,**kwargs)
+    return (x,y), kwargs
+
+  def plot(self, **kwargs):
+    args, kwargs = self._to_plot(**kwargs)
+    return _subplot(*args,**kwargs)
 
   def __repr__(self):
     return "<Fit function '{0}' using parameters {1}".format(self.fitfunc.func_name, 
