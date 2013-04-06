@@ -29,7 +29,7 @@ def broadcast(f):
   @wraps(f)
   def _f(X,*args,**kwargs):
     if np.iterable(X):
-      return np.array([f(x,*args,**kwargs) for x in X])
+      return np.array( map(lambda x: f(x,*args,**kwargs),X) )
     else:
       return f(X,*args,**kwargs)
   _f.arglist = getargspec(f).args

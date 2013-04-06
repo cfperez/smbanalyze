@@ -32,7 +32,7 @@ def processMatch(*fglob, **kwargs):
   processFiles(filelist, **kwargs)
 
 def processFiles(flist, roi='roi.txt', background=None, 
-	verbose=True, ext=fileIO.FRET_FILE):
+	verbose=True, ext=fileIO.FRET_FILE, **calcOptions):
   "Process files given in flist as images"
 
   if background:
@@ -48,7 +48,7 @@ def processFiles(flist, roi='roi.txt', background=None,
       if verbose: info('Opening %s...' % fname)
       img = image.fromFile(fname) - BG
       img.addROI(*roi)
-      output = calculate(img)
+      output = calculate(img, **calcOptions)
       if verbose: info('Saving .fret data to file...')
       toFile(fileIO.change_extension(fname,ext), output, img.metadata)
     except IOError as e:

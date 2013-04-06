@@ -37,6 +37,7 @@ def gauss(x,mu,sigma,A):
 def doublegauss(x,mu,sigma,A,mu2,sigma2,A2):
   return gauss(x,mu,sigma,A)+gauss(x,mu2,sigma2,A2)
 
+@broadcast
 def MS(x,Lp,Lc,F0):
   "Marko-Siggia model of worm-like chain"
   x_ = x/float(Lc)
@@ -48,7 +49,7 @@ MS.default = {'Lp':20.,'Lc':1150.,'F0':0.1}
 def MMS(F, Lp, Lc, F0, K):
   "Modified Marko-Siggia model as a function of force"
   f = float(F-F0)* Lp / kT(parameters['T'])
-  inverted_roots = roots([1, f-0.75, 0, -0.25])
+  inverted_roots = roots([1.0, f-0.75, 0.0, -0.25])
   root_index = int(f>=0.75)*2
   root_of_inverted_MS = real(inverted_roots[root_index])
   return Lc * (1 - root_of_inverted_MS + (F-F0)/float(K))

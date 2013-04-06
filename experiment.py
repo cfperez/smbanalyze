@@ -219,10 +219,8 @@ class Pulling(Base):
     fitOptions.setdefault('Lc', max(self.fec.ext)*1.05)
     fit = fitWLC(self.fec.ext, self.fec.f, mask=mask, **fitOptions)
     self.lastFit = fit
-
     if self.figure.exists:
       self.figure.plot(fit, hold=True)
-
     return fit
 
   def fitFEC(self, x=None, f=None, tolerance=0.5, **fitOptions):
