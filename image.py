@@ -108,38 +108,47 @@ Convert between 'absolute' and 'relative' coordinates:
   >>> donorROI.toAbsolute( (0,0) )
   """
 
-  def __init__(self, bl, tr, name='', origin='relative'):
+  def __init__(self, bottomLeft, topRight, name='', origin='relative'):
 
-    left,bottom = bl
-    right,top = tr
-
-    if right < left or left < 0 or right < 0:
-      raise ROIError, "ROI must satisfy condition 0 <= left < right: left=%d right=%d" \
-        % (left,right)
-
-    if bottom > top or bottom < 0 or top < 0:
-      raise ROIError, "ROI must satisfy condition 0 <= bottom < top: bottom=%d top=%d" \
-        % (bottom,top)
-
-    self.left = left
-    self.right = right
-    self.top = top
-    self.bottom = bottom
+    self._setCornersWithValidation(bottomLeft, topRight)
     self.name = name
     self.origin = origin
-
     self.lines = []
 
+  def _setCornersWithValidation(self, bl, tr):
+    if self.isValid(bl, tr):
+      left,bottom = bl
+      right,top = tr
+      self.left = left
+      self.right = right
+      self.top = top
+      self.bottom = bottom
+    else:
+      raise ROIError(
+        "ROI must have 0 <= left < right and 0 <= bottom < top"
+      )
+    
+  def isValid(self, bl, tr):
+    left,bottom = bl
+    right,top = tr
+    if right < left or left < 0 or right < 0 or bottom > top or bottom < 0 or top < 0:
+      return False
+    else:
+      return True
+
   @classmethod
-  def fromFile(cls, filename, origin='absolute'):
+  def fromFile(cls, filename, origin=None):
     "Load ROI(s) from a LabView config file and return tuple of Image.ROI objects"
-    settings = fileIO.loadsettings(filename, cast=useful.toInt)
+    settings = fileIO.loadsettings(filename)
 
     temp = []
+    origin = origin or settings.pop('origin', 'absolute')
     for name, roi in settings.items():
-      corners=itemgetter('left','right','bottom','top')
+      corners = itemgetter('left','right','bottom','top')
+      corners_int = map(useful.toInt, corners(roi))
       temp.append(
-        cls.fromCorners(*corners(roi), name=name, origin=origin))
+        cls.fromCorners(*corners_int, name=name, origin=origin)
+      )
 
     return tuple(temp)
 
@@ -167,7 +176,7 @@ Convert between 'absolute' and 'relative' coordinates:
   Colors = ('r','y')
   _lastColor = 0
 
-  def draw(self,color=None):
+  def draw(self, color=None):
     if not color:
       i = ROI._lastColor
       color=ROI.Colors[i]
@@ -201,23 +210,27 @@ Convert between 'absolute' and 'relative' coordinates:
     fileIO.savesettings(self.filename, mode,
       **{self.name: self.toDict()} )
 
-  def _convert(self,origin):
-    (self.left,self.bottom,self.right,self.top) = map(
+  def _convert(self, origin):
+    left, bottom, right, top = map(
         operator.add,(self.left,self.bottom,self.right,self.top), origin*2)
+    self._setCornersWithValidation( (bottom,left), (top, right) )
     
-  def toAbsolute(self,origin_coord):
+  def toAbsolute(self, origin_coord):
     if self.origin != 'absolute':
       self._convert(origin_coord)
       self.origin='absolute'
     return self
 
-  def toRelative(self,origin_coord):
+  def toRelative(self, origin_coord):
     if self.origin == 'relative':
         return self
     elif self.origin == 'absolute':
-      self._convert(useful.negate(origin_coord))
-      self.origin = 'relative'
-      return self
+      try:
+        self._convert(useful.negate(origin_coord))
+        self.origin = 'relative'
+        return self
+      except ROIError:
+        raise ROIError("ROI out of bounds: verify the coordinates aren't actually already 'relative'!")
     else:
         raise ROIError, "Origin must be either 'relative' or 'absolute'"
         
@@ -379,17 +392,17 @@ class Stack:
         key = roi.name
 
         # recast to relative origin
-        roi = roi.toRelative( self.origin )
+        roi = roi.toRelative(self.origin)
 
-        if roi.right > self.width or roi.top > self.height:
-          raise ROIError, "ROI is larger than Stack dimensions"
+        if roi.right >= self.width:
+          raise StackError, "ROI 'right' is outside right edge of image: {0}\n {1}".format(roi.right,roi)
+        if roi.top >= self.height:
+          raise StackError, "ROI 'top' is outside top edge of image: {0}\n {1}".format(roi.top,roi)
 
         self._roi[key] = roi
 
       except AttributeError:
         raise TypeError, "Must use objects with ROI interface"
-      except ROIError:
-        raise ROIError, "ROI out of bounds! %s" % repr(roi)
 
   def showROI(self,*args):
     self._showROI=True
