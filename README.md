@@ -5,20 +5,27 @@ Load the package:
     from matplotlib.pyplot import *
     from smbanalyze import *
 
+## New Features
+
+Save or load an experiment:
+```python
+pull = experiment.Pulling.load('filename.exp')
+pull.save('filename2.exp')
+```
+
 ## Advanced Usage
 
 Process images using give roi file and background in the current directory:
 
 ```python
-img_files = fileIO.flist('SJF', 'img')
-fret_data = fret.processFiles(img_files, roi='roi.txt', background='SJF_background.img')
+fcalc.processMatch('SJF4', roi='roi.txt', background='SJF_background.img')
 ```
 Remember, in IPython, you can change directories with `cd` and list contents with `ls`.
 
-Load a pulling experiment:
+Load a pulling data:
 
 ```python
-pull = experiment.Pulling.fromFile('SJF4_s1m1_4')
+pull = experiment.fromFile('SJF4_s1m1_4')
 pull.plot()
 
 # or from multiple files
@@ -87,7 +94,7 @@ Origin reflects whether the pixels are numbered with respect to the CCD origin (
 To calculate fret:
 
 ```python
-fret = fret.calculate(image_bg) # optional: beta= , gamma=
+fret = fcalc.calculate(image_bg) # optional: beta= , gamma=
 
 # Access as named fields
 fret.time, fret.donor, fret.acceptor, fret.fret
@@ -96,7 +103,7 @@ fret.time, fret.donor, fret.acceptor, fret.fret
 T,donor,acceptor,f = fret
 
 # and save to a file
-fret.toFile('saveTo.fret', fret)
+fcalc.toFile('saveTo.fret', fret)
 ```
 
 `fret` is a special "named tuple" from the collections package in the python library with more flexible usage, as shown above. Don't be confused; it's just a tuple in which each position also has a name which you can see with `fret._fields`.
@@ -104,7 +111,7 @@ fret.toFile('saveTo.fret', fret)
 Plot the data:
 
 ```python
-fret.plot(fret, title='test1')
+fplot.plot(fret, title='test1')
 
 # Rerunning this command overwrites the current figure
 # but if you want a new figure
@@ -112,11 +119,11 @@ figure()
 fret.plot(fret)
 
 # and if you have pulling data
-pull = fileIO.loadstr('test_s1m1.str')
-fret.plot(fret, pull=pull)
+pull = TrapData.fromFile('test_s1m1.str')
+fplot.plot(fret, pull=pull)
 
 # and if you want to see an FEC
-fret.plot(pull, FEC=True)
+fplot.plot(pull, FEC=True)
 # this works too, though they don't align
-fret.plot(fret, pull, FEC=True)
+fplot.plot(fret, pull, FEC=True)
 ```
