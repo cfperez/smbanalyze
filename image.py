@@ -213,7 +213,7 @@ Convert between 'absolute' and 'relative' coordinates:
   def _convert(self, origin):
     left, bottom, right, top = map(
         operator.add,(self.left,self.bottom,self.right,self.top), origin*2)
-    self._setCornersWithValidation( (bottom,left), (top, right) )
+    self._setCornersWithValidation( (left, bottom), (right, top) )
     
   def toAbsolute(self, origin_coord):
     if self.origin != 'absolute':
