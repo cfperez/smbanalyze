@@ -1,4 +1,6 @@
+import operator
 import matplotlib.pyplot as plt
+from numpy import concatenate
 
 from datatypes import TrapData,hasTrapData,hasFretData
 
