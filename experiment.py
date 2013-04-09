@@ -32,7 +32,7 @@ def fromData(*datalist, **kwargs):
 
 def fromMatch(*fglob):
   'Load experiments from files using concatenation of argument list as a glob'
-  files = filter(lambda x: x.count('str')>0,fileIO.flist(*fglob))
+  files = filter(lambda x: x.count('str')>0, fileIO.flist(*fglob))
   if not files:
     raise ExperimentError("No files found matching glob '{0}'".format(fglob))
   return fromFiles(files)

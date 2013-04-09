@@ -35,8 +35,10 @@ def processFiles(flist, roi='roi.txt', background=None,
 	verbose=True, ext=fileIO.FRET_FILE, **calcOptions):
   "Process files given in flist as images"
 
-  if background:
+  if isinstance(background, str):
     BG = image.fromFile(background,background=True)
+  elif isinstance(background, int):
+    BG = background
   else:
     BG = constants.default_background_subtract
 
@@ -79,4 +81,3 @@ def toFile(filename, data, metadata, comments=''):
 
 def fromFile(filename, **kwargs):
   return FretData.fromFile(filename)
-  return fileIO.load(filename, **kwargs)
