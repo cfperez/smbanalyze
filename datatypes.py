@@ -67,8 +67,11 @@ class AbstractData(object):
     if attr in self._fields:
       return self.data[:,self._fields.index(attr)]
     else:
-      raise AttributeError("{0} has no attribute '{1}'".format(
-          self.__class__.__name__, attr))
+      try:
+        return getattr(super(AbstractData, self), attr)
+      except AttributeError:
+        raise AttributeError("{0} has no attribute '{1}'".format(
+            self.__class__.__name__, attr))
 
   @property
   def T(self):
