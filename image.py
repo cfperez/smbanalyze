@@ -20,6 +20,12 @@ class StackError(Exception):
 class ROIError(Exception):
   pass
 
+class ROIOutofBounds(ROIError):
+  pass
+
+class ROIInvalid(ROIError):
+  pass
+
 ################################################################################
 ## MODULE LEVEL FUNCTIONS
 ################################################################################
@@ -37,6 +43,7 @@ def fromFile(filename, **kwargs):
 """ 
 
   bg = kwargs.pop('background', False)
+  roi = kwargs.pop('roi', None)
   try:
     img = Stack(fileIO.add_img_ext(filename), **kwargs)
   except IOError:
@@ -48,7 +55,11 @@ def fromFile(filename, **kwargs):
     bg = Stack(bg)
     bg.toBackground(**kwargs)
 
-  return img - bg
+  result = img - bg
+  if roi is not None:
+    rois = ROI.fromFile(roi)
+    result.addROI(*rois)
+  return result
 
 def fromBackground(filename, filter='median'):
   try:
@@ -109,38 +120,27 @@ Convert between 'absolute' and 'relative' coordinates:
   """
 
   def __init__(self, bottomLeft, topRight, name='', origin='relative'):
-
-    self._setCornersWithValidation(bottomLeft, topRight)
+    L, B = bottomLeft
+    R, T = topRight
+    if R <= L:
+      raise ROIInvalid('Right {0} must be greater than left {1}'.format(R,L))
+    if T <= B:
+      raise ROIInvalid('Top {0} must be greater than bottom {1}'.format(T,B))
+    if R<0 or L<0 or T<0 or B<0:
+      msg = 'Boundaries must always be >0: {0}'.format((L,R,T,B))
+      raise ROIOutofBounds(msg)
+    self.left = L
+    self.right = R
+    self.top = T
+    self.bottom = B
     self.name = name
     self.origin = origin
     self.lines = []
-
-  def _setCornersWithValidation(self, bl, tr):
-    if self.isValid(bl, tr):
-      left,bottom = bl
-      right,top = tr
-      self.left = left
-      self.right = right
-      self.top = top
-      self.bottom = bottom
-    else:
-      raise ROIError(
-        "ROI must have 0 <= left < right and 0 <= bottom < top"
-      )
-    
-  def isValid(self, bl, tr):
-    left,bottom = bl
-    right,top = tr
-    if right < left or left < 0 or right < 0 or bottom > top or bottom < 0 or top < 0:
-      return False
-    else:
-      return True
 
   @classmethod
   def fromFile(cls, filename, origin=None):
     "Load ROI(s) from a LabView config file and return tuple of Image.ROI objects"
     settings = fileIO.loadsettings(filename)
-
     temp = []
     origin = origin or settings.pop('origin', 'absolute')
     for name, roi in settings.items():
@@ -211,26 +211,30 @@ Convert between 'absolute' and 'relative' coordinates:
       **{self.name: self.toDict()} )
 
   def _convert(self, origin):
-    left, bottom, right, top = map(
-        operator.add,(self.left,self.bottom,self.right,self.top), origin*2)
-    self._setCornersWithValidation( (left, bottom), (right, top) )
+    corners = map(operator.add,
+      (self.left,self.bottom,self.right,self.top), origin*2)
+    return corners[0], corners[2], corners[1], corners[3]
     
   def toAbsolute(self, origin_coord):
     if self.origin != 'absolute':
-      self._convert(origin_coord)
-      self.origin='absolute'
-    return self
+      corners = self._convert(origin_coord)
+      return ROI.fromCorners(*corners, name=self.name, origin='absolute')
+    else: return ROI.copy(self)
 
   def toRelative(self, origin_coord):
     if self.origin == 'relative':
         return self
     elif self.origin == 'absolute':
       try:
-        self._convert(useful.negate(origin_coord))
-        self.origin = 'relative'
-        return self
-      except ROIError:
-        raise ROIError("ROI out of bounds: verify the coordinates aren't actually already 'relative'!")
+        corners = self._convert(useful.negate(origin_coord))
+        return ROI.fromCorners(*corners, name=self.name, origin='relative')
+      except ROIOutofBounds as e:
+        if corners[0]<origin_coord[0]:
+          raise ROIOutofBounds("ROI left ({0}) must be greater than subimage origin {1}".format(self.left, origin_coord[0]))
+        elif corners[2]<origin_coord[1]:
+          raise ROIOutofBounds("ROI right ({0}) must be greater than subimage origin {1}".format(self.bottom, origin_coord[1]))
+        else:
+          raise ROIOutofBounds("Check that ROI left and bottom is > origin:\n"+str(e))
     else:
         raise ROIError, "Origin must be either 'relative' or 'absolute'"
         
@@ -251,9 +255,10 @@ Convert between 'absolute' and 'relative' coordinates:
         name = self.name or 'Undefined'
         return "<ROI '%s' = uninitialized>" % self.name
     else:
-        return "<%s ROI '%s' = L: %d, R: %d, B: %d, T: %d>" % \
-      (self.origin,self.name,self.left,self.right,self.bottom,self.top) 
+        return ROI.REPR(self)
 
+  REPR = lambda self: "<%s ROI '%s' = L: %d, R: %d, B: %d, T: %d>" % \
+    (self.origin,self.name,self.left,self.right,self.bottom,self.top) 
 
 ################################################################################
 ##
@@ -395,7 +400,9 @@ class Stack:
         roi = roi.toRelative(self.origin)
 
         if roi.right >= self.width:
-          raise StackError, "ROI 'right' is outside right edge of image: {0}\n {1}".format(roi.right,roi)
+          raise StackError(
+            "ROI 'right' {0} is outside right edge of image {1}: \n {2}".format(roi.right,self.width,roi)
+          )
         if roi.top >= self.height:
           raise StackError, "ROI 'top' is outside top edge of image: {0}\n {1}".format(roi.top,roi)
 
