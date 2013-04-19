@@ -273,7 +273,7 @@ class Pulling(Base):
     return pickle.load(open(filename,'rb'))
 
   def save(self, filename=None):
-    filename = filename or self.filename
+    filename = filename or self.filename+'.exp'
     if not filename:
      raise ExperimentError('Specify a filename')
     pickle.dump( self, open(filename,'wb') )
