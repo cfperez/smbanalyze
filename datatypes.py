@@ -102,7 +102,7 @@ class TrapData(AbstractData):
       min_f, max_f = min(f_fit), f[0]
     if max_f>max(f_fit): max_f=max(f_fit)
 
-    if x is None: x=[min(ext_fit)]
+    if x is None: x=[ext_fit[min(where(f_fit>=min_f)[0])]-1]
     try:
       min_ext, max_ext = x
     except TypeError:

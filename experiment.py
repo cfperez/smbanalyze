@@ -97,8 +97,9 @@ class Figure(object):
       return fplot.plot(*args, **kwargs)
 
   def clear(self):
-    self.figure.clf()
-    self.figure.show()
+    if self.exists:
+      self.figure.clf()
+      self.figure.show()
 
   def toFile(self, filename=None):
     if filename:
@@ -135,6 +136,12 @@ class Base(object):
   def plot(self):
     raise NotImplementedError
     
+def add_to_all(arg, x):
+  try:
+    return arg+x
+  except TypeError:
+    return map(lambda y: y+x, arg)
+
 class Pulling(Base):
   "stretching curves of single molecule .str camera .cam image .img"
 
@@ -192,7 +199,7 @@ class Pulling(Base):
       raise ExperimentError("Must fitHandles() before fitting rip!")
     parameters = self.handles.parameters.copy()
     parameters.update(Lc1=guess)
-    parameters.setdefault('K', 1100)
+    parameters.setdefault('K', 1600)
     fitOptions.update( {'fixed': ('K','K1','Lc','Lp','F0','Lp1'), 
           'fitfunc': 'MMS_rip'}, **parameters)
     rip = self.fitForceExtension(x, f, **fitOptions)
@@ -223,16 +230,16 @@ class Pulling(Base):
       self.figure.plot(fit, hold=True)
     return fit
 
-  def fitFEC(self, x=None, f=None, tolerance=0.5, **fitOptions):
+  def fitFEC(self, x=None, f=None, tolerance=0.05, **fitOptions):
     offset = 0
-    loops = 0
-    while True:
-      loops += 1
-      self.adjustForceOffset(offset)
-      fit=self.fitForceExtension(x,f,**fitOptions)
-      offset = abs(fit['F0'])
-      if offset < tolerance or loops>10: break
-    return fit
+    max_iter = fitOptions.pop('max_iter', 10)
+    for loop in range(max_iter):
+      self.adjustForceOffset(-offset)
+      self.plot(hold=False)
+      f = add_to_all(f, -offset)
+      fit = self.fitForceExtension(x, f, **fitOptions)
+      offset = fit['F0']
+      if abs(offset) < tolerance: return fit
     
   @property
   def fits(self):
@@ -242,13 +249,13 @@ class Pulling(Base):
       return [self.lastFit] if self.lastFit else []
 
   def adjustForceOffset(self, offset):
-    if offset!=0:
+    if offset != 0:
       def geometricMean(*args):
         return 1/sum(map(lambda x: 1./x, args))
       beadRadii = self.metadata.get('bead_radii', constants.sumOfBeadRadii)
       stiffness = geometricMean(*self.metadata.get('stiffness', constants.stiffness))
-      self.f -= offset
-      self.ext = self.sep - beadRadii - self.f/stiffness
+      self.fec.f += offset
+      self.fec.ext = self.fec.sep - beadRadii - self.fec.f/stiffness
 
   def plot(self, **kwargs):
     kwargs.setdefault('FEC', self.fits or not self.fret)

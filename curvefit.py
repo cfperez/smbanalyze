@@ -56,7 +56,7 @@ def MMS(F, Lp, Lc, F0, K):
 MMS.default = {'Lp':30., 'Lc':1150., 'F0':0.1, 'K': 1200.}
 MMS.inverted = True
 
-def MMS_rip(F, Lp=30., Lc=1150., F0=0.1, K=1200., Lp1=2.5, Lc1=0., K1=1100.):
+def MMS_rip(F, Lp=30., Lc=1150., F0=0.1, K=1200., Lp1=1, Lc1=0., K1=1100.):
   return MMS(F, Lp, Lc, F0, K) + MMS(F, Lp1, Lc1, F0, K1)
 MMS_rip.default = dict(MMS.default, Lp1=2.5, Lc1=0., K1=1100.)
 MMS_rip.inverted = True
