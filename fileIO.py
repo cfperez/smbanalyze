@@ -9,7 +9,7 @@ from inspect import isfunction
 
 import numpy as np
 
-from useful import toNum, toInt, isInt
+from useful import toNum, toInt, isInt, makeMatchStrFromArgs
 
 IMAGE_FILE = '.img'
 CAMERA_FILE = '.cam'
@@ -18,14 +18,8 @@ PULL_FILE = '.str'
 
 REGISTERED_EXT = (IMAGE_FILE,CAMERA_FILE,FRET_FILE,PULL_FILE)
 
-
 def flist(*globs):
-  globs = list(globs)
-  last = globs[-1]
-  if isInt(last):
-    globs[-1] = '_'+last
-
-  return glob.glob('*%s*' % '*'.join(globs))
+  return glob.glob(makeMatchStrFromArgs(*globs, re_match=False))
 fmatch = flist
 
 def load(fname, comments=False, header=False, **kwargs):
