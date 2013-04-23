@@ -73,9 +73,13 @@ class Fit(object):
     self.fitfunc = fitfunc
     self.inverted = getattr(fitfunc, 'inverted', False)
 
-    self.mask = np.logical_not(mask)
-    #to_masked = lambda ar: np.ma.array(ar, self.mask)
-    to_masked = lambda ar: ar[mask]
+    if mask is not None:
+      self.mask = np.logical_not(mask)
+      #to_masked = lambda ar: np.ma.array(ar, self.mask)
+      to_masked = lambda ar: ar[mask]
+    else:
+      self.mask = None
+      to_masked = lambda ar: ar
 
     # Use inspection to get parameter names from fit function
     # assuming first argument is independent variable
