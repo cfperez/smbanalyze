@@ -40,7 +40,7 @@ def plot(data, pull=None, **kwargs):
     not hold and plt.cla()
     plt.hold(True)
     ax1 = _subplot(data.time, data.donor, label='donor')
-    _subplot(data.time, data.acceptor, '--', linewidth=1.5, label='acceptor', axes=('','counts'))
+    _subplot(data.time, data.acceptor, label='acceptor', axes=('','counts'))
     plt.hold(hold)
     plt.legend(loc=loc,ncol=2,prop={'size':'small'})
     if displayFRET:
