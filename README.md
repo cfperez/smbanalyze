@@ -12,6 +12,44 @@ Save or load an experiment:
 pull = experiment.Pulling.load('filename.exp')
 pull.save('filename2.exp')
 ```
+## Experiment Workflow
+
+### Tips
+1. Use generically named yet descriptive variables to allow for some automation with IPython macros.
+
+2. The new experiment.List collection object has some useful features demonstrated below. We will continue to add features to make manipulating multiple experiments easier. Requests welcome!
+
+### Example
+
+```python
+pulls = experiment.fromMatch('SJ2UL')
+mol = pulls.matching('s1m1')
+
+hstart = 850  # extension to start fit
+hend = 9      # force to stop fit
+p = mol.next() # Imagine this is line [3] in IPython
+
+# For now, simply print this force offset
+mean( p.fec.force[10:20] )
+p.fitHandles(hstart, hend)
+p.plot()
+
+# make a macro of previous
+macro fitp 4-6
+macro nextp 3
+
+rstart = 1000
+rend = 15
+p.fitRip(rstart, rend) # line [11]
+
+# Optional. Now just adjust rstart as needed before running this macro
+macro fitrip 11
+
+nextp
+fitp
+rstart = 1010
+fitrip
+```
 
 ## Advanced Usage
 

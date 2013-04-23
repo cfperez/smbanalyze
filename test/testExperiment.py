@@ -19,7 +19,7 @@ def setUp():
   global pulls, LOADED_FILES
   pulls = experiment.fromMatch('test/test')
   LOADED_FILES = map( path.normpath, 
-    [r'test/test_s1m1', r'test/test_s1m2', r'test/test_s1m3']
+    [r'test/test_s1m1', r'test/test_s1m2', r'test/test_s1m3', ]
   )
 
 def testRipFitting():
@@ -37,8 +37,10 @@ def testPullingLoad():
   pullLoad = [ experiment.Pulling.fromFile(f) for f in LOADED_FILES ]
   assert filegetter(pullLoad) == LOADED_FILES
 
-def testPullingLoadWithFret():
-  pass
+def testPullingLoadimg():
+  pull = pulls[1] # test_s1m2
+  img = pull.loadimg()
+  assert path.splitext(img.filename)[0] == path.splitext(pull.filename)[0]
 
 def testExperimentFromMatch():
   filenames = filegetter(pulls)
@@ -65,6 +67,13 @@ def testExperimentPlot():
     a_pull.figure = FigStub()
     a_pull.plot()
     assert a_pull.figure.plotCalled == True
+
+def testList():
+  pull_list = experiment.List(pulls)
+  assert pull_list[0] == pulls[0]
+  matched = pull_list.matching('s1m2')
+  assert len(matched) == 1
+  assert matched[0] == pulls[1]
 
 def testFromFile():
   pass

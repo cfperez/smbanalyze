@@ -3,15 +3,17 @@ from operator import itemgetter
 import logging
 import collections
 import cPickle as pickle
+import re
 
 from numpy import where, min, max, asarray, sum
 import matplotlib.pyplot as plt
 
 import fileIO 
 from curvefit import Fit, fitWLC
-from useful import isInt, groupat
+from useful import isInt, groupat, makeMatchStrFromArgs
 import fplot
 import constants
+import image
 from datatypes import *
 
 logger = logging.getLogger(__name__)
@@ -40,7 +42,7 @@ def fromMatch(*fglob):
 def fromFiles(*filelist):
   'Load experiments from a list of files or an argument list'
   filelist = collapseArgList(filelist)
-  return [Pulling.fromFile(fname) for fname in filelist]
+  return List([Pulling.fromFile(fname) for fname in filelist])
 
 def collapseArgList(arglist):
   'Allows a function to take either *args or a list as its argument'
@@ -51,17 +53,34 @@ def collapseArgList(arglist):
     return arglist
 
 class List(collections.Sequence):
-  def __init__(self):
-    pass
+  def __init__(self, iterable):
+    self._list = list(iterable)
 
+  def matching(self, *match):
+    matched = filter(lambda x: re.search(makeMatchStrFromArgs(*match), x.filename), self)
+    return List(matched)
+
+  def next(self):
+    try:
+      return self.it.next()
+    except (StopIteration, AttributeError):
+      self.it = iter(self)
+      return self.next()
+
+  def plotall(self, **options):
+    for exp in self:
+      exp.plot(**options)
+
+  def __getitem__(self, key):
+    return self._list[key]
+    
   def __len__(self):
-    pass
+    return len(self._list)
 
-  def __iter__(self):
-    pass
-
-  def __contains__(self):
-    pass
+  def __repr__(self):
+    fmt = '\n '.join('{0}: {1}'.format(i, repr(item))
+                      for i, item in enumerate(self))
+    return '[' + fmt + ']'
 
 class Figure(object):
   def __init__(self, fignumber=None):
@@ -187,6 +206,11 @@ class Pulling(Base):
 
     return newPull
 
+  def loadimg(self, path='.', **kwargs):
+    filename = self.filename
+    return image.Stack(fileIO.add_img_ext(filename))
+    return image.fromFile(filename, **kwargs)
+
   def fitHandles(self, x=None, f=None, **fitOptions):
     'Fit a WLC model to the lower part of the FEC corresponding to the handle stretching'
     fitOptions.setdefault('fitfunc','MMS')
@@ -280,7 +304,7 @@ class Pulling(Base):
     return pickle.load(open(filename,'rb'))
 
   def save(self, filename=None):
-    filename = filename or self.filename
+    filename = filename or self.filename+'.exp'
     if not filename:
      raise ExperimentError('Specify a filename')
     pickle.dump( self, open(filename,'wb') )
