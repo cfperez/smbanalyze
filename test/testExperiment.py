@@ -9,6 +9,8 @@ class FigStub(object):
     self.plotCalled = False
   def plot(self, *args, **kwargs):
     self.plotCalled = True
+  def annotate(self, text, location):
+    self.annotateCalled = True
 
 def attrgetter(attr):
   return lambda x: map(operator.attrgetter(attr), x)
@@ -24,7 +26,7 @@ def setUp():
 
 def testRipFitting():
   pull = pulls[2]
-  pull.fitHandles(800, 9.09)
+  pull.fitHandles(800, 8)
   assert pull.fitRip(987)['Lc1'] > 10 #== 16.475625684642072
 
 def testHandleFitting():
@@ -33,7 +35,7 @@ def testHandleFitting():
 def testFECfitting():
   pass
 
-def testPullingLoad():
+def testPullingFromFile():
   pullLoad = [ experiment.Pulling.fromFile(f) for f in LOADED_FILES ]
   assert filegetter(pullLoad) == LOADED_FILES
 
@@ -59,7 +61,7 @@ def testPullingSave():
 def testPullingLoad():
   pull = experiment.Pulling.load('test/save_s1m1.exp')
   assert type(pull) == experiment.Pulling
-  assert pull.fec == pulls[0].fec
+  assert pull.pull == pulls[0].pull
   assert pull.fret == pulls[0].fret
 
 def testExperimentPlot():
@@ -74,6 +76,19 @@ def testList():
   matched = pull_list.matching('s1m2')
   assert len(matched) == 1
   assert matched[0] == pulls[1]
+
+def testListGet():
+  pull_list = experiment.List(pulls)
+  info = pull_list.get('filename')
+  assert set(info) == set(LOADED_FILES)
+
+def testListCall():
+  pull_list = experiment.List(pulls)
+  def testFunc():
+    return True
+  for p in pull_list:
+    p.testFunc = testFunc
+  assert pull_list.call('testFunc') == [True]*len(pull_list)
 
 def testFromFile():
   pass
