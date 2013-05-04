@@ -18,19 +18,24 @@ def plot(data, pull=None, **kwargs):
   if hold is not None:
     plt.hold(hold)
 
-  if hasattr(data, '_to_plot'):
-    args, kwargs = data._to_plot()
-    return _subplot(*args, **kwargs)
-
   if not pull and hasTrapData(data):
     pull = TrapData.fromObject(data)
 
-  if not displayFRET and data is not None: num = 1
-  elif hasFretData(data): num = 2
-  else: num = 0
-  if pull: num += 1
-  if num==0:
-    raise ValueError("Don't know how to plot argument: missing named fields")
+  num = 0
+  if hasattr(data, 'donor'): num += 1
+  if displayFRET and hasFretData(data): num += 1
+  if pull: 
+    num += 1
+    if num == 1:
+      FEC = kwargs.setdefault('FEC', True)
+
+  #if not displayFRET and data is not None: num = 1
+  #elif hasFretData(data): num = 2
+  #else: num = 0 #raise ValueError("Don't understand plot options")
+  #if pull: 
+  #  num += 1
+  #if num==0:
+  #  raise ValueError("Don't know how to plot argument: missing named fields")
 
   layout = iter((num,1,x) for x in range(1,num+1))
 
