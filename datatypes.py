@@ -2,7 +2,7 @@ import collections
 
 from numpy import all, where, asarray, sign, ndarray
 
-from fileIO import load, toSettings
+from fileIO import load, toSettings, fileIOError
 
 
 TYPE_CHECKING = 'STRICT'
@@ -28,10 +28,20 @@ class AbstractData(object):
 
   @classmethod
   def fromFile(cls, filename):
-    meta, data = load(filename, comments=toSettings)
-    meta[cls.name()+'_filename'] = filename
-    me = cls(data, **meta)
-    return me
+    try:
+      meta, data = load(filename, comments=toSettings)
+    except fileIOError as e:
+      if not e.isError:
+        print e.strerror
+        data = load(filename)
+        meta = {}
+      else:
+        raise
+    else:
+      meta[cls.name()+'_filename'] = filename
+    finally:
+      me = cls(data, **meta)
+      return me
 
   @classmethod
   def fromFields(cls, *args, **meta):
@@ -81,7 +91,7 @@ class AbstractData(object):
     return iter(self.T)
 
   def __getitem__(self, key):
-    return self.data[key].T
+    return type(self)( self.data[key].view(), **self.metadata )
 
   def __repr__(self):
     return repr(self.data)
@@ -102,18 +112,26 @@ class TrapData(AbstractData):
       min_f, max_f = min(f_fit), f[0]
     if max_f>max(f_fit): max_f=max(f_fit)
 
-    if x is None: x=[ext_fit[min(where(f_fit>=min_f)[0])]-1]
+    if x is None: x=min(ext_fit)
     try:
       min_ext, max_ext = x
     except TypeError:
-      min_ext, max_ext = x, ext_fit[min(where(f_fit>=max_f)[0])-1]
+      min_ext, max_ext = x, max(ext_fit)
     except ValueError:
-      min_ext, max_ext = x[0], ext_fit[min(where(f_fit>=max_f)[0])-1]
+      min_ext, max_ext = min(ext_fit), x[0]
 
     between = lambda s,a,b: (s>=a) & (s<=b)
-    mask = between(ext_fit, min_ext, max_ext)
+    mask = between(ext_fit, min_ext, max_ext) & between(f_fit, min_f, max_f)
 
     return mask
+
+  def select(self, x=None, f=None):
+    pass
+
+  @property
+  def fec(self):
+    x,f,s = self.T
+    return x,f
 
 class FretData(AbstractData):
   _fields = FretData_fields

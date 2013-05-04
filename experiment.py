@@ -1,11 +1,11 @@
 import os.path as path
-from operator import itemgetter
+from operator import itemgetter, attrgetter, methodcaller
 import logging
 import collections
 import cPickle as pickle
 import re
 
-from numpy import where, min, max, asarray, sum
+from numpy import where, min, max, asarray, sum, mean, all
 import matplotlib.pyplot as plt
 
 import fileIO 
@@ -55,10 +55,26 @@ def collapseArgList(arglist):
 class List(collections.Sequence):
   def __init__(self, iterable):
     self._list = list(iterable)
+    try:
+      self._list.sort(key=attrgetter('info.pull'))
+    except AttributeError:
+      pass
 
   def matching(self, *match):
     matched = filter(lambda x: re.search(makeMatchStrFromArgs(*match), x.filename), self)
     return List(matched)
+
+  def get(self, name, *more):
+    try:
+      return map( attrgetter(name, *more), self)
+    except AttributeError:
+      raise ExperimentError('Missing attribute {0} in a List element'.format(action))
+      
+  def call(self, action, *args, **kwargs):
+    try:
+      return map( methodcaller(action, *args, **kwargs), self )
+    except AttributeError:
+      raise ExperimentError('Missing method {0} in a List element'.format(action))
 
   def next(self):
     try:
@@ -67,12 +83,22 @@ class List(collections.Sequence):
       self.it = iter(self)
       return self.next()
 
-  def plotall(self, **options):
+  def plot(self, **options):
     for exp in self:
       exp.plot(**options)
 
+  def fitHandles(self, *args, **kwargs):
+    return self.call('fitHandles', *args, **kwargs)
+
+  def fitRip(self, *args, **kwargs):
+    return self.call('fitRip', *args, **kwargs)
+
   def __getitem__(self, key):
-    return self._list[key]
+    out = self._list[key]
+    if isinstance(out, list):
+      return List(out)
+    else:
+      return out
     
   def __len__(self):
     return len(self._list)
@@ -120,6 +146,10 @@ class Figure(object):
       self.figure.clf()
       self.figure.show()
 
+  def annotate(self, text, location):
+    "Annotate figure with text at location (x,y)"
+    return plt.annotate(text, location)
+    
   def toFile(self, filename=None):
     if filename:
       base, ext = path.splitext(filename)
@@ -136,7 +166,7 @@ class Base(object):
   # also classmethods which change experimental constants like bead radii,
   # trap stiffnesses, etc.
   def __init__(self, pull, fret, **metadata):
-    self.fec = pull
+    self.pull = pull
     self.fret = fret
     self.metadata = pull.metadata
     if fret:
@@ -163,6 +193,8 @@ def add_to_all(arg, x):
 
 class Pulling(Base):
   "stretching curves of single molecule .str camera .cam image .img"
+
+  forceOffsetRange = slice(10, 20)
 
   def __init__(self, pull, fret=None, **metadata):
     if not hasTrapData(pull):
@@ -222,11 +254,15 @@ class Pulling(Base):
     if not self.handles:
       raise ExperimentError("Must fitHandles() before fitting rip!")
     parameters = self.handles.parameters.copy()
-    parameters.update(Lc1=guess)
-    parameters.setdefault('K', 1600)
-    fitOptions.update( {'fixed': ('K','K1','Lc','Lp','F0','Lp1'), 
-          'fitfunc': 'MMS_rip'}, **parameters)
-    rip = self.fitForceExtension(x, f, **fitOptions)
+    fitOptions.setdefault('fitfunc', 'MMS_rip')
+    parameters.update(**fitOptions)
+    parameters.setdefault('Lc1', guess)
+    MMS_fixed = ('K','Lc','Lp','F0')
+    if parameters.has_key('fixed'):
+      parameters['fixed'] += MMS_fixed
+    else:
+      parameters['fixed'] = MMS_fixed + ('K1','Lp1')
+    rip = self.fitForceExtension(x, f, **parameters)
     self.addRip(rip)
     return rip
     
@@ -246,9 +282,9 @@ class Pulling(Base):
 
   def fitForceExtension(self, x=None, f=None, start=0, stop=-1, **fitOptions):
     "Fit WLC to Pulling curve and plot"
-    mask = self.fec.maskFromLimits(x, f, (start,stop))
-    fitOptions.setdefault('Lc', max(self.fec.ext)*1.05)
-    fit = fitWLC(self.fec.ext, self.fec.f, mask=mask, **fitOptions)
+    mask = self.pull.maskFromLimits(x, f, (start,stop))
+    fitOptions.setdefault('Lc', max(self.pull.ext)*1.05)
+    fit = fitWLC(self.pull.ext, self.pull.f, mask=mask, **fitOptions)
     self.lastFit = fit
     if self.figure.exists:
       self.figure.plot(fit, hold=True)
@@ -272,21 +308,52 @@ class Pulling(Base):
     else:
       return [self.lastFit] if self.lastFit else []
 
-  def adjustForceOffset(self, offset):
+  def forceOffset(self, indices=None):
+    indices = indices or Pulling.forceOffsetRange
+    return mean(self.pull.f[indices])
+
+  def adjustForceOffset(self, baseline=0, offset=None):
+    if offset is None:
+      offset = -self.forceOffset()
     if offset != 0:
+      offset -= baseline
       def geometricMean(*args):
         return 1/sum(map(lambda x: 1./x, args))
-      beadRadii = self.metadata.get('bead_radii', constants.sumOfBeadRadii)
       stiffness = geometricMean(*self.metadata.get('stiffness', constants.stiffness))
-      self.fec.f += offset
-      self.fec.ext = self.fec.sep - beadRadii - self.fec.f/stiffness
+      self.pull.f += offset
+      self.pull.ext -= offset/stiffness
 
+  def recalculate(self, stiffness=None):
+      if len(stiffness) != 2:
+        raise ValueError('Stiffness must be 2-tuple')
+      def geometricMean(*args):
+        return 1/sum(map(lambda x: 1./x, args))
+      current_k = self.metadata.get('stiffness', constants.stiffness)
+      new_k = stiffness or current_k
+      mean_k = geometricMean(*new_k)
+      beadRadii = self.metadata.get('bead_radii', constants.sumOfBeadRadii)
+      self.pull.f *= min(new_k)/min(current_k)
+      self.pull.ext = self.pull.sep - beadRadii - self.pull.f/mean_k
+
+  def extensionOffset(self, frange=None):
+    'Returns average extension of FEC between given forces'
+    frange = frange or Pulling.frange
+
+    return mean(self.pull.ext[ext])
+
+  def adjustExtensionOffset(self, baseline, offset=None):
+    pass
+    
   def plot(self, **kwargs):
     kwargs.setdefault('FEC', self.fits or not self.fret)
     kwargs.setdefault('title', self.filename or '')
-    self.figure.plot(self.fret, self.fec, **kwargs)
-    for fit in self.fits:
+    kwargs.setdefault('location', (710, 15))
+    self.figure.plot(self.fret, self.pull, **kwargs)
+    if self.handles:
+      self.figure.plot(self.handles, hold=True)
+    for fit in self.rips:
       self.figure.plot(fit, hold=True)
+      self.figure.annotate(str(fit), kwargs['location'])
 
   def pickLimits(fig=None):
     if not fig: fig=plt.gcf()

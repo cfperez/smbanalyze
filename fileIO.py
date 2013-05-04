@@ -22,13 +22,29 @@ def flist(*globs):
   return glob.glob(makeMatchStrFromArgs(*globs, re_match=False))
 fmatch = flist
 
+class fileIOError(Exception):
+  IGNORE = 2
+  WARNING = 1
+  ERROR = 0
+  def __init__(self, level, message):
+    self.level = level
+    self.strerror = message
+
+  @property
+  def isError(self):
+    return self.level == fileIOError.ERROR
+
 def load(fname, comments=False, header=False, **kwargs):
   base,extension = os.path.splitext(fname)
   fromLoad =  LOAD_FUNCTIONS[extension](fname, **kwargs)
   if isinstance(fromLoad, tuple):
     loadComments, loadHeader, loadData = fromLoad
-    loadComments = comments(loadComments) if isfunction(comments) \
-                    else loadComments
+    try:
+      loadComments = comments(loadComments) if isfunction(comments) \
+                      else loadComments
+    except ValueError:
+      raise fileIOError(fileIOError.WARNING, 
+          'Comments from file {0} could not be processed'.format(fname))
     output = [loadData]
     if header:
       output.insert(0,loadHeader)
@@ -38,8 +54,9 @@ def load(fname, comments=False, header=False, **kwargs):
   else:
     return fromLoad
 
-def loadstr(fname, **kwargs):
-  filecomments,fileheader,data = loaddat(fname,comments='#',**kwargs)
+def loadstr(fname, **loadOptions):
+  loadOptions.setdefault('comments', ('/*', '#'))
+  filecomments,fileheader,data = loaddat(fname, **loadOptions)
   if fileheader != ['extension','force','trapdistance']:
     raise IOError, "Stretch file must contain extension, force, and separation"
   return filecomments, fileheader, data
