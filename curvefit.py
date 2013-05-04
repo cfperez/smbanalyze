@@ -33,6 +33,7 @@ def fitWLC(x, f, mask=None, **fitOptions):
 ############################################################
 def gauss(x,mu,sigma,A):
   return A*np.exp( -(x-float(mu))**2 / (2*sigma**2) )
+gauss.default = {'mu': 1500, 'sigma':500, 'A': 500}
 
 def doublegauss(x,mu,sigma,A,mu2,sigma2,A2):
   return gauss(x,mu,sigma,A)+gauss(x,mu2,sigma2,A2)
@@ -59,6 +60,11 @@ MMS.inverted = True
 def MMS_rip(F, Lp, Lc, F0, K, Lp1, Lc1, K1):
   return MMS(F, Lp, Lc, F0, K) + MMS(F, Lp1, Lc1, F0, K1)
 MMS_rip.default = dict(MMS.default, Lp1=1.0, Lc1=0., K1=1600.)
+MMS_rip.inverted = True
+
+def MMS_rip2(F, Lp, Lc, F0, K, Lp1, Lc1, K1, helix):
+  return MMS_rip(F, Lp, Lc-helix, F0, K, Lp1, Lc1, K1)
+MMS_rip2.default = dict(MMS_rip.default, helix=2)
 MMS_rip.inverted = True
 
 ############################################################
@@ -90,9 +96,15 @@ class Fit(object):
     if not set(user_parameters.keys()) <= valid_args:
       raise FitError('Keyword arguments can only set valid fit parameters')
 
-    fit_defaults = getattr(fitfunc, 'default', {}).items() or \
-      zip( reversed(arg_names), reversed(fitfunc.func_defaults))
-    fit_parameters.update(fit_defaults, **user_parameters)
+    if set(user_parameters.keys()) == valid_args:
+      fit_parameters.update(user_parameters)
+    else:
+      try:
+        fit_defaults = getattr(fitfunc, 'default', {}).items() or \
+          zip( reversed(arg_names), reversed(fitfunc.func_defaults))
+        fit_parameters.update(fit_defaults, **user_parameters)
+      except TypeError:
+        raise FitError("Missing function defaults. Must specify in **user_parameters")
 
     if isinstance(fixed, str):
       fixed = (fixed,)
