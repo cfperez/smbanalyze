@@ -81,7 +81,6 @@ class Fit(object):
 
     if mask is not None:
       self.mask = np.logical_not(mask)
-      #to_masked = lambda ar: np.ma.array(ar, self.mask)
       to_masked = lambda ar: ar[mask]
     else:
       self.mask = None

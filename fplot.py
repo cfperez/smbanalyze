@@ -5,12 +5,17 @@ from numpy import concatenate
 from datatypes import TrapData,hasTrapData,hasFretData
 
 def plotall(objList, **kwargs):
+  labels = kwargs.pop('labels', [])
   for obj in objList:
-    obj.plot(**kwargs)
+    label = labels.pop(0) if len(labels)>0 else ''
+    plot(obj, label=label, **kwargs)
+  legend = kwargs.get('legend', 2)
+  plt.legend(loc=legend)
 
 def plot(data, pull=None, **kwargs):
   loc = kwargs.get('legend', 'best')
   title = kwargs.get('title','')
+  label = kwargs.get('label', '')
   FEC = kwargs.get('FEC',False)
   displayFRET = kwargs.get('show_fret', hasattr(data,'fret'))
 
@@ -29,6 +34,8 @@ def plot(data, pull=None, **kwargs):
     if num == 1:
       FEC = kwargs.setdefault('FEC', True)
 
+  if num == 0:
+    raise ValueError("Don't know how to plot arguments: need TrapData or FretData")
   #if not displayFRET and data is not None: num = 1
   #elif hasFretData(data): num = 2
   #else: num = 0 #raise ValueError("Don't understand plot options")
@@ -55,9 +62,9 @@ def plot(data, pull=None, **kwargs):
   ax2 = None
   if pull:
     x_coord,x_label = (pull.ext,'Extension (nm)') if FEC else (pull.sep,'Separation (nm)')
-    ax2 = _subplot(x_coord, pull.f, '.', layout=next(layout), axes=(x_label,'Force (pN)'))
+    ax2 = _subplot(x_coord, pull.f, '.', layout=next(layout), axes=(x_label,'Force (pN)'), label=label)
 
-  first_plot = ax1 if ax1 else ax2
+  first_plot = ax1 or ax2
   first_plot.set_title(title)
   plt.show()
 

@@ -52,11 +52,11 @@ def collapseArgList(arglist):
   else:
     return arglist
 
-class List(collections.Sequence):
+class List(list): #(collections.Sequence):
   def __init__(self, iterable):
-    self._list = list(iterable)
+    super(List, self).__init__(iterable)
     try:
-      self._list.sort(key=attrgetter('info.pull'))
+      self.sort(key=attrgetter('info.mol')).sort(key=attrgetter('info.pull'))
     except AttributeError:
       pass
 
@@ -83,6 +83,10 @@ class List(collections.Sequence):
       self.it = iter(self)
       return self.next()
 
+  def plotall(self, attr, **options):
+    options.setdefault('labels', self.get('filename'))
+    fplot.plotall( self.get(attr), **options)
+
   def plot(self, **options):
     for exp in self:
       exp.plot(**options)
@@ -93,15 +97,21 @@ class List(collections.Sequence):
   def fitRip(self, *args, **kwargs):
     return self.call('fitRip', *args, **kwargs)
 
+  def adjustForceOffset(self, *args, **kwargs):
+    return self.call('adjustForceOffset', *args, **kwargs)
+
+  def __getslice__(self, i, j):
+    return self.__getitem__(slice(i, j))
+
   def __getitem__(self, key):
-    out = self._list[key]
+    out = super(List, self).__getitem__(key)
     if isinstance(out, list):
       return List(out)
     else:
       return out
-    
-  def __len__(self):
-    return len(self._list)
+
+  def __add__(self, other):
+    return List(super(List, self).__add__(other))
 
   def __repr__(self):
     fmt = '\n '.join('{0}: {1}'.format(i, repr(item))
@@ -290,17 +300,6 @@ class Pulling(Base):
       self.figure.plot(fit, hold=True)
     return fit
 
-  def fitFEC(self, x=None, f=None, tolerance=0.05, **fitOptions):
-    offset = 0
-    max_iter = fitOptions.pop('max_iter', 10)
-    for loop in range(max_iter):
-      self.adjustForceOffset(-offset)
-      self.plot(hold=False)
-      f = add_to_all(f, -offset)
-      fit = self.fitForceExtension(x, f, **fitOptions)
-      offset = fit['F0']
-      if abs(offset) < tolerance: return fit
-    
   @property
   def fits(self):
     if self.handles:
@@ -322,6 +321,7 @@ class Pulling(Base):
       stiffness = geometricMean(*self.metadata.get('stiffness', constants.stiffness))
       self.pull.f += offset
       self.pull.ext -= offset/stiffness
+    return offset
 
   def recalculate(self, stiffness=None):
       if len(stiffness) != 2:
