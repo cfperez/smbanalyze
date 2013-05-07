@@ -68,7 +68,7 @@ class List(list): #(collections.Sequence):
     try:
       return map( attrgetter(name, *more), self)
     except AttributeError:
-      raise ExperimentError('Missing attribute {0} in a List element'.format(action))
+      raise ExperimentError('Missing attribute {0} in a List element'.format(name))
       
   def call(self, action, *args, **kwargs):
     try:
