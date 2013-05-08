@@ -45,34 +45,30 @@ mol.fitHandles(830, 10)
 mol.fitRip(1000, 15)
 ```
 
-```python
-pulls = experiment.fromMatch('SJ2UL')
-mol = pulls.matching('s1m1')
+You can call any method or get any property from experiments in the List using the .call() and .get() API
+```
+mol.get('info')
+mol.call('savefig')
+```
+returns arrays of the `.info` attribute and runs `.savefig()` on every one and returns the result as a list.
 
+IPython macros can also be helpful.
+```python
 hstart = 850  # extension to start fit
 hend = 9      # force to stop fit
-p = mol.next() # Imagine this is line [3] in IPython
-
-# For now, simply print this force offset
-mean( p.fec.force[10:20] )
-p.fitHandles(hstart, hend)
-p.plot()
-
-# make a macro of previous
-macro fitp 4-6
-macro nextp 3
-
 rstart = 1000
-rend = 15
-p.fitRip(rstart, rend) # line [11]
+rend = 16
 
-# Optional. Now just adjust rstart as needed before running this macro
-macro fitrip 11
+mol.adjustForceOffset()
+mol.plotall('pull')
+mol.fitHandles(hstart, hend)
+mol.fitRip(rstart, rend)
 
-nextp
-fitp
-rstart = 1010
-fitrip
+# make a macro of previous 4 lines
+macro fitmol 4-7
+
+# save for next time
+save fitmol
 ```
 
 ## Advanced Usage
