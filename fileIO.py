@@ -225,6 +225,7 @@ def fromSettings(settings):
 ## Filename Parsing
 ##################################################
 def splitext(fname):
+  fname = os.path.basename(fname)
   basename,ext=os.path.splitext(fname)
   if ext not in REGISTERED_EXT:
     basename,ext=fname,''

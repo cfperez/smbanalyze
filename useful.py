@@ -62,8 +62,13 @@ def makeMatchStrFromArgs(*globs, **options):
   last = globs[-1]
   if isInt(last):
     globs[-1] = '_'+last
-  anychar = r'.*' if options.get('re_match',True) else '*'
-  return r'{1}{0}{1}'.format(anychar.join(globs), anychar)
+  if options.get('re_match', True):
+    anychar = '.*'
+    endmatch = r'(_|$)'
+  else:
+    anychar = '*'
+    endmatch = ''
+  return r'{any}{pattern}{end}'.format(pattern=anychar.join(globs), any=anychar, end=endmatch)
 
 ## {{{ http://code.activestate.com/recipes/576693/ (r9)
 # Backport of OrderedDict() class that runs on Python 2.4, 2.5, 2.6, 2.7 and pypy.

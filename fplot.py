@@ -6,11 +6,13 @@ from datatypes import TrapData,hasTrapData,hasFretData
 
 def plotall(objList, **kwargs):
   labels = kwargs.pop('labels', [])
+  figure = plt.gcf()
   for obj in objList:
     label = labels.pop(0) if len(labels)>0 else ''
     plot(obj, label=label, **kwargs)
   legend = kwargs.get('legend', 2)
   plt.legend(loc=legend)
+  return figure
 
 def plot(data, pull=None, **kwargs):
   loc = kwargs.get('legend', 'best')

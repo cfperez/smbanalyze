@@ -1,10 +1,9 @@
 import operator
 from smbanalyze import experiment, fileIO
-import stubble
 import os.path as path
+import os
 
 class FigStub(object):
-  __metaclass__ = stubble.stubclass(experiment.Figure)
   def __init__(self):
     self.plotCalled = False
   def plot(self, *args, **kwargs):
@@ -19,9 +18,10 @@ filegetter = lambda f: attrgetter('filename')(f)
 
 def setUp():
   global pulls, LOADED_FILES
-  pulls = experiment.fromMatch('test/test')
+  os.chdir('test/')
+  pulls = experiment.fromMatch('test')
   LOADED_FILES = map( path.normpath, 
-    [r'test/test_s1m1', r'test/test_s1m2', r'test/test_s1m3', ]
+    [r'test_s1m1', r'test_s1m2', r'test_s1m3', ]
   )
 
 def testRipFitting():
@@ -54,12 +54,12 @@ def testExperimentFromFiles():
 
 def testPullingSave():
   pull = pulls[0]
-  fname = 'test/save_s1m1.exp'
+  fname = 'save_s1m1.exp'
   pull.save(fname)
   assert path.exists(fname)
 
 def testPullingLoad():
-  pull = experiment.Pulling.load('test/save_s1m1.exp')
+  pull = experiment.Pulling.load('save_s1m1.exp')
   assert type(pull) == experiment.Pulling
   assert pull.pull == pulls[0].pull
   assert pull.fret == pulls[0].fret
@@ -76,7 +76,7 @@ def testList():
   matched = pull_list.matching('s1m2')
   assert len(matched) == 1
   assert matched[0] == pulls[1]
-  assertIsInstance(matched, experiment.List)
+  assert isinstance(matched, experiment.List)
 
 def testListGet():
   pull_list = experiment.List(pulls)

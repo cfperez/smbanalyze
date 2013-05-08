@@ -34,10 +34,14 @@ def fromData(*datalist, **kwargs):
 
 def fromMatch(*fglob):
   'Load experiments from files using concatenation of argument list as a glob'
-  files = filter(lambda x: x.count('str')>0, fileIO.flist(*fglob))
+  fglob = list(fglob)
+  files = fileIO.flist(fglob[0], fileIO.PULL_FILE)
+  fglob[0] = path.basename(fglob[0])
   if not files:
     raise ExperimentError("No files found matching glob '{0}'".format(fglob))
-  return fromFiles(files)
+  basenames = map(lambda x: fileIO.splitext(x)[0], files)
+  matched = filter(lambda x: re.search(makeMatchStrFromArgs(*fglob), fileIO.splitext(x)[0]), files)
+  return fromFiles(matched)
 
 def fromFiles(*filelist):
   'Load experiments from a list of files or an argument list'
@@ -52,7 +56,7 @@ def collapseArgList(arglist):
   else:
     return arglist
 
-class List(list): #(collections.Sequence):
+class List(list):
   def __init__(self, iterable):
     super(List, self).__init__(iterable)
     try:
@@ -76,20 +80,20 @@ class List(list): #(collections.Sequence):
     except AttributeError:
       raise ExperimentError('Missing method {0} in a List element'.format(action))
 
-  def next(self):
-    try:
-      return self.it.next()
-    except (StopIteration, AttributeError):
-      self.it = iter(self)
-      return self.next()
-
   def plotall(self, attr, **options):
     options.setdefault('labels', self.get('filename'))
     fplot.plotall( self.get(attr), **options)
+    self.figure = Figure.fromCurrent()
+    return self.figure
+
+  def savefig(self, filename):
+    self.figure.toFile(filename)
 
   def plot(self, **options):
-    for exp in self:
-      exp.plot(**options)
+    self.call('plot', **options)
+
+  def saveallfig(self, path='.'):
+    self.call('savefig', path=path)
 
   def fitHandles(self, *args, **kwargs):
     return self.call('fitHandles', *args, **kwargs)
@@ -100,6 +104,9 @@ class List(list): #(collections.Sequence):
   def adjustForceOffset(self, *args, **kwargs):
     return self.call('adjustForceOffset', *args, **kwargs)
 
+  def saveall(self):
+    self.call('save')
+
   def __getslice__(self, i, j):
     return self.__getitem__(slice(i, j))
 
@@ -109,6 +116,14 @@ class List(list): #(collections.Sequence):
       return List(out)
     else:
       return out
+
+  def next(self):
+    try:
+      return self.it.next()
+    except (StopIteration, AttributeError):
+      self.it = iter(self)
+      return self.next()
+
 
   def __add__(self, other):
     return List(super(List, self).__add__(other))
@@ -314,8 +329,8 @@ class Pulling(Base):
   def adjustForceOffset(self, baseline=0, offset=None):
     if offset is None:
       offset = -self.forceOffset()
-    if offset != 0:
-      offset -= baseline
+    if abs(offset) >= 0.05:
+      offset += baseline
       def geometricMean(*args):
         return 1/sum(map(lambda x: 1./x, args))
       stiffness = geometricMean(*self.metadata.get('stiffness', constants.stiffness))
@@ -348,14 +363,17 @@ class Pulling(Base):
     kwargs.setdefault('FEC', self.fits or not self.fret)
     kwargs.setdefault('title', self.filename or '')
     loc_x = min(self.pull.ext)+10
-    kwargs.setdefault('location', (loc_x, 15))
+    location = kwargs.setdefault('location', (loc_x, 15))
     self.figure.plot(self.fret, self.pull, **kwargs)
     if self.handles:
       self.figure.plot(self.handles, hold=True)
     for fit in self.rips:
       self.figure.plot(fit, hold=True)
       text = str(fit)
-      self.figure.annotate(text, kwargs['location'])
+      cutoff = 51
+      if len(text) >= cutoff:
+        text = text[:cutoff]+'\n'+text[cutoff:]
+      self.figure.annotate(text, location)
 
   def pickLimits(fig=None):
     if not fig: fig=plt.gcf()
