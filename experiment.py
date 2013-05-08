@@ -347,13 +347,15 @@ class Pulling(Base):
   def plot(self, **kwargs):
     kwargs.setdefault('FEC', self.fits or not self.fret)
     kwargs.setdefault('title', self.filename or '')
-    kwargs.setdefault('location', (710, 15))
+    loc_x = min(self.pull.ext)+10
+    kwargs.setdefault('location', (loc_x, 15))
     self.figure.plot(self.fret, self.pull, **kwargs)
     if self.handles:
       self.figure.plot(self.handles, hold=True)
     for fit in self.rips:
       self.figure.plot(fit, hold=True)
-      self.figure.annotate(str(fit), kwargs['location'])
+      text = str(fit)
+      self.figure.annotate(text, kwargs['location'])
 
   def pickLimits(fig=None):
     if not fig: fig=plt.gcf()

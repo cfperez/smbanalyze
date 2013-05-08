@@ -15,11 +15,35 @@ pull.save('filename2.exp')
 ## Experiment Workflow
 
 ### Tips
+
 1. Use generically named yet descriptive variables to allow for some automation with IPython macros.
 
 2. The new experiment.List collection object has some useful features demonstrated below. We will continue to add features to make manipulating multiple experiments easier. Requests welcome!
 
 ### Example
+
+```
+pulls = experiment.fromMatch('SJ2UL')
+mol = pulls.matching('s1m1')
+
+# if you need to remove an experiment
+del mol[0]
+# or add an experiment
+mol += [pulls[0]]
+
+mol.adjustForceOffset()
+# soon => mol.adjustExtOffset()
+# or for both => mol.adjustOffset()
+
+figure()
+mol.plotall('pull')
+
+# individual plots--there may be alot!
+mol.plot()
+
+mol.fitHandles(830, 10)
+mol.fitRip(1000, 15)
+```
 
 ```python
 pulls = experiment.fromMatch('SJ2UL')

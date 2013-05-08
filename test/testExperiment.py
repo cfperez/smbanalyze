@@ -76,6 +76,7 @@ def testList():
   matched = pull_list.matching('s1m2')
   assert len(matched) == 1
   assert matched[0] == pulls[1]
+  assertIsInstance(matched, experiment.List)
 
 def testListGet():
   pull_list = experiment.List(pulls)
