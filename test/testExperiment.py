@@ -32,7 +32,7 @@ def testRipFitting():
 def testHandleFitting():
   pass
 
-def testFECfitting():
+def testExtensionOffset():
   pass
 
 def testPullingFromFile():

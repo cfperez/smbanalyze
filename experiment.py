@@ -104,6 +104,17 @@ class List(list):
   def adjustForceOffset(self, *args, **kwargs):
     return self.call('adjustForceOffset', *args, **kwargs)
 
+  def adjustExtensionOffset(self, baseline=None, offset_range=None):
+    baseline = baseline or mean(self.call('extensionOffset'))
+    return self.call('adjustExtensionOffset', baseline)
+
+  def adjustOffset(self, to_force=0.75, f_range=None, x_range=None):
+    'Adjust force and extension offsets returning xoffset, foffset'
+    foffset = self.adjustForceOffset(to_force)
+    mean_x = mean(self.call('extensionOffset', x_range))
+    xoffset = self.adjustExtensionOffset(mean_x, x_range)
+    return xoffset, foffset
+
   def saveall(self):
     self.call('save')
 
@@ -220,6 +231,7 @@ class Pulling(Base):
   "stretching curves of single molecule .str camera .cam image .img"
 
   forceOffsetRange = slice(10, 20)
+  extensionOffsetRange = (13,16)
 
   def __init__(self, pull, fret=None, **metadata):
     if not hasTrapData(pull):
@@ -338,6 +350,18 @@ class Pulling(Base):
       self.pull.ext -= offset/stiffness
     return offset
 
+  def extensionOffset(self, frange=None):
+    'Returns average extension of FEC between given forces'
+    frange = frange or Pulling.extensionOffsetRange
+    data = self.pull.select(f=frange)
+    return mean(data.ext)
+
+  def adjustExtensionOffset(self, baseline, offset_range=None):
+    'Adjust extension to hit baseline. If offset_range is not given, it is calculated from Pulling.extensionOffsetRange'
+    offset = self.extensionOffset(offset_range) - baseline
+    self.pull.ext -= offset
+    return offset
+
   def recalculate(self, stiffness=None):
       if len(stiffness) != 2:
         raise ValueError('Stiffness must be 2-tuple')
@@ -350,15 +374,6 @@ class Pulling(Base):
       self.pull.f *= min(new_k)/min(current_k)
       self.pull.ext = self.pull.sep - beadRadii - self.pull.f/mean_k
 
-  def extensionOffset(self, frange=None):
-    'Returns average extension of FEC between given forces'
-    frange = frange or Pulling.frange
-
-    return mean(self.pull.ext[ext])
-
-  def adjustExtensionOffset(self, baseline, offset=None):
-    pass
-    
   def plot(self, **kwargs):
     kwargs.setdefault('FEC', self.fits or not self.fret)
     kwargs.setdefault('title', self.filename or '')
@@ -374,6 +389,8 @@ class Pulling(Base):
       if len(text) >= cutoff:
         text = text[:cutoff]+'\n'+text[cutoff:]
       self.figure.annotate(text, location)
+    if self.handles and not self.rips:
+      self.figure.annotate(str(self.handles), location)
 
   def pickLimits(fig=None):
     if not fig: fig=plt.gcf()

@@ -126,7 +126,7 @@ class TrapData(AbstractData):
     return mask
 
   def select(self, x=None, f=None):
-    pass
+    return self[self.maskFromLimits(x, f)]
 
   @property
   def fec(self):
