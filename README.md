@@ -22,7 +22,7 @@ pull.save('filename2.exp')
 
 ### Example
 
-```
+```python
 pulls = experiment.fromMatch('SJ2UL')
 mol = pulls.matching('s1m1')
 
@@ -50,7 +50,7 @@ mol.plot()
 ```
 
 You can call any method or get any property from experiments in the List using the .call() and .get() API
-```
+```python
 mol.get('info')
 mol.call('savefig')
 ```
