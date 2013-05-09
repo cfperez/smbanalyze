@@ -80,8 +80,9 @@ class List(list):
     except AttributeError:
       raise ExperimentError('Missing method {0} in a List element'.format(action))
 
-  def plotall(self, attr, **options):
+  def plotall(self, attr=None, **options):
     options.setdefault('labels', self.get('filename'))
+    attr = attr or 'pull'
     fplot.plotall( self.get(attr), **options)
     self.figure = Figure.fromCurrent()
     return self.figure
@@ -108,11 +109,23 @@ class List(list):
     baseline = baseline or mean(self.call('extensionOffset'))
     return self.call('adjustExtensionOffset', baseline)
 
-  def adjustOffset(self, to_force=0.75, f_range=None, x_range=None):
-    'Adjust force and extension offsets returning xoffset, foffset'
-    foffset = self.adjustForceOffset(to_force)
-    mean_x = mean(self.call('extensionOffset', x_range))
-    xoffset = self.adjustExtensionOffset(mean_x, x_range)
+  def adjustOffset(self, to_f=0.5, to_x=None, f_range=None, x_range=None):
+    '''Adjust force and extension offsets returning xoffset, foffset
+    
+    to_f  The force baseline that traces will be adjusted to.
+
+    to_x  The extension baseline. None (default) calculates average extension over
+            x_range.
+            
+    f_range The range of forces used to calculate the extension offset.
+            None (default) uses value Pulling.extensionOffsetRange
+
+    x_range The range of extensions used to calculate the force offset.
+            None (default) uses value Pulling.forceOffsetRange
+    '''
+    foffset = self.adjustForceOffset(to_f, x_range)
+    mean_x = to_x or mean(self.call('extensionOffset', f_range))
+    xoffset = self.adjustExtensionOffset(mean_x, f_range)
     return xoffset, foffset
 
   def saveall(self):
@@ -230,7 +243,7 @@ def add_to_all(arg, x):
 class Pulling(Base):
   "stretching curves of single molecule .str camera .cam image .img"
 
-  forceOffsetRange = slice(10, 20)
+  forceOffsetRange = (725,750)
   extensionOffsetRange = (13,16)
 
   def __init__(self, pull, fret=None, **metadata):
@@ -334,9 +347,12 @@ class Pulling(Base):
     else:
       return [self.lastFit] if self.lastFit else []
 
-  def forceOffset(self, indices=None):
-    indices = indices or Pulling.forceOffsetRange
-    return mean(self.pull.f[indices])
+  def forceOffset(self, xrange=None):
+    xrange = xrange or Pulling.forceOffsetRange
+    data = self.pull.select(x=xrange)
+    if len(data) == 0:
+      raise ExperimentError('No data exists in range {0} - {1}'.format(*xrange))
+    return mean(data.f)
 
   def adjustForceOffset(self, baseline=0, offset=None):
     if offset is None:
@@ -354,6 +370,8 @@ class Pulling(Base):
     'Returns average extension of FEC between given forces'
     frange = frange or Pulling.extensionOffsetRange
     data = self.pull.select(f=frange)
+    if len(data) == 0:
+      raise ExperimentError('No data exists in range {0} - {1}'.format(*xrange))
     return mean(data.ext)
 
   def adjustExtensionOffset(self, baseline, offset_range=None):

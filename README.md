@@ -32,11 +32,13 @@ del mol[0]
 mol += [pulls[0]]
 
 mol.adjustForceOffset()
-# soon => mol.adjustExtOffset()
-# or for both => mol.adjustOffset()
+mol.adjustExtensionOffset()
+
+# or do both at once! Default now pushes force to 0.5
+mol.adjustOffset()
 
 figure()
-mol.plotall('pull')
+mol.plotall() # Default for now is 'pull'
 
 # individual plots--there may be alot!
 mol.plot()
