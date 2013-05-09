@@ -40,11 +40,13 @@ mol.adjustOffset()
 figure()
 mol.plotall() # Default for now is 'pull'
 
-# individual plots--there may be alot!
-mol.plot()
-
 mol.fitHandles(830, 10)
 mol.fitRip(1000, 15)
+
+# individual plots--there may be alot! Do this AFTER fitting to get annotations for free.
+# Or just run .plot() again (maybe after clf() to avoid color confusion)
+mol.plot()
+
 ```
 
 You can call any method or get any property from experiments in the List using the .call() and .get() API
