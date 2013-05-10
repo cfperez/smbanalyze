@@ -397,7 +397,7 @@ class Pulling(Base):
     kwargs.setdefault('FEC', self.fits or not self.fret)
     kwargs.setdefault('title', self.filename or '')
     loc_x = min(self.pull.ext)+10
-    location = list(kwargs.setdefault('location', (loc_x, 15)))
+    location = list(kwargs.setdefault('annotate', (loc_x, 15)))
     self.figure.plot(self.fret, self.pull, **kwargs)
     if self.handles:
       self.figure.plot(self.handles, hold=True)
