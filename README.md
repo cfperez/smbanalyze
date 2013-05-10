@@ -29,7 +29,7 @@ mol = pulls.matching('s1m1')
 # if you need to remove an experiment
 del mol[0]
 # or add an experiment
-mol += [pulls[0]]
+mol.append(pulls[0])
 
 mol.adjustForceOffset()
 mol.adjustExtensionOffset()

@@ -71,6 +71,15 @@ MMS_rip.inverted = True
 ## Fit class
 ############################################################
 class Fit(object):
+  @classmethod
+  def extends(cls, fit, x, y, fitfunc, fixed=(), mask=None, verbose=False, **user_parameters):
+    fixed = tuple(fixed) + tuple(fit.parameters)
+    params = fit.parameters.copy()
+    params.update(user_parameters)
+    newfit = cls(x, y, fitfunc, fixed, mask, verbose, **params)
+    #newfit.error.update(fit.error)
+    return newfit
+    
   def __init__(self, x, y, fitfunc, fixed=(), mask=None, verbose=False, **user_parameters):
     "Initialize to a specific fitting function, optionally fitting to data specified"
 
@@ -93,7 +102,7 @@ class Fit(object):
     valid_args = frozenset(arg_names)
 
     if not set(user_parameters.keys()) <= valid_args:
-      raise FitError('Keyword arguments can only set valid fit parameters')
+      raise FitError('Keyword arguments {0} can only set valid fit parameters {1}'.format(user_parameters.keys(), list(valid_args)))
 
     if set(user_parameters.keys()) == valid_args:
       fit_parameters.update(user_parameters)
@@ -105,9 +114,8 @@ class Fit(object):
       except TypeError:
         raise FitError("Missing function defaults. Must specify in **user_parameters")
 
-    if isinstance(fixed, str):
-      fixed = (fixed,)
-    elif not isSequenceType(fixed):
+    fixed = tuple(fixed)
+    if not isSequenceType(fixed):
       raise ValueError("Argument 'fixed' must be a string or a tuple: %s" % fixed)
     elif not set(fixed) <= valid_args:
       raise FitError('Fixed argument must specify one of: %s' % valid_args)
@@ -127,19 +135,32 @@ class Fit(object):
       x,y = y,x
     self.x = x
 
-    fit_params, self.error = curve_fit(fitfunc, x, y, starting_p)
+    fit_params, self.covariance = curve_fit(fitfunc, x, y, starting_p)
     self.fitOutput = fitfunc(x, *fit_params)
     self.residual = self.fitOutput-y
 
     self.fixed = fixed
     self.parameters = fit_parameters.copy()
+    self.free_parameters = {}
+
+    errors = self.covariance
+    if len(self.covariance.shape) > 1:
+      errors = errors.diagonal()
+    self.error = OrderedDict(zip(free_parameters, errors))
     try:
       fit_params = fit_params.tolist()
       for param in fit_parameters:
         if param in free_parameters:
-          self.parameters[param] = fit_params.pop(0)
+          v = fit_params.pop(0)
+          self.free_parameters[param] = v
+          self.parameters[param] = v
     except IndexError:
       raise FitError("Free/fix parameter mismatch!")
+
+    if len(self.covariance.shape) > 1:
+      errors = self.covariance.diagonal()
+    else:
+      return self.covariance
 
   def __call__(self, x=None):
     return self.fitfunc(x, *self.parameters.values())
@@ -166,9 +187,14 @@ class Fit(object):
     return "<Fit function '{0}' using parameters {1}".format(self.fitfunc.func_name, 
         ', '.join(['{0}={1:.2f}'.format(*p) for p in self.parameters.items()]))
 
-  def __str__(self):
+  def __unicode__(self):
+    params = self.free_parameters
     return self.fitfunc.func_name + ' fit: ' + \
-      ' '.join('{0}={1:.2f}'.format(p,v) for p,v in self.parameters.items())
+      ' '.join(u'{0}={1:.2f}\u00B1{2:.2f}'.format(p,params[p],self.error[p]) 
+                                            for p in params)
+
+  def __str__(self):
+    return unicode(self).encode('utf-8')
 
   def toFile(self,filename):
     raise NotImplementedError

@@ -197,7 +197,8 @@ class Figure(object):
 
   def annotate(self, text, location):
     "Annotate figure with text at location (x,y)"
-    return plt.annotate(text, location)
+    x,y = location
+    return plt.text(x, y, text)
     
   def toFile(self, filename=None):
     if filename:
@@ -305,7 +306,7 @@ class Pulling(Base):
       raise ExperimentError("Must fitHandles() before fitting rip!")
     parameters = self.handles.parameters.copy()
     fitOptions.setdefault('fitfunc', 'MMS_rip')
-    parameters.update(**fitOptions)
+    parameters.update(fitOptions)
     parameters.setdefault('Lc1', guess)
     MMS_fixed = ('K','Lc','Lp','F0')
     if parameters.has_key('fixed'):
@@ -396,19 +397,19 @@ class Pulling(Base):
     kwargs.setdefault('FEC', self.fits or not self.fret)
     kwargs.setdefault('title', self.filename or '')
     loc_x = min(self.pull.ext)+10
-    location = kwargs.setdefault('location', (loc_x, 15))
+    location = list(kwargs.setdefault('location', (loc_x, 15)))
     self.figure.plot(self.fret, self.pull, **kwargs)
     if self.handles:
       self.figure.plot(self.handles, hold=True)
+      self.figure.annotate(unicode(self.handles), location)
+      location[1] -= 1
     for fit in self.rips:
       self.figure.plot(fit, hold=True)
-      text = str(fit)
+      text = unicode(fit)
       cutoff = 51
       if len(text) >= cutoff:
         text = text[:cutoff]+'\n'+text[cutoff:]
       self.figure.annotate(text, location)
-    if self.handles and not self.rips:
-      self.figure.annotate(str(self.handles), location)
 
   def pickLimits(fig=None):
     if not fig: fig=plt.gcf()
