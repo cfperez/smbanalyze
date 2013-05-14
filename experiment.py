@@ -83,7 +83,7 @@ class List(list):
   def plotall(self, attr=None, **options):
     options.setdefault('labels', self.get('filename'))
     attr = attr or 'pull'
-    fplot.plotall( self.get(attr), **options)
+    fplot.plotall( self.get(attr), hold=True, **options)
     self.figure = Figure.fromCurrent()
     return self.figure
 
@@ -372,7 +372,7 @@ class Pulling(Base):
     frange = frange or Pulling.extensionOffsetRange
     data = self.pull.select(f=frange)
     if len(data) == 0:
-      raise ExperimentError('No data exists in range {0} - {1}'.format(*xrange))
+      raise ExperimentError('<{0}>: No data exists in range {1} - {2}'.format(self, *frange))
     return mean(data.ext)
 
   def adjustExtensionOffset(self, baseline, offset_range=None):
@@ -382,12 +382,13 @@ class Pulling(Base):
     return offset
 
   def recalculate(self, stiffness=None):
-      if len(stiffness) != 2:
+      if stiffness and len(stiffness) != 2:
         raise ValueError('Stiffness must be 2-tuple')
       def geometricMean(*args):
         return 1/sum(map(lambda x: 1./x, args))
       current_k = self.metadata.get('stiffness', constants.stiffness)
       new_k = stiffness or current_k
+      self.metadata['stiffness'] = new_k
       mean_k = geometricMean(*new_k)
       beadRadii = self.metadata.get('bead_radii', constants.sumOfBeadRadii)
       self.pull.f *= min(new_k)/min(current_k)

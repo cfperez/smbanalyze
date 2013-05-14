@@ -96,6 +96,10 @@ class AbstractData(object):
   def __repr__(self):
     return repr(self.data)
 
+  @classmethod
+  def _normalizeLimits(cls, limit, end=max):
+    pass
+
 class TrapData(AbstractData):
   _fields = TrapData_fields
 
@@ -135,6 +139,12 @@ class TrapData(AbstractData):
 
 class FretData(AbstractData):
   _fields = FretData_fields
+
+  def maskFromLimits(self, time, limits=(0,-1)):
+    return 
+
+  def select(self, time=None):
+    return self[self.maskFromLimits(time)]
 
 
 def search_monotonic(ar, value):
