@@ -106,7 +106,7 @@ class List(list):
     return self.call('adjustForceOffset', *args, **kwargs)
 
   def adjustExtensionOffset(self, baseline=None, offset_range=None):
-    baseline = baseline or mean(self.call('extensionOffset'))
+    baseline = baseline or mean(self.call('extensionOffset', offset_range))
     return self.call('adjustExtensionOffset', baseline)
 
   def adjustOffset(self, to_f=0.5, to_x=None, f_range=None, x_range=None):
@@ -355,16 +355,14 @@ class Pulling(Base):
       raise ExperimentError('No data exists in range {0} - {1}'.format(*xrange))
     return mean(data.f)
 
-  def adjustForceOffset(self, baseline=0, offset=None):
-    if offset is None:
-      offset = -self.forceOffset()
-    if abs(offset) >= 0.05:
-      offset += baseline
-      def geometricMean(*args):
-        return 1/sum(map(lambda x: 1./x, args))
-      stiffness = geometricMean(*self.metadata.get('stiffness', constants.stiffness))
-      self.pull.f += offset
-      self.pull.ext -= offset/stiffness
+  def adjustForceOffset(self, baseline=0, offset=None, offset_range=None):
+    offset = offset or -self.forceOffset(offset_range)
+    offset += baseline
+    def geometricMean(*args):
+      return 1/sum(map(lambda x: 1./x, args))
+    stiffness = geometricMean(*self.metadata.get('stiffness', constants.stiffness))
+    self.pull.f += offset
+    self.pull.ext -= offset/stiffness
     return offset
 
   def extensionOffset(self, frange=None):
