@@ -104,6 +104,7 @@ class Fit(object):
     if not set(user_parameters.keys()) <= valid_args:
       raise FitError('Keyword arguments {0} can only set valid fit parameters {1}'.format(user_parameters.keys(), list(valid_args)))
 
+    # Don't bother getting function defaults of user specifies everything
     if set(user_parameters.keys()) == valid_args:
       fit_parameters.update(user_parameters)
     else:
@@ -114,11 +115,11 @@ class Fit(object):
       except TypeError:
         raise FitError("Missing function defaults. Must specify in **user_parameters")
 
-    fixed = tuple(fixed)
-    if not isSequenceType(fixed):
-      raise ValueError("Argument 'fixed' must be a string or a tuple: %s" % fixed)
-    elif not set(fixed) <= valid_args:
-      raise FitError('Fixed argument must specify one of: %s' % valid_args)
+    if isinstance(fixed, str):
+        fixed = (fixed,)
+    if not set(fixed) <= valid_args:
+      raise FitError('Fixed argument(s) [{}] must specify one of: {}'.format(
+            fixed, valid_args))
 
     free_parameters = valid_args - set(fixed)
 
@@ -135,32 +136,25 @@ class Fit(object):
       x,y = y,x
     self.x = x
 
-    fit_params, self.covariance = curve_fit(fitfunc, x, y, starting_p)
-    self.fitOutput = fitfunc(x, *fit_params)
+    param_best_fit, self.covariance = curve_fit(fitfunc, x, y, starting_p)
+    self.fitOutput = fitfunc(x, *param_best_fit)
     self.residual = self.fitOutput-y
 
     self.fixed = fixed
     self.parameters = fit_parameters.copy()
-    self.free_parameters = {}
+    self.free_parameters = OrderedDict({})
 
-    errors = self.covariance
-    if len(self.covariance.shape) > 1:
-      errors = errors.diagonal()
-    self.error = OrderedDict(zip(free_parameters, errors))
     try:
-      fit_params = fit_params.tolist()
+      param_best_fit = param_best_fit.tolist()
       for param in fit_parameters:
         if param in free_parameters:
-          v = fit_params.pop(0)
+          v = param_best_fit.pop(0)
           self.free_parameters[param] = v
           self.parameters[param] = v
     except IndexError:
       raise FitError("Free/fix parameter mismatch!")
-
-    if len(self.covariance.shape) > 1:
-      errors = self.covariance.diagonal()
-    else:
-      return self.covariance
+    error = self.covariance.diagonal()
+    self.error = OrderedDict(zip(self.free_parameters.keys(), error))
 
   def __call__(self, x=None):
     return self.fitfunc(x, *self.parameters.values())
@@ -172,10 +166,10 @@ class Fit(object):
     return len(self.parameters)
 
   def _to_plot(self, **kwargs):
+    x = sorted(self.x)
+    y = self(x)
     if self.inverted:
-      x,y = self.fitOutput,self.x
-    else:
-      x,y = self.x,self.fitOutput
+      x,y = y,x
     kwargs.setdefault('linewidth', 2)
     return (x,y), kwargs
 

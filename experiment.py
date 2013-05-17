@@ -5,7 +5,7 @@ import collections
 import cPickle as pickle
 import re
 
-from numpy import where, min, max, asarray, sum, mean, all
+from numpy import where, min, max, asarray, sum, mean, all, linspace
 import matplotlib.pyplot as plt
 
 import fileIO 
@@ -79,6 +79,26 @@ class List(list):
       return map( methodcaller(action, *args, **kwargs), self )
     except AttributeError:
       raise ExperimentError('Missing method {0} in a List element'.format(action))
+
+  DEFAULT_METADATA_CHECKING = ('step_size', 'sampling_time')
+  def aggregate(self, check_metadata=DEFAULT_METADATA_CHECKING):
+    assert isinstance(check_metadata, tuple) or isinstance(check_metadata, list)
+    aggregated = sum(self.get('pull'))
+    meta = self.get('metadata')
+    for field in check_metadata:
+      try:
+        values = frozenset(map(itemgetter(field), meta))
+        if len(values) > 1:
+          logger.warning(
+              'Multiple values found for metadata field {}: {}'.format(
+               field, tuple(values))
+               )
+      except KeyError:
+        logger.warning(
+            'Not all items in List have metadata field {}'.format(
+              field)
+            )
+    return Pulling(aggregated)
 
   def plotall(self, attr=None, **options):
     options.setdefault('labels', self.get('filename'))
@@ -224,7 +244,7 @@ class Base(object):
     self.metadata.update(metadata)
 
   def __repr__(self):
-    if hasattr(self,'filename'):
+    if getattr(self,'filename', None):
       return "<Experiment.%s from '%s'>" % (self.__class__.__name__, self.filename)
     else:
       return super(Base,self).__repr__()
@@ -260,6 +280,7 @@ class Pulling(Base):
     self.rips = []
     self.lastFit = None
     self._appendNewRip = True
+    self.filename = ''
 
   @classmethod
   def fromFile(cls,strfile,fretfile=None):
@@ -333,9 +354,9 @@ class Pulling(Base):
 
   def fitForceExtension(self, x=None, f=None, start=0, stop=-1, **fitOptions):
     "Fit WLC to Pulling curve and plot"
-    mask = self.pull.maskFromLimits(x, f, (start,stop))
+    pull = self.pull.select(x, f, (start,stop))
     fitOptions.setdefault('Lc', max(self.pull.ext)*1.05)
-    fit = fitWLC(self.pull.ext, self.pull.f, mask=mask, **fitOptions)
+    fit = fitWLC(pull.ext, pull.f, **fitOptions)
     self.lastFit = fit
     if self.figure.exists:
       self.figure.plot(fit, hold=True)
@@ -355,7 +376,7 @@ class Pulling(Base):
       raise ExperimentError('No data exists in range {0} - {1}'.format(*xrange))
     return mean(data.f)
 
-  def adjustForceOffset(self, baseline=0, offset=None, offset_range=None):
+  def adjustForceOffset(self, baseline=0.0, offset=None, offset_range=None):
     offset = offset or -self.forceOffset(offset_range)
     offset += baseline
     def geometricMean(*args):

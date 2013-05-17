@@ -1,6 +1,7 @@
 import collections
 
-from numpy import all, where, asarray, sign, ndarray
+from numpy import all, where, asarray, sign, ndarray, vstack
+from operator import isSequenceType
 
 from fileIO import load, toSettings, fileIOError
 
@@ -62,6 +63,12 @@ class AbstractData(object):
   def __ne__(self, other):
     return not self==other
 
+  def __add__(self, other):
+    meta = self.metadata.copy()
+    meta.update(other.metadata)
+    return type(self)( vstack((self.data,other.data)) )
+
+
   def at(self, **kwargs):
     if len(kwargs)>1:
       raise ValueError('Use only one keyword representing a field')
@@ -97,8 +104,18 @@ class AbstractData(object):
     return repr(self.data)
 
   @classmethod
-  def _normalizeLimits(cls, limit, end=max):
-    pass
+  def _normalizeLimits(cls, limits, min_max, assume_max_limit=True):
+    if limits is None:
+      return min_max
+    elif not isSequenceType(limits):
+      limits = [limits]
+    if len(limits) == 2:
+      return limits
+    elif len(limits) == 1:
+      if assume_max_limit:
+        return min_max[0], limits[0]
+      else:
+        return limits[0], min_max[1]
 
 class TrapData(AbstractData):
   _fields = TrapData_fields
@@ -107,30 +124,21 @@ class TrapData(AbstractData):
     start, stop = limits
     ext_fit,f_fit = self.ext[start:stop], self.f[start:stop]
 
-    if f is None: f=[max(f_fit)]
-    try:
-      min_f, max_f = f
-    except TypeError:
-      min_f, max_f = min(f_fit), f
-    except ValueError:
-      min_f, max_f = min(f_fit), f[0]
-    if max_f>max(f_fit): max_f=max(f_fit)
+    min_f, max_f = TrapData._normalizeLimits( f,
+                      min_max=(min(f_fit), max(f_fit)),
+                      assume_max_limit=True
+                    )
 
-    if x is None: x=min(ext_fit)
-    try:
-      min_ext, max_ext = x
-    except TypeError:
-      min_ext, max_ext = x, max(ext_fit)
-    except ValueError:
-      min_ext, max_ext = min(ext_fit), x[0]
+    min_ext, max_ext = TrapData._normalizeLimits( x,
+                      min_max=(min(ext_fit), max(ext_fit)),
+                      assume_max_limit=False
+                    )
 
     between = lambda s,a,b: (s>=a) & (s<=b)
-    mask = between(ext_fit, min_ext, max_ext) & between(f_fit, min_f, max_f)
+    return between(ext_fit, min_ext, max_ext) & between(f_fit, min_f, max_f)
 
-    return mask
-
-  def select(self, x=None, f=None):
-    return self[self.maskFromLimits(x, f)]
+  def select(self, x=None, f=None, limits=(0,-1)):
+    return self[self.maskFromLimits(x, f, limits)]
 
   @property
   def fec(self):
