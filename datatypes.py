@@ -54,6 +54,10 @@ class AbstractData(object):
   def copy(self):
     return self.__class__.fromObject(self)
 
+  @property
+  def shape(self):
+    return self.data.shape
+
   def __len__(self):
     return len(self.data)
 
@@ -67,7 +71,6 @@ class AbstractData(object):
     meta = self.metadata.copy()
     meta.update(other.metadata)
     return type(self)( vstack((self.data,other.data)) )
-
 
   def at(self, **kwargs):
     if len(kwargs)>1:

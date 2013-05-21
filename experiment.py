@@ -60,60 +60,108 @@ class List(list):
   def __init__(self, iterable):
     super(List, self).__init__(iterable)
     try:
-      self.sort(key=attrgetter('info.mol')).sort(key=attrgetter('info.pull'))
+      self.sort(key=attrgetter('info.mol'))
+      self.sort(key=attrgetter('info.pull'))
     except AttributeError:
       pass
 
+  def filter(self, condition):
+    "Returns a List with experiments matching condition"
+    return List( filter(condition, self) )
+
   def matching(self, *match):
-    matched = filter(lambda x: re.search(makeMatchStrFromArgs(*match), x.filename), self)
-    return List(matched)
+    "Return List with experiment names matching *match globs"
+    return self.filter(lambda x: re.search(makeMatchStrFromArgs(*match), x.filename))
 
   def get(self, name, *more):
+    "Get all attributes of experiments in List by name: get('pull','f') => pull.f"
     try:
       return map( attrgetter(name, *more), self)
     except AttributeError:
       raise ExperimentError('Missing attribute {0} in a List element'.format(name))
+
+  def has(self, *attributes):
+    "Returns List of experiments which have all given attributes not None"
+    condition = lambda p: all(map(lambda name: getattr(p, name, None) is not None,
+                          attributes))
+    return self.filter(condition)
+
+  def not_has(self, attr):
+    "Returns List of experiments which DON'T HAVE the given attribute set"
+    condition = lambda p: getattr(p, attr, None) is None
+    return self.filter(condition)
       
   def call(self, action, *args, **kwargs):
+    "Call function <action> with *args and **kwargs on all experiments"
     try:
       return map( methodcaller(action, *args, **kwargs), self )
     except AttributeError:
       raise ExperimentError('Missing method {0} in a List element'.format(action))
 
-  DEFAULT_METADATA_CHECKING = ('step_size', 'sampling_time')
-  def aggregate(self, check_metadata=DEFAULT_METADATA_CHECKING):
-    assert isinstance(check_metadata, tuple) or isinstance(check_metadata, list)
-    aggregated = sum(self.get('pull'))
-    meta = self.get('metadata')
-    for field in check_metadata:
+  METADATA_CHECK = {'pull': ('step_size', 'sampling_time'),
+                    'fret': ('exposurems', 'frames', 'gain', 'binning') }
+
+  def aggregate(self, datatype='pull', check_metadata=None):
+    "Aggregate data of given kind from experiments by appending."
+    if check_metadata is not None:
+      assert isinstance(check_metadata, tuple) or isinstance(check_metadata, list)
+
+    filtered = self.has(datatype)
+    logger.info('Using experiments {}'.format(filtered))
+    aggregated = sum(filtered.get(datatype)) or None
+
+    meta = filtered.get('metadata')
+    check_for_fields = check_metadata or List.METADATA_CHECK[datatype]
+    for field in check_for_fields:
       try:
         values = frozenset(map(itemgetter(field), meta))
         if len(values) > 1:
           logger.warning(
-              'Multiple values found for metadata field {}: {}'.format(
+              'Multiple values found for metadata field <{}>: {}'.format(
                field, tuple(values))
                )
       except KeyError:
         logger.warning(
-            'Not all items in List have metadata field {}'.format(
+            'Not all items in List have metadata field <{}>'.format(
               field)
             )
-    return Pulling(aggregated)
+    return aggregated
+
+  def collapse(self, *types):
+    "Collapse experiments into a single experiment with all data appended together."
+    assert set(types).issubset(List.METADATA_CHECK.keys())
+    fec, fdata = None, None
+    fec = self.aggregate('pull')
+    fdata = self.aggregate('fret')
+    return Pulling(fec, fdata)
 
   def plotall(self, attr=None, **options):
+    "Plot all experiments overlayed onto same panel. Can plot only pull or fret."
+    assert attr in set([None,'pull','fret'])
     options.setdefault('labels', self.get('filename'))
-    attr = attr or 'pull'
-    fplot.plotall( self.get(attr), hold=True, **options)
+    if hasattr(self,'figure') and self.figure.exists:
+     self.figure.makeCurrent()
+     self.figure.clear()
+    if attr is None and self.has('fret'):
+      options.setdefault('FEC', False)
+      options.setdefault('legend', None)
+      fplot.plotall(self.get('fret'), self.get('pull'), hold=True, **options)
+    else:
+      attr = attr or 'pull'
+      fplot.plotall( self.get(attr), hold=True, **options)
     self.figure = Figure.fromCurrent()
     return self.figure
 
   def savefig(self, filename):
+    "Save figure from last plotall()"
     self.figure.toFile(filename)
 
   def plot(self, **options):
+    "Create individual plots"
     self.call('plot', **options)
 
   def saveallfig(self, path='.'):
+    "Save all individual plots"
     self.call('savefig', path=path)
 
   def fitHandles(self, *args, **kwargs):
@@ -132,7 +180,7 @@ class List(list):
   def adjustOffset(self, to_f=0.5, to_x=None, f_range=None, x_range=None):
     '''Adjust force and extension offsets returning xoffset, foffset
     
-    to_f  The force baseline that traces will be adjusted to.
+    to_f  The force baseline that traces will be adjusted to. Default: 0.5 pN
 
     to_x  The extension baseline. None (default) calculates average extension over
             x_range.
@@ -264,7 +312,7 @@ def add_to_all(arg, x):
 class Pulling(Base):
   "stretching curves of single molecule .str camera .cam image .img"
 
-  forceOffsetRange = (725,750)
+  forceOffsetRange = (740,770)
   extensionOffsetRange = (13,16)
 
   def __init__(self, pull, fret=None, **metadata):
@@ -281,6 +329,7 @@ class Pulling(Base):
     self.lastFit = None
     self._appendNewRip = True
     self.filename = ''
+    self._ext_offset = 0
 
   @classmethod
   def fromFile(cls,strfile,fretfile=None):
@@ -398,27 +447,35 @@ class Pulling(Base):
     'Adjust extension to hit baseline. If offset_range is not given, it is calculated from Pulling.extensionOffsetRange'
     offset = self.extensionOffset(offset_range) - baseline
     self.pull.ext -= offset
+    self._ext_offset = offset
     return offset
 
   def recalculate(self, stiffness=None):
       if stiffness and len(stiffness) != 2:
         raise ValueError('Stiffness must be 2-tuple')
-      def geometricMean(*args):
-        return 1/sum(map(lambda x: 1./x, args))
       current_k = self.metadata.get('stiffness', constants.stiffness)
       new_k = stiffness or current_k
       self.metadata['stiffness'] = new_k
-      mean_k = geometricMean(*new_k)
       beadRadii = self.metadata.get('bead_radii', constants.sumOfBeadRadii)
-      self.pull.f *= min(new_k)/min(current_k)
-      self.pull.ext = self.pull.sep - beadRadii - self.pull.f/mean_k
+
+      displacement = self.pull.f/min(current_k)
+
+      geometricMean = lambda args: 1/sum(map(lambda x: 1./x, args))
+      mean_k = geometricMean(new_k)
+      ratio = 1+min(new_k)/max(new_k)
+
+      self.pull.f = displacement*min(new_k)
+      self.pull.ext = self.pull.sep - beadRadii - displacement*ratio - self._ext_offset
 
   def plot(self, **kwargs):
     kwargs.setdefault('FEC', self.fits or not self.fret)
     kwargs.setdefault('title', self.filename or '')
     loc_x = min(self.pull.ext)+10
     location = list(kwargs.setdefault('annotate', (loc_x, 15)))
-    self.figure.plot(self.fret, self.pull, **kwargs)
+    if self.fret:
+      self.figure.plot(self.fret, self.pull, **kwargs)
+    else:
+      self.figure.plot(self.pull, **kwargs)
     if self.handles:
       self.figure.plot(self.handles, hold=True)
       self.figure.annotate(unicode(self.handles), location)

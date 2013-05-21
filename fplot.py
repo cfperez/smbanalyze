@@ -4,17 +4,21 @@ from numpy import concatenate
 
 from datatypes import TrapData,hasTrapData,hasFretData
 
-def plotall(objList, **kwargs):
+def plotall(fret, pull=None,  **kwargs):
+  assert isinstance(fret, (list, tuple, type(None)))
+  if pull is not None and len(fret) != len(pull):
+    raise ValueError('Number of pull ({}) must match number of FRET objects')
+  elif pull is None:
+    pull = [None]*len(fret)
+
   labels = kwargs.pop('labels', [])
   figure = plt.gcf()
-  for obj in objList:
+  for obj in fret:
     label = labels.pop(0) if len(labels)>0 else ''
-    plot(obj, label=label, **kwargs)
-  legend = kwargs.get('legend', 2)
-  plt.legend(loc=legend)
+    plot(obj, pull=pull.pop(0), label=label, **kwargs)
   return figure
 
-def plot(data, pull=None, **kwargs):
+def plot(data, pull=None, style='', **kwargs):
   loc = kwargs.get('legend', 'best')
   title = kwargs.get('title','')
   label = kwargs.get('label', '')
@@ -38,25 +42,22 @@ def plot(data, pull=None, **kwargs):
 
   if num == 0:
     raise ValueError("Don't know how to plot arguments: need TrapData or FretData")
-  #if not displayFRET and data is not None: num = 1
-  #elif hasFretData(data): num = 2
-  #else: num = 0 #raise ValueError("Don't understand plot options")
-  #if pull: 
-  #  num += 1
-  #if num==0:
-  #  raise ValueError("Don't know how to plot argument: missing named fields")
 
-  layout = iter((num,1,x) for x in range(1,num+1))
+  if data is None and pull is not None:
+    layout = iter([(3,1,3)])
+  else:
+    layout = iter((num,1,x) for x in range(1,num+1))
 
   ax1 = None
   if hasFretData(data):
     plt.subplot(*next(layout))
     not hold and plt.cla()
     plt.hold(True)
-    ax1 = _subplot(data.time, data.donor, label='donor')
-    _subplot(data.time, data.acceptor, label='acceptor', axes=('','counts'))
+    ax1 = _subplot(data.time, data.donor, style, label='donor')
+    _subplot(data.time, data.acceptor, style, label='acceptor', axes=('','counts'))
     plt.hold(hold)
-    plt.legend(loc=loc,ncol=2,prop={'size':'small'})
+    if loc is not None:
+      plt.legend(loc=loc,ncol=2,prop={'size':'small'})
     if displayFRET:
       _subplot(data.time, data.fret, layout=next(layout), 
                 axes=('Seconds','FRET'))
@@ -65,6 +66,8 @@ def plot(data, pull=None, **kwargs):
   if pull:
     x_coord,x_label = (pull.ext,'Extension (nm)') if FEC else (pull.sep,'Separation (nm)')
     ax2 = _subplot(x_coord, pull.f, '.', layout=next(layout), axes=(x_label,'Force (pN)'), label=label)
+    if loc is not None:
+      plt.legend(loc=loc,ncol=2,prop={'size':'small'})
 
   first_plot = ax1 or ax2
   first_plot.set_title(title)
@@ -85,12 +88,12 @@ def _subplot(*args,**kwargs):
   axes = kwargs.pop('axes', ())
   hold = kwargs.get('hold', None)
 
+  if hold is not None:
+    plt.hold(hold)
   if sub:
     ax = plt.subplot(*sub)
   else:
     ax = plt.gca()
-  if hold is not None:
-    plt.hold(hold)
   plt.plot(*args,**kwargs)
   ax.autoscale_view(tight=True)
   if axes:
@@ -101,17 +104,10 @@ def _subplot(*args,**kwargs):
       raise ValueError('_subplot expects labels for BOTH axes')
   return ax
 
-def hist(*data, **kwargs):
-  bins = kwargs.get('bins',50)
-  attr = kwargs.get('plot','fret')
-
-  if kwargs.get('join',True):
-    func = concatenate
-  else:
-    func = lambda x: x
-
-  counts,bins,patches = plt.hist(
-        func(map(operator.attrgetter(attr),data)), bins)
+def hist(data, bins=50, plot='fret', hold=False, **kwargs):
+  plt.hold(hold)
+  counts,bins,patches = plt.hist( getattr(data, plot), bins )
+        #map(operator.attrgetter(plot),data), bins)
 
   delta = bins[1]-bins[0]
   bins = (bins-delta/2)[1:]
