@@ -145,8 +145,24 @@ class TrapData(AbstractData):
 
   @property
   def fec(self):
-    x,f,s = self.T
+    x,f,s = self
     return x,f
+
+  def recalculate(self, stiffness=None):
+    if stiffness and len(stiffness) != 2:
+      raise ValueError('Stiffness must be 2-tuple')
+    current_k = self.metadata.get('stiffness', constants.stiffness)
+    ratio_current_k = min(current_k)/max(current_k)
+    new_k = stiffness or current_k
+    self.metadata['stiffness'] = new_k
+    beadRadii = self.metadata.get('bead_radii', constants.sumOfBeadRadii)
+
+    displacement = self.pull.f/min(current_k)
+    ratio = 1+min(new_k)/max(new_k)
+
+    self.pull.f = displacement*min(new_k)
+    self.pull.ext = self.pull.sep - beadRadii - displacement*ratio - self._ext_offset
+    return self
 
 class FretData(AbstractData):
   _fields = FretData_fields

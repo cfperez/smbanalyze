@@ -8,7 +8,7 @@ beta = 0.13
 gamma = 1.16
 
 sumOfBeadRadii = 715
-stiffness = (1.83, 0.275)
+stiffness = (1.525, 0.25)
 
 default_background_subtract = 94
 

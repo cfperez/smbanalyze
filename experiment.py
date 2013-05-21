@@ -183,7 +183,7 @@ class List(list):
     to_f  The force baseline that traces will be adjusted to. Default: 0.5 pN
 
     to_x  The extension baseline. None (default) calculates average extension over
-            x_range.
+            f_range.
             
     f_range The range of forces used to calculate the extension offset.
             None (default) uses value Pulling.extensionOffsetRange
@@ -454,18 +454,17 @@ class Pulling(Base):
       if stiffness and len(stiffness) != 2:
         raise ValueError('Stiffness must be 2-tuple')
       current_k = self.metadata.get('stiffness', constants.stiffness)
+      ratio_current_k = min(current_k)/max(current_k)
       new_k = stiffness or current_k
       self.metadata['stiffness'] = new_k
       beadRadii = self.metadata.get('bead_radii', constants.sumOfBeadRadii)
 
       displacement = self.pull.f/min(current_k)
-
-      geometricMean = lambda args: 1/sum(map(lambda x: 1./x, args))
-      mean_k = geometricMean(new_k)
       ratio = 1+min(new_k)/max(new_k)
 
       self.pull.f = displacement*min(new_k)
       self.pull.ext = self.pull.sep - beadRadii - displacement*ratio - self._ext_offset
+      return self
 
   def plot(self, **kwargs):
     kwargs.setdefault('FEC', self.fits or not self.fret)
