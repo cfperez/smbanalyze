@@ -59,7 +59,7 @@ def plot(data, pull=None, style='', **kwargs):
     if loc is not None:
       plt.legend(loc=loc,ncol=2,prop={'size':'small'})
     if displayFRET:
-      _subplot(data.time, data.fret, layout=next(layout), 
+      _subplot(data.time, data.fret, style, layout=next(layout), 
                 axes=('Seconds','FRET'))
 
   ax2 = None
