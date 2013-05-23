@@ -1,10 +1,15 @@
 import collections
+import logging
 
 from numpy import all, where, asarray, sign, ndarray, vstack
-from operator import isSequenceType
+from operator import isSequenceType, add
 
 from fileIO import load, toSettings, fileIOError
+from constants import logHandler, logLevel
 
+logger = logging.getLogger(__name__)
+logger.setLevel(logLevel)
+logger.addHandler(logHandler)
 
 TYPE_CHECKING = 'STRICT'
 
@@ -44,6 +49,12 @@ class AbstractData(object):
     return me
 
   @classmethod
+  def aggregate(cls, *data):
+    assert len(data) > 0
+    assert all(isinstance(d, AbstractData) or d is None for d in data)
+    return cls.fromObject(reduce(add, data))
+    
+  @classmethod
   def fromFields(cls, *args, **meta):
     if len(args) != len(cls._fields):
       raise ValueError(
@@ -66,9 +77,12 @@ class AbstractData(object):
   def __ne__(self, other):
     return not self==other
 
+  METADATA_CHECK = {'pull': ('step_size', 'sampling_time'),
+                    'fret': ('exposurems', 'frames', 'gain', 'binning') }
+
   def __add__(self, other):
-    meta = self.metadata.copy()
-    meta.update(other.metadata)
+    #if self.meta != other.meta:
+      #logger.warning('M')
     return type(self)( vstack((self.data,other.data)) )
 
   def at(self, **kwargs):
