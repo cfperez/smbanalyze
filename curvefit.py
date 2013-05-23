@@ -20,6 +20,7 @@ class FitError(Exception):
 def fitWLC(x, f, mask=None, **fitOptions):
   "Fit stretching data to WLC model"
   fitOptions.setdefault('fitfunc', 'MMS')
+  fitOptions.setdefault('Lc', max(x)*1.05)
   try:
     if fitOptions['fitfunc'].startswith('MMS'):
       fitOptions.setdefault('fixed', 'K')

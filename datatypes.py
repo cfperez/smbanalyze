@@ -40,9 +40,8 @@ class AbstractData(object):
         raise
     else:
       meta[cls.name()+'_filename'] = filename
-    finally:
-      me = cls(data, **meta)
-      return me
+    me = cls(data, **meta)
+    return me
 
   @classmethod
   def fromFields(cls, *args, **meta):

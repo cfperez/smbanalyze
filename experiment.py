@@ -1,5 +1,5 @@
 import os.path as path
-from operator import itemgetter, attrgetter, methodcaller
+from operator import itemgetter, attrgetter, methodcaller, add
 import logging
 import collections
 import cPickle as pickle
@@ -90,6 +90,11 @@ class List(list):
     "Returns List of experiments which DON'T HAVE the given attribute set"
     condition = lambda p: getattr(p, attr, None) is None
     return self.filter(condition)
+
+  def is_a(self, kind):
+    "Returns List of experiments of specified kind"
+    condition = lambda p: isinstance
+    return self.filter(lambda p: isinstance(p, kind))
       
   def call(self, action, *args, **kwargs):
     "Call function <action> with *args and **kwargs on all experiments"
@@ -108,7 +113,7 @@ class List(list):
 
     filtered = self.has(datatype)
     logger.info('Using experiments {}'.format(filtered))
-    aggregated = sum(filtered.get(datatype)) or None
+    aggregated = reduce(add, filtered.get(datatype)) if filtered else None
 
     meta = filtered.get('metadata')
     check_for_fields = check_metadata or List.METADATA_CHECK[datatype]
@@ -132,6 +137,8 @@ class List(list):
     assert set(types).issubset(List.METADATA_CHECK.keys())
     fec, fdata = None, None
     fec = self.aggregate('pull')
+    if fec is None:
+      raise ExperimentError('No experiments in List had any pull data!')
     fdata = self.aggregate('fret')
     return Pulling(fec, fdata)
 
@@ -216,7 +223,6 @@ class List(list):
       self.it = iter(self)
       return self.next()
 
-
   def __add__(self, other):
     return List(super(List, self).__add__(other))
 
@@ -290,6 +296,31 @@ class Base(object):
     if fret:
       self.metadata.update(fret.metadata)
     self.metadata.update(metadata)
+    self.figure = Figure()
+    self.filename = ''
+
+  @classmethod
+  def fromFile(cls, strfile, fretfile=None):
+    basename, strfile, fretfileFromBase = fileIO.filesFromName(strfile)
+    pull = TrapData.fromFile(strfile)
+
+    # check if base + .fret exists if not specified already
+    # and use it, or else load/don't load fretfile
+    if not fretfile and path.exists(fretfileFromBase):
+      fretfile = fretfileFromBase
+    elif fretfile and not path.exists(fretfile):
+      raise ExperimentError("Fret file {0} not found".format(fretfile))
+    fret = FretData.fromFile(fretfile) if fretfile else None
+
+    newCls = cls(pull, fret)
+    newCls.filename = basename
+
+    try:
+      newCls.info = fileIO.parseFilename(basename)
+    except:
+      logger.warning('Problem parsing filename %s' % basename)
+
+    return newCls
 
   def __repr__(self):
     if getattr(self,'filename', None):
@@ -323,33 +354,31 @@ class Pulling(Base):
 
     super(Pulling, self).__init__(pull, fret, **metadata)
 
-    self.figure = Figure()
     self.handles = None
     self.rips = []
     self.lastFit = None
     self._appendNewRip = True
-    self.filename = ''
     self._ext_offset = 0
 
   @classmethod
-  def fromFile(cls,strfile,fretfile=None):
+  def aggregate(cls, *pulling):
+    pass
+
+  @classmethod
+  def fromFile(cls, strfile, fretfile=None):
     'Load stretching data and corresponding fret data from files'
-    basename,ext=fileIO.splitext(strfile)
-    if not ext:
-      strfile = fileIO.add_pull_ext(basename)
+    basename, strfile, fretfileFromBase = fileIO.filesFromName(strfile)
     pull = TrapData.fromFile(strfile)
-    metadata = {}
 
     # check if base + .fret exists if not specified already
     # and use it, or else load/don't load fretfile
-    fretfileFromBase = fileIO.add_fret_ext(basename)
     if not fretfile and path.exists(fretfileFromBase):
       fretfile = fretfileFromBase
     elif fretfile and not path.exists(fretfile):
       raise ExperimentError("Fret file {0} not found".format(fretfile))
     fret = FretData.fromFile(fretfile) if fretfile else None
 
-    newPull = cls(pull, fret, **metadata)
+    newPull = cls(pull, fret)
     newPull.filename = basename
 
     try:
@@ -399,12 +428,15 @@ class Pulling(Base):
 
   @property
   def ripSizes(self):
-    return map(itemgetter('Lc1'), self.rips)
+    rips = asarray(map(itemgetter('Lc1'), self.rips))
+    if len(rips) == 1:
+      return rips
+    else:
+      return rips[1:]-rips[:-1]
 
   def fitForceExtension(self, x=None, f=None, start=0, stop=-1, **fitOptions):
     "Fit WLC to Pulling curve and plot"
     pull = self.pull.select(x, f, (start,stop))
-    fitOptions.setdefault('Lc', max(self.pull.ext)*1.05)
     fit = fitWLC(pull.ext, pull.f, **fitOptions)
     self.lastFit = fit
     if self.figure.exists:
@@ -451,20 +483,20 @@ class Pulling(Base):
     return offset
 
   def recalculate(self, stiffness=None):
-      if stiffness and len(stiffness) != 2:
-        raise ValueError('Stiffness must be 2-tuple')
-      current_k = self.metadata.get('stiffness', constants.stiffness)
-      ratio_current_k = min(current_k)/max(current_k)
-      new_k = stiffness or current_k
-      self.metadata['stiffness'] = new_k
-      beadRadii = self.metadata.get('bead_radii', constants.sumOfBeadRadii)
+    if stiffness and len(stiffness) != 2:
+      raise ValueError('Stiffness must be 2-tuple')
+    current_k = self.metadata.get('stiffness', constants.stiffness)
+    ratio_current_k = min(current_k)/max(current_k)
+    new_k = stiffness or current_k
+    self.metadata['stiffness'] = new_k
+    beadRadii = self.metadata.get('bead_radii', constants.sumOfBeadRadii)
 
-      displacement = self.pull.f/min(current_k)
-      ratio = 1+min(new_k)/max(new_k)
+    displacement = self.pull.f/min(current_k)
+    ratio = 1+min(new_k)/max(new_k)
 
-      self.pull.f = displacement*min(new_k)
-      self.pull.ext = self.pull.sep - beadRadii - displacement*ratio - self._ext_offset
-      return self
+    self.pull.f = displacement*min(new_k)
+    self.pull.ext = self.pull.sep - beadRadii - displacement*ratio - self._ext_offset
+    return self
 
   def plot(self, **kwargs):
     kwargs.setdefault('FEC', self.fits or not self.fret)
@@ -510,7 +542,24 @@ class Pulling(Base):
 
 class OpenLoop(Base):
   "camera .cam image. img"
-  pass
+  def __init__(self, pull, fret, **metadata):
+    super(OpenLoop, self).__init__(pull, fret, **metadata)
+
+  @classmethod
+  def fromFile(cls, fretfile):
+    basename, strfile, fretfile = fileIO.filesFromName(fretfile)
+    fret = FretData.fromFile(fretfile)
+    try:
+      pull = TrapData.fromFile(strfile)
+    except IOError:
+      pull = None
+      logger.warning('No stretching data found for "{}"'.format(basename))
+    newOL = cls(pull, fret)
+    newOL.filename = basename
+    return newOL
+
+  def plot(self, **kwargs):
+    self.figure.plot(self.fret, **kwargs)
 
 class ForceClamp(Base):
   "force-extension .tdms camera .cam image .img"

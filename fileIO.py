@@ -35,6 +35,8 @@ class fileIOError(Exception):
     return self.level == fileIOError.ERROR
 
 def load(fname, comments=False, header=False, **kwargs):
+  if not os.path.exists(fname):
+    raise IOError('No file named "{}" found'.format(fname))
   base,extension = os.path.splitext(fname)
   fromLoad =  LOAD_FUNCTIONS[extension](fname, **kwargs)
   if isinstance(fromLoad, tuple):
@@ -236,6 +238,22 @@ add_img_ext = lambda x: x+IMAGE_FILE if not x.endswith(IMAGE_FILE) else x
 add_cam_ext = lambda x: x+CAMERA_FILE if not x.endswith(CAMERA_FILE) else x
 add_fret_ext = lambda x: x+FRET_FILE if not x.endswith(FRET_FILE) else x
 add_pull_ext = lambda x: x+PULL_FILE if not x.endswith(PULL_FILE) else x
+
+def filesFromName(filename, *extensions):
+  '''Return basename + filenames of given extensions (including original) using basename from filename.
+  Default is to return PULL_FILE and FRET_FILE extensions.'''
+  assert isinstance(filename, str)
+  basename,ext = splitext(filename)
+  if basename == '':
+    raise ValueError('Filename "{}" must contain a parseable basename'.format(filename))
+
+  if len(extensions) == 0:
+    extensions = (PULL_FILE, FRET_FILE)
+  if ext and ext not in extensions:
+    extensions = (ext,) + extensions
+
+  return [basename] + [basename+ext for ext in extensions]
+
 
 _named_ = lambda n,p: r'(?P<%s>%s)' % (n,p)
 _opt_unit_ = lambda n,p,u: r'(?:_%s%s)?' % (_named_(n,p),u)

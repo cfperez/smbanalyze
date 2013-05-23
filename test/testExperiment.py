@@ -78,6 +78,24 @@ def testList():
   assert matched[0] == pulls[1]
   assert isinstance(matched, experiment.List)
 
+def testListAggregatePull():
+  pull_list = experiment.List(pulls)
+  aggregated = pull_list.aggregate('pull')
+  rows, cols = aggregated.shape
+  total_rows = sum(p.shape[0] for p in pull_list.get('pull'))
+  assert total_rows == rows
+
+def testListAggregatePullNoFRET():
+  pull_list = experiment.List(pulls).not_has('fret')
+  aggregated = pull_list.aggregate('pull')
+  assert type(aggregated) == List
+  rows, cols = aggregated.shape
+  total_rows = sum(p.shape[0] for p in pull_list.get('pull'))
+  assert total_rows == rows
+  
+def testListAggregatePullEmpty():
+  pass
+
 def testListGet():
   pull_list = experiment.List(pulls)
   info = pull_list.get('filename')
@@ -91,8 +109,8 @@ def testListCall():
     p.testFunc = testFunc
   assert pull_list.call('testFunc') == [True]*len(pull_list)
 
-def testFromFile():
-  pass
+def testOpenLoopFromFile():
+  experiment.OpenLoop.fromFile('test_s1m2.fret')
 
 def tearDown():
   pass
