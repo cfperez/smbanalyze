@@ -1,5 +1,5 @@
 import operator
-from smbanalyze import experiment, fileIO
+from smbanalyze import experiment, fileIO, datatypes
 import os.path as path
 import os
 
@@ -88,7 +88,7 @@ def testListAggregatePull():
 def testListAggregatePullNoFRET():
   pull_list = experiment.List(pulls).not_has('fret')
   aggregated = pull_list.aggregate('pull')
-  assert type(aggregated) == List
+  assert type(aggregated) == datatypes.TrapData
   rows, cols = aggregated.shape
   total_rows = sum(p.shape[0] for p in pull_list.get('pull'))
   assert total_rows == rows
