@@ -334,12 +334,6 @@ class Base(object):
   def plot(self):
     raise NotImplementedError
     
-def add_to_all(arg, x):
-  try:
-    return arg+x
-  except TypeError:
-    return map(lambda y: y+x, arg)
-
 class Pulling(Base):
   "stretching curves of single molecule .str camera .cam image .img"
 

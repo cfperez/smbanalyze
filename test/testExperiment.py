@@ -1,7 +1,9 @@
 import operator
-from smbanalyze import experiment, fileIO
+from smbanalyze import experiment, fileIO, datatypes
 import os.path as path
 import os
+import pickle
+from mock import Mock, patch, MagicMock
 
 class FigStub(object):
   def __init__(self):
@@ -19,7 +21,8 @@ filegetter = lambda f: attrgetter('filename')(f)
 def setUp():
   global pulls, LOADED_FILES
   os.chdir('test/')
-  pulls = experiment.fromMatch('test')
+  with patch('smbanalyze.experiment.Figure') as mock:
+    pulls = experiment.fromMatch('test')
   LOADED_FILES = map( path.normpath, 
     [r'test_s1m1', r'test_s1m2', r'test_s1m3', ]
   )
@@ -55,14 +58,19 @@ def testExperimentFromFiles():
 def testPullingSave():
   pull = pulls[0]
   fname = 'save_s1m1.exp'
-  pull.save(fname)
-  assert path.exists(fname)
+  with patch('smbanalyze.experiment.pickle.dump') as mock:
+    pull.save(fname)
+    mock.assert_called()
 
 def testPullingLoad():
-  pull = experiment.Pulling.load('save_s1m1.exp')
-  assert type(pull) == experiment.Pulling
-  assert pull.pull == pulls[0].pull
-  assert pull.fret == pulls[0].fret
+  fname = 'save_s1m1.exp'
+  with patch('smbanalyze.experiment.pickle.load') as mock:
+    mock.return_value = pulls[0]
+    pull = experiment.Pulling.load(fname)
+    mock.assert_called()
+    assert type(pull) == experiment.Pulling
+    assert pull.pull == pulls[0].pull
+    assert pull.fret == pulls[0].fret
 
 def testExperimentPlot():
   for a_pull in pulls:
@@ -88,7 +96,7 @@ def testListAggregatePull():
 def testListAggregatePullNoFRET():
   pull_list = experiment.List(pulls).not_has('fret')
   aggregated = pull_list.aggregate('pull')
-  assert type(aggregated) == List
+  assert type(aggregated) == datatypes.TrapData
   rows, cols = aggregated.shape
   total_rows = sum(p.shape[0] for p in pull_list.get('pull'))
   assert total_rows == rows
