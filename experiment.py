@@ -273,23 +273,34 @@ class Figure(object):
     "Annotate figure with text at location (x,y)"
     x,y = location
     return plt.text(x, y, text)
-    
+  IMAGE_OUTPUT_FORMATS = ('emf', 'eps', 'pdf', 'png', 'ps',
+      'raw', 'rgba', 'svg', 'svgz') 
+
+  DEFAULT_SIZE = (9, 7.5)
   def toFile(self, filename=None):
     if filename:
       base, ext = path.splitext(filename)
-      if ext[1:] not in ('emf', 'eps', 'pdf', 'png', 'ps', 'raw', 'rgba', 'svg', 'svgz'):
+      if ext[1:] not in Figure.IMAGE_OUTPUT_FORMATS:
         filename += constants.DEFAULT_FIGURE_EXT
     else:
       filename = 'Figure {0}{1}'.format(self.figure.number, constants.DEFAULT_FIGURE_EXT)
-
-    self.figure.set_size_inches(9,7.5)
+    self.figure.set_size_inches(*DEFAULT_SIZE)
     self.figure.savefig(filename, bbox_inches='tight', pad_inches=0.1)
+
+class TrapSettings(object):
+  pass
 
 class Base(object):
   ".fret .f .ext and other meta-data (sample rate, pull speeds, )"
   # also classmethods which change experimental constants like bead radii,
   # trap stiffnesses, etc.
   def __init__(self, pull, fret, **metadata):
+    if not hasTrapData(pull):
+      raise ExperimentError(
+          "__init__ argument 'pull' <{}> does not have trap data".format(pull))
+    if fret and not hasFretData(fret):
+      raise ExperimentError(
+          "__init__ argument 'fret' <{}> does not have fret data".format(fret))
     self.pull = pull
     self.fret = fret
     self.metadata = pull.metadata
@@ -341,13 +352,7 @@ class Pulling(Base):
   extensionOffsetRange = (13,16)
 
   def __init__(self, pull, fret=None, **metadata):
-    if not hasTrapData(pull):
-      raise ExperimentError("Argument 'pull' must contain trapping data")
-    if fret and not hasFretData(fret):
-      raise ExperimentError("Argument 'fret' must contain FRET data")
-
     super(Pulling, self).__init__(pull, fret, **metadata)
-
     self.handles = None
     self.rips = []
     self.lastFit = None
@@ -384,8 +389,11 @@ class Pulling(Base):
 
   def loadimg(self, path='.', **kwargs):
     filename = self.filename
-    return image.Stack(fileIO.add_img_ext(filename))
-    return image.fromFile(filename, **kwargs)
+#return image.Stack(fileIO.add_img_ext(filename))
+    try:
+      return image.fromFile(filename, **kwargs)
+    except IOError:
+      raise ExperimentError('IOError loading file: check image file location!')
 
   def fitHandles(self, x=None, f=None, **fitOptions):
     'Fit a WLC model to the lower part of the FEC corresponding to the handle stretching'
@@ -451,14 +459,16 @@ class Pulling(Base):
       raise ExperimentError('No data exists in range {0} - {1}'.format(*xrange))
     return mean(data.f)
 
+  @property
+  def meanStiffness(self, stiffness=None):
+    inverseAverage = lambda args: 1/sum(map(lambda x: 1./x, args))
+    return inverseAverage(self.metadata.get('stiffness', constants.stiffness))
+
   def adjustForceOffset(self, baseline=0.0, offset=None, offset_range=None):
     offset = offset or -self.forceOffset(offset_range)
     offset += baseline
-    def geometricMean(*args):
-      return 1/sum(map(lambda x: 1./x, args))
-    stiffness = geometricMean(*self.metadata.get('stiffness', constants.stiffness))
     self.pull.f += offset
-    self.pull.ext -= offset/stiffness
+    self.pull.ext -= offset/self.meanStiffness
     return offset
 
   def extensionOffset(self, frange=None):
@@ -512,6 +522,7 @@ class Pulling(Base):
       if len(text) >= cutoff:
         text = text[:cutoff]+'\n'+text[cutoff:]
       self.figure.annotate(text, location)
+    return self.figure
 
   def pickLimits(fig=None):
     if not fig: fig=plt.gcf()

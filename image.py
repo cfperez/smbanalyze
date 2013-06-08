@@ -45,7 +45,7 @@ def fromFile(filename, **kwargs):
   bg = kwargs.pop('background', False)
   roi = kwargs.pop('roi', None)
   try:
-    img = Stack(fileIO.add_img_ext(filename), **kwargs)
+    img = Stack(fileIO.add_img_ext(filename), deepcopy=True, **kwargs)
   except IOError:
     raise IOError("File %s can't be found/loaded" % filename)
 
@@ -54,12 +54,12 @@ def fromFile(filename, **kwargs):
   elif isinstance(bg,str):
     bg = Stack(bg)
     bg.toBackground(**kwargs)
+    img -= bg
 
-  result = img - bg
   if roi is not None:
     rois = ROI.fromFile(roi)
-    result.addROI(*rois)
-  return result
+    img.addROI(*rois)
+  return img
 
 def fromBackground(filename, filter='median'):
   try:
@@ -416,7 +416,7 @@ class Stack:
     for roi in args:
       self._roi[roi].draw()
 
-  def show(self, frame, **kwargs):
+  def show(self, frame=0, **kwargs):
     return self[frame].show(**kwargs)
  
   def setDonorROI(self, roi_name):
