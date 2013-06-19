@@ -18,7 +18,35 @@ def plotall(fret, pull=None,  **kwargs):
     plot(obj, pull=pull.pop(0), label=label, **kwargs)
   return figure
 
-def plot(data, pull=None, style='', **kwargs):
+class PlotStyle(dict):
+  """Dictionary-like class for setting styles on fplots
+
+PlotStyle constructor will only allow setting styles on things that
+fplot.plot() is going to plot: check PlotStyle.ITEMS
+
+>>> style = PlotStyle(donor='r--', fret='.')
+>>> fplot.plot(fret_data_object, style=style)
+"""
+
+  ITEMS = ('donor', 'acceptor', 'fret', 'pull')
+  DEFAULT = dict(zip(ITEMS, ('--','-','-','-')))
+
+  def __init__(self, **styles):
+    self.update(PlotStyle.DEFAULT)
+    self.update(styles)
+
+  def __setitem__(self, key, value):
+    if key not in PlotStyle.ITEMS:
+      raise ValueError('Item "{}" is not plotted and has no style')
+    super(PlotStyle, self).__setitem__(key, value)
+
+def plot(data, pull=None, style=PlotStyle(), **kwargs):
+  """Plot FretData and/or TrapData as stacked subplots of counts, FRET, and FEC/FDC
+  @data: datatypes.AbstractData
+  @pull: datatypes.AbstractData
+  @style: PlotStyle
+  """
+  assert isinstance(style, PlotStyle)
   loc = kwargs.get('legend', 'best')
   title = kwargs.get('title','')
   label = kwargs.get('label', '')
@@ -50,16 +78,17 @@ def plot(data, pull=None, style='', **kwargs):
 
   ax1 = None
   if hasFretData(data):
+    donor, acceptor = 'donor', 'acceptor'
     plt.subplot(*next(layout))
     not hold and plt.cla()
     plt.hold(True)
-    ax1 = _subplot(data.time, data.donor, style, label='donor')
-    _subplot(data.time, data.acceptor, style, label='acceptor', axes=('','counts'))
+    ax1 = _subplot(data.time, data.donor, style[donor], label=donor)
+    _subplot(data.time, data.acceptor, style[acceptor], label=acceptor, axes=('','counts'))
     plt.hold(hold)
     if loc is not None:
       plt.legend(loc=loc,ncol=2,prop={'size':'small'})
     if displayFRET:
-      _subplot(data.time, data.fret, style, layout=next(layout), 
+      _subplot(data.time, data.fret, style['fret'], layout=next(layout), 
                 axes=('Seconds','FRET'))
 
   ax2 = None
