@@ -268,7 +268,7 @@ FILENAME_SYNTAX = _build_pattern_(
       _named_('construct',_ALPHANUM_),
       _named_('conditions','.*'),
       r's(?P<slide>\d+)(?:m(?P<mol>\d+))?'] ) +
-    _opt_('pull',r'\d+') + _opt_unit_('force',r'\d+','pN') + _opt_time_ + _opt_('series',r'\d+') \
+    _opt_('pull',r'\d+') + _opt_unit_('force',r'\d+(?:.\d+)?','pN') + _opt_time_ + _opt_('series',r'\d+') \
     + _opt_('isBackground',r'background') )
 
 Pattern = re.compile(FILENAME_SYNTAX)
@@ -292,14 +292,11 @@ COMMENT_LINE = ('#','/*')
 
 
 def parseFilename(filename):
-  #construct,conditions,slide,mol,pull=basePattern.match(filename).groups()
-  #slide=int(slide); mol=int(mol); pull=int(pull)
-  #force=toNum(forcePattern.search(filename).group(1))
-  #min,sec,series=map(toNum, timePattern.search(filename).groups())
-  #background = bgPattern.search(filename) is not None
-
-  (construct, conditions, slide, mol, pull, force, min, sec,
-    series, isBackground) = Pattern.match(filename).groups()
+  try:
+    (construct, conditions, slide, mol, pull, force, min, sec,
+      series, isBackground) = Pattern.match(filename).groups()
+  except AttributeError:
+    return None
 
   slide = toInt(slide)
   mol = toInt(mol)

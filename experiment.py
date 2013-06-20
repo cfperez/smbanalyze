@@ -5,7 +5,7 @@ import collections
 import cPickle as pickle
 import re
 
-from numpy import where, min, max, asarray, sum, mean, all, linspace
+from numpy import where, min, max, asarray, sum, mean, all, linspace, any
 import matplotlib.pyplot as plt
 
 import fileIO 
@@ -14,7 +14,7 @@ from useful import isInt, groupat, makeMatchStrFromArgs
 import fplot
 import constants
 import image
-from datatypes import *
+from datatypes import TrapData, FretData, hasTrapData, hasFretData
 
 logger = logging.getLogger(__name__)
 logger.setLevel(constants.logLevel)
@@ -47,6 +47,9 @@ def fromFiles(*filelist):
   'Load experiments from a list of files or an argument list'
   filelist = collapseArgList(filelist)
   return List([Pulling.fromFile(fname) for fname in filelist])
+
+def fromFile(filename):
+  pass
 
 def collapseArgList(arglist):
   'Allows a function to take either *args or a list as its argument'
@@ -295,7 +298,7 @@ class Base(object):
   # also classmethods which change experimental constants like bead radii,
   # trap stiffnesses, etc.
   def __init__(self, pull, fret, **metadata):
-    if not hasTrapData(pull):
+    if pull and not hasTrapData(pull):
       raise ExperimentError(
           "__init__ argument 'pull' <{}> does not have trap data".format(pull))
     if fret and not hasFretData(fret):
@@ -303,7 +306,9 @@ class Base(object):
           "__init__ argument 'fret' <{}> does not have fret data".format(fret))
     self.pull = pull
     self.fret = fret
-    self.metadata = pull.metadata
+    self.metadata = {}
+    if pull:
+      self.metadata = pull.metadata
     if fret:
       self.metadata.update(fret.metadata)
     self.metadata.update(metadata)
@@ -389,7 +394,6 @@ class Pulling(Base):
 
   def loadimg(self, path='.', **kwargs):
     filename = self.filename
-#return image.Stack(fileIO.add_img_ext(filename))
     try:
       return image.fromFile(filename, **kwargs)
     except IOError:
@@ -542,13 +546,26 @@ class Pulling(Base):
   def save(self, filename=None):
     filename = filename or self.filename+'.exp'
     if not filename:
-     raise ExperimentError('Specify a filename')
+      raise ExperimentError('Specify a filename')
     pickle.dump( self, open(filename,'wb') )
 
+def hasAnyAttr(obj, *attr):
+  return any( map(lambda a: hasattr(obj, a), attr) )
+
 class OpenLoop(Base):
-  "camera .cam image. img"
+  "Object for manipulating FretData (and optional TrapData) for open loop measurements"
   def __init__(self, pull, fret, **metadata):
     super(OpenLoop, self).__init__(pull, fret, **metadata)
+
+  FNAME_FLAGS = ('min', 'sec', 'force')
+
+  @classmethod
+  def hasFiletype(cls, filename):
+    finfo = fileIO.parseFilename(filename)
+    for attr in OpenLoop.FNAME_FLAGS:
+      if getattr(finfo, attr) is not None:
+        return True
+    return False
 
   @classmethod
   def fromFile(cls, fretfile):

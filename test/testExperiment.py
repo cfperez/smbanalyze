@@ -1,9 +1,11 @@
+import unittest
 import operator
-from smbanalyze import experiment, fileIO, datatypes
 import os.path as path
 import os
 import pickle
 from mock import Mock, patch, MagicMock
+
+from smbanalyze import experiment, fileIO, datatypes
 
 class FigStub(object):
   def __init__(self):
@@ -50,6 +52,9 @@ def testPullingLoadimg():
 def testExperimentFromMatch():
   filenames = filegetter(pulls)
   assert set(map(path.normpath, filenames)) == set(LOADED_FILES)
+
+def testExperimentFromMatchWithOpenLoopExperiments():
+  pass
 
 def testExperimentFromFiles():
   loaded = experiment.fromFiles(LOADED_FILES)
@@ -117,8 +122,58 @@ def testListCall():
     p.testFunc = testFunc
   assert pull_list.call('testFunc') == [True]*len(pull_list)
 
-def testOpenLoopFromFile():
-  experiment.OpenLoop.fromFile('test_s1m2.fret')
+def testHasAnyAttrReturnsTrue():
+  mock = Mock()
+  assert experiment.hasAnyAttr(mock, 'test','foo','bar')
+
+def testHasAnyAttrReturnsFalse():
+  mock = Mock(spec=['foo'])
+  assert experiment.hasAnyAttr(mock, 'test', 'bar') == False
 
 def tearDown():
   pass
+
+class TestOpenLoopLoading(unittest.TestCase):
+
+  def setUp(self):
+    self.hasFiletype = experiment.OpenLoop.hasFiletype
+    self.force_time_test = lambda f,t: 'SJF4_0.5nM_s1m3_3_{}pN_2{}.fret'.format(f,t)
+    
+    self.time_types = ('min','s')
+    self.forces = (0,1,5.5,12)
+
+  def testhasFiletypeReturnsTrueWithForceTimeInFilename(self):
+    for force, ttype in zip(self.forces, self.time_types):
+      self.checkForceTimeInFilename(force, ttype)
+
+  def checkForceTimeInFilename(self, force, ttype):
+    self.assertTrue( self.hasFiletype(self.force_time_test(force,ttype)) )
+
+  def testhasFiletypeReturnsTrueWithForceInFilename(self):
+    for force in self.forces:
+      self.checkForceInFilename(force)
+
+  def checkForceInFilename(self, force):
+    force_test = 'SJF4_0.5nM_s1m3_3_{}pN.fret'.format(force)
+    self.assertTrue( self.hasFiletype(force_test) )
+
+  def testhasFiletypeReturnsTrueWithTimeInFilename(self):
+    for tt in self.time_types:
+      self.checkTimeTest(tt)
+
+  def checkTimeTest(self, time_type):
+    time_test = 'SJF4_0.5nM_s1m3_3_2{}.fret'.format(time_type)
+    self.assertTrue( self.hasFiletype(time_test) )
+
+  @patch('smbanalyze.experiment.TrapData')
+  @patch('smbanalyze.experiment.FretData')
+  def testOpenLoopFromFile(self, fdata, tdata):
+      tdata.fromFile.side_effect = IOError()
+      data = [[1,2,3],[1,2,3],[1,2,3],[1,2,3]]
+      data = datatypes.FretData.fromFields(*data)
+      fdata.fromFile.return_value = data
+      fname = 'testing'
+      exp = experiment.OpenLoop.fromFile(fname)
+      fdata.fromFile.assert_called_with(fname+fileIO.FRET_FILE)
+      tdata.fromFile.assert_called_with(fname+fileIO.PULL_FILE)
+      self.assertEquals(exp.fret, data)
