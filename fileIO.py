@@ -34,7 +34,12 @@ class fileIOError(Exception):
   def isError(self):
     return self.level == fileIOError.ERROR
 
-def load(fname, comments=False, header=False, **kwargs):
+def toSettings(comments):
+  # Careful! Using literal_eval to cast so that lines can contain
+  # lists e.g. stiffness = [1,1.5]
+  return parseSettingsFromLines(comments.splitlines(), ast.literal_eval)
+
+def load(fname, comments=toSettings, header=False, **kwargs):
   if not os.path.exists(fname):
     raise IOError('No file named "{}" found'.format(fname))
   base,extension = os.path.splitext(fname)
@@ -63,11 +68,6 @@ def loadstr(fname, **loadOptions):
     raise IOError, "Stretch file must contain extension, force, and separation"
   return filecomments, fileheader, data
 loadstr.extension=PULL_FILE
-
-def toSettings(comments):
-  # Careful! Using literal_eval to cast so that lines can contain
-  # lists e.g. stiffness = [1,1.5]
-  return parseSettingsFromLines(comments.splitlines(), ast.literal_eval)
 
 def loaddat(filename, **kwargs):
 
