@@ -4,6 +4,7 @@ import os.path as path
 import os
 import pickle
 from mock import Mock, patch, MagicMock
+from numpy import array
 
 from smbanalyze import experiment, fileIO, datatypes
 
@@ -133,6 +134,83 @@ def testHasAnyAttrReturnsFalse():
 def tearDown():
   pass
 
+class TestDatatypes(unittest.TestCase):
+  def _startPatch(self, to_patch):
+    patch_obj = patch(to_patch)
+    self.addCleanup(patch_obj.stop)
+    return patch_obj.start()
+
+  def setUp(self):
+    def load_file_mock(filename, **kwargs):
+      return {}, array([[1,2,3],[4,5,6]])
+
+    self.load = self._startPatch('smbanalyze.datatypes.load')
+
+  def testLoad(self):
+    data = array([[1,2,3],[4,5,6]])
+    self.load.return_value = ({},data)
+    fdata = datatypes.FretData.fromFile('testing')
+    self.load.assert_called_with('testing')
+    self.assertEqual(data.tolist(), fdata.data.tolist())
+
+class TestLoadingExperimentsFromFile(unittest.TestCase):
+
+  def _startPatch(self, to_patch):
+    patch_obj = patch(to_patch)
+    self.addCleanup(patch_obj.stop)
+    return patch_obj.start()
+
+  def setUp(self):
+    self.exists = self._startPatch('smbanalyze.experiment.path.exists')
+    self.exists.return_value = True
+    self.fdata = self._startPatch('smbanalyze.experiment.FretData')
+    data = [[1,2,3],[1,2,3],[1,2,3],[1,2,3]]
+    self.fdata.fromFile.return_value = datatypes.FretData.fromFields(*data)
+
+    self.tdata = self._startPatch('smbanalyze.experiment.TrapData')
+    self.tdata.fromFile.return_value = datatypes.TrapData.fromFields(*data[:3])
+
+  def testFromFileReturnsPullingExpWithStrFileNoTime(self):
+    filename = 'construct_0.5nM_s1m1'
+    self.checkExperimentWithFilename(filename, experiment.Pulling)
+    self.tdata.fromFile.assert_called_with(filename+fileIO.PULL_FILE)
+    self.fdata.fromFile.assert_called_with(filename+fileIO.FRET_FILE)
+
+  def testFromFileReturnsOpenLoopExpWithForceInBasename(self):
+    filename = 'construct_0.5nM_s1m1_5pN'
+    self.checkExperimentWithFilename(filename, experiment.OpenLoop)
+    self.tdata.fromFile.assert_called_with(filename+fileIO.PULL_FILE)
+    self.fdata.fromFile.assert_called_with(filename+fileIO.FRET_FILE)
+
+  def testFromFileReturnsOpenLoopExpWithTimeInBasename(self):
+    filename = 'construct_0.5nM_s1m1_2min'
+    self.checkExperimentWithFilename(filename, experiment.OpenLoop)
+    self.tdata.fromFile.assert_called_with(filename+fileIO.PULL_FILE)
+    self.fdata.fromFile.assert_called_with(filename+fileIO.FRET_FILE)
+
+  def testFromFileReturnsOpenLoopExpWithStrFileAndTime(self):
+    filename = 'construct_0.5nM_s1m1_2min.str'
+    self.checkExperimentWithFilename(filename, experiment.OpenLoop)
+    self.tdata.fromFile.assert_called_with(filename)
+
+  def testFromFileReturnsOpenLoopExpWithFretFileAndTime(self):
+    filename = 'construct_0.5nM_s1m1_2min.fret'
+    self.checkExperimentWithFilename(filename, experiment.OpenLoop)
+    self.fdata.fromFile.assert_called_with(filename)
+
+  def testFromFileReturnsOpenLoopExpWithBasenameNoStrFile(self):
+    filename = 'construct_0.5nM_s1m1_2min'
+    self.tdata.fromFile.return_value = None
+    self.checkExperimentWithFilename(filename, experiment.OpenLoop)
+
+  def checkExperimentWithFilename(self, filename, exp_type):
+    exp = experiment.fromFile(filename)
+    self.assertIsInstance(exp, exp_type)
+    self.assertEqual(exp.filename, fileIO.splitext(filename)[0])
+    self.assertEqual(exp.pull, self.tdata.fromFile.return_value)
+    self.assertEqual(exp.fret, self.fdata.fromFile.return_value)
+
+
 class TestOpenLoopLoading(unittest.TestCase):
 
   def setUp(self):
@@ -165,9 +243,11 @@ class TestOpenLoopLoading(unittest.TestCase):
     time_test = 'SJF4_0.5nM_s1m3_3_2{}.fret'.format(time_type)
     self.assertTrue( self.hasFiletype(time_test) )
 
+  @patch('smbanalyze.experiment.path.exists')
   @patch('smbanalyze.experiment.TrapData')
   @patch('smbanalyze.experiment.FretData')
-  def testOpenLoopFromFile(self, fdata, tdata):
+  def testOpenLoopFromFile(self, fdata, tdata, exists_mock):
+      exists_mock.return_value = False
       tdata.fromFile.side_effect = IOError()
       data = [[1,2,3],[1,2,3],[1,2,3],[1,2,3]]
       data = datatypes.FretData.fromFields(*data)
@@ -175,5 +255,4 @@ class TestOpenLoopLoading(unittest.TestCase):
       fname = 'testing'
       exp = experiment.OpenLoop.fromFile(fname)
       fdata.fromFile.assert_called_with(fname+fileIO.FRET_FILE)
-      tdata.fromFile.assert_called_with(fname+fileIO.PULL_FILE)
       self.assertEquals(exp.fret, data)

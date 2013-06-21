@@ -46,10 +46,14 @@ def fromMatch(*fglob):
 def fromFiles(*filelist):
   'Load experiments from a list of files or an argument list'
   filelist = collapseArgList(filelist)
+  return List(map(fromFile, filelist))
   return List([Pulling.fromFile(fname) for fname in filelist])
 
 def fromFile(filename):
-  pass
+  if OpenLoop.hasFiletype(filename):
+    return OpenLoop.fromFile(filename)
+  else:
+    return Pulling.fromFile(filename)
 
 def collapseArgList(arglist):
   'Allows a function to take either *args or a list as its argument'
@@ -316,26 +320,19 @@ class Base(object):
     self.filename = ''
 
   @classmethod
-  def fromFile(cls, strfile, fretfile=None):
-    basename, strfile, fretfileFromBase = fileIO.filesFromName(strfile)
-    pull = TrapData.fromFile(strfile)
+  def fromFile(cls, strfile, fretfile):
+    assert strfile or fretfile
+    assert isinstance(strfile, str) or strfile is None
+    assert isinstance(fretfile, str) or fretfile is None
 
-    # check if base + .fret exists if not specified already
-    # and use it, or else load/don't load fretfile
-    if not fretfile and path.exists(fretfileFromBase):
-      fretfile = fretfileFromBase
-    elif fretfile and not path.exists(fretfile):
-      raise ExperimentError("Fret file {0} not found".format(fretfile))
+    trap = TrapData.fromFile(strfile) if strfile else None
     fret = FretData.fromFile(fretfile) if fretfile else None
-
-    newCls = cls(pull, fret)
-    newCls.filename = basename
-
-    try:
-      newCls.info = fileIO.parseFilename(basename)
-    except:
-      logger.warning('Problem parsing filename %s' % basename)
-
+    newCls = cls(trap, fret)
+    newCls.filename = fileIO.splitext(strfile or fretfile)[0]
+    newCls.info = fileIO.parseFilename(newCls.filename)
+    if not newCls.info:
+      logger.warning('Problem parsing filename %s' % newCls.filename)
+    assert isinstance(newCls, cls)
     return newCls
 
   def __repr__(self):
@@ -372,25 +369,10 @@ class Pulling(Base):
   def fromFile(cls, strfile, fretfile=None):
     'Load stretching data and corresponding fret data from files'
     basename, strfile, fretfileFromBase = fileIO.filesFromName(strfile)
-    pull = TrapData.fromFile(strfile)
-
-    # check if base + .fret exists if not specified already
-    # and use it, or else load/don't load fretfile
-    if not fretfile and path.exists(fretfileFromBase):
-      fretfile = fretfileFromBase
-    elif fretfile and not path.exists(fretfile):
-      raise ExperimentError("Fret file {0} not found".format(fretfile))
-    fret = FretData.fromFile(fretfile) if fretfile else None
-
-    newPull = cls(pull, fret)
-    newPull.filename = basename
-
-    try:
-      newPull.info = fileIO.parseFilename(basename)
-    except:
-      logger.warning('Problem parsing filename %s' % basename)
-
-    return newPull
+    fretfile = fretfile or fretfileFromBase
+    if not path.exists(fretfile):
+      fretfile = None
+    return super(Pulling, cls).fromFile(strfile, fretfile)
 
   def loadimg(self, path='.', **kwargs):
     filename = self.filename
@@ -561,7 +543,11 @@ class OpenLoop(Base):
 
   @classmethod
   def hasFiletype(cls, filename):
+    assert isinstance(filename, str)
     finfo = fileIO.parseFilename(filename)
+    if not finfo:
+      logger.warning('Problem parsing filename "{}"'.format(filename))
+      return False
     for attr in OpenLoop.FNAME_FLAGS:
       if getattr(finfo, attr) is not None:
         return True
@@ -569,16 +555,11 @@ class OpenLoop(Base):
 
   @classmethod
   def fromFile(cls, fretfile):
+    assert isinstance(fretfile, str)
     basename, strfile, fretfile = fileIO.filesFromName(fretfile)
-    fret = FretData.fromFile(fretfile)
-    try:
-      pull = TrapData.fromFile(strfile)
-    except IOError:
-      pull = None
-      logger.warning('No stretching data found for "{}"'.format(basename))
-    newOL = cls(pull, fret)
-    newOL.filename = basename
-    return newOL
+    if not path.exists(strfile):
+      strfile = None
+    return super(OpenLoop, cls).fromFile(strfile, fretfile)
 
   def plot(self, **kwargs):
     self.figure.plot(self.fret, **kwargs)
