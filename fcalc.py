@@ -10,7 +10,7 @@ import constants
 from datatypes import FretData
 
 molID = lambda t: 's{0}m{1}'.format(t.slide,t.mol)
-molname = lambda t: 's{0}m{1}_{2}'.format(t.slide,t.mol,t.pull)
+molname = lambda t: 's{0}m{1}_{2}'.format(t.slide,t.mol,t.trap)
 pN = lambda f: 'f'+str(f)+'pN'
 
 BACKGROUND = 'background'
@@ -65,7 +65,7 @@ def calcToFile(stack, filename, **kwargs):
   return fretdata
 
 def calculate(stack, beta=constants.beta, gamma=constants.gamma, minsub=False):
-  """Calculates FRET of a pull from an image.Stack
+  """Calculates FRET from an image.Stack
 
   calculate( image.Stack, beta = constants.beta, gamma = constants.gamma)
 
