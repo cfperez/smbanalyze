@@ -227,6 +227,8 @@ def fromSettings(settings):
 ## Filename Parsing
 ##################################################
 def splitext(fname):
+  if not fname:
+    return None, None
   fname = os.path.basename(fname)
   basename,ext=os.path.splitext(fname)
   if ext not in REGISTERED_EXT:
@@ -292,6 +294,8 @@ COMMENT_LINE = ('#','/*')
 
 
 def parseFilename(filename):
+  if not filename:
+    return None
   try:
     (construct, conditions, slide, mol, pull, force, min, sec,
       series, isBackground) = Pattern.match(filename).groups()
