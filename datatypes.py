@@ -1,11 +1,10 @@
-import collections
 import logging
 
-from numpy import all, where, asarray, sign, ndarray, vstack
+from numpy import all, asarray, sign, vstack
 from operator import isSequenceType, add
 
 from fileIO import load, toSettings, fileIOError
-from constants import logHandler, logLevel
+from constants import logHandler, logLevel, stiffness, sumOfBeadRadii
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logLevel)
@@ -19,7 +18,8 @@ TrapData_fields = ('ext','f','sep')
 class AbstractData(object):
   def __init__(self, data, **meta):
     self.data = data
-    self.metadata = meta
+    self.metadata = {}
+    self.metadata.update(meta)
 
   @classmethod
   def fromObject(cls, obj):
@@ -44,7 +44,7 @@ class AbstractData(object):
       else:
         raise
     else:
-      meta[cls.name()+'_filename'] = filename
+      meta['filename'] = filename
     me = cls(data, **meta)
     return me
 
@@ -77,7 +77,7 @@ class AbstractData(object):
   def __ne__(self, other):
     return not self==other
 
-  METADATA_CHECK = {'pull': ('step_size', 'sampling_time'),
+  METADATA_CHECK = {'trap': ('step_size', 'sampling_time'),
                     'fret': ('exposurems', 'frames', 'gain', 'binning') }
 
   def __add__(self, other):
@@ -164,17 +164,17 @@ class TrapData(AbstractData):
   def recalculate(self, stiffness=None):
     if stiffness and len(stiffness) != 2:
       raise ValueError('Stiffness must be 2-tuple')
-    current_k = self.metadata.get('stiffness', constants.stiffness)
+    current_k = self.metadata.get('stiffness', stiffness)
     ratio_current_k = min(current_k)/max(current_k)
     new_k = stiffness or current_k
     self.metadata['stiffness'] = new_k
-    beadRadii = self.metadata.get('bead_radii', constants.sumOfBeadRadii)
+    beadRadii = self.metadata.get('bead_radii', sumOfBeadRadii)
 
-    displacement = self.pull.f/min(current_k)
+    displacement = self.trap.f/min(current_k)
     ratio = 1+min(new_k)/max(new_k)
 
-    self.pull.f = displacement*min(new_k)
-    self.pull.ext = self.pull.sep - beadRadii - displacement*ratio - self._ext_offset
+    self.trap.f = displacement*min(new_k)
+    self.trap.ext = self.trap.sep - beadRadii - displacement*ratio - self._ext_offset
     return self
 
 class FretData(AbstractData):
