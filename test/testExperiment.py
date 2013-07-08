@@ -75,7 +75,7 @@ def testPullingLoad():
     pull = experiment.Pulling.load(fname)
     mock.assert_called()
     assert type(pull) == experiment.Pulling
-    assert pull.pull == pulls[0].pull
+    assert pull.trap == pulls[0].trap
     assert pull.fret == pulls[0].fret
 
 def testExperimentPlot():
@@ -94,17 +94,17 @@ def testList():
 
 def testListAggregatePull():
   pull_list = experiment.List(pulls)
-  aggregated = pull_list.aggregate('pull')
+  aggregated = pull_list.aggregate('trap')
   rows, cols = aggregated.shape
-  total_rows = sum(p.shape[0] for p in pull_list.get('pull'))
+  total_rows = sum(p.shape[0] for p in pull_list.get('trap'))
   assert total_rows == rows
 
 def testListAggregatePullNoFRET():
   pull_list = experiment.List(pulls).not_has('fret')
-  aggregated = pull_list.aggregate('pull')
+  aggregated = pull_list.aggregate('trap')
   assert type(aggregated) == datatypes.TrapData
   rows, cols = aggregated.shape
-  total_rows = sum(p.shape[0] for p in pull_list.get('pull'))
+  total_rows = sum(p.shape[0] for p in pull_list.get('trap'))
   assert total_rows == rows
   
 def testListAggregatePullEmpty():
@@ -150,7 +150,7 @@ class TestDatatypes(unittest.TestCase):
     data = array([[1,2,3],[4,5,6]])
     self.load.return_value = ({},data)
     fdata = datatypes.FretData.fromFile('testing')
-    self.load.assert_called_with('testing')
+    self.load.assert_called_with('testing', comments=fileIO.toSettings)
     self.assertEqual(data.tolist(), fdata.data.tolist())
 
 class TestLoadingExperimentsFromFile(unittest.TestCase):
@@ -200,6 +200,7 @@ class TestLoadingExperimentsFromFile(unittest.TestCase):
 
   def testFromFileReturnsOpenLoopExpWithBasenameNoStrFile(self):
     filename = 'construct_0.5nM_s1m1_2min'
+    self.exists.return_value = False
     self.tdata.fromFile.return_value = None
     self.checkExperimentWithFilename(filename, experiment.OpenLoop)
 
@@ -207,7 +208,7 @@ class TestLoadingExperimentsFromFile(unittest.TestCase):
     exp = experiment.fromFile(filename)
     self.assertIsInstance(exp, exp_type)
     self.assertEqual(exp.filename, fileIO.splitext(filename)[0])
-    self.assertEqual(exp.pull, self.tdata.fromFile.return_value)
+    self.assertEqual(exp.trap, self.tdata.fromFile.return_value)
     self.assertEqual(exp.fret, self.fdata.fromFile.return_value)
 
 

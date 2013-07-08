@@ -1,16 +1,15 @@
 import os.path as path
 from operator import itemgetter, attrgetter, methodcaller, add
 import logging
-import collections
 import cPickle as pickle
 import re
 
-from numpy import where, min, max, asarray, sum, mean, all, linspace, any
+from numpy import min, max, asarray, sum, mean, all, any
 import matplotlib.pyplot as plt
 
 import fileIO 
-from curvefit import Fit, fitWLC
-from useful import isInt, groupat, makeMatchStrFromArgs
+from curvefit import fitWLC
+from useful import groupat, makeMatchStrFromArgs
 import fplot
 import constants
 import image
@@ -25,8 +24,8 @@ class ExperimentError(Exception):
 
 def fromData(*datalist, **kwargs):
   "List of experiments from PullData and FretData type"
-  exptype = kwargs.get('type','pull')
-  if exptype=='pull':
+  exptype = kwargs.get('type','trap')
+  if exptype=='trap':
     output = []
     for pull,fret in groupat(hasTrapData, datalist, size=2):
       output += [Pulling(pull,fret)]
@@ -39,7 +38,6 @@ def fromMatch(*fglob):
   fglob[0] = path.basename(fglob[0])
   if not files:
     raise ExperimentError("No files found matching glob '{0}'".format(fglob))
-  basenames = map(lambda x: fileIO.splitext(x)[0], files)
   matched = filter(lambda x: re.search(makeMatchStrFromArgs(*fglob), fileIO.splitext(x)[0]), files)
   return fromFiles(matched)
 
@@ -47,7 +45,6 @@ def fromFiles(*filelist):
   'Load experiments from a list of files or an argument list'
   filelist = collapseArgList(filelist)
   return List(map(fromFile, filelist))
-  return List([Pulling.fromFile(fname) for fname in filelist])
 
 def fromFile(filename):
   if OpenLoop.hasFiletype(filename):
@@ -81,7 +78,7 @@ class List(list):
     return self.filter(lambda x: re.search(makeMatchStrFromArgs(*match), x.filename))
 
   def get(self, name, *more):
-    "Get all attributes of experiments in List by name: get('pull','f') => pull.f"
+    "Get all attributes of experiments in List by name: mol.get('f')"
     try:
       return map( attrgetter(name, *more), self)
     except AttributeError:
@@ -100,7 +97,6 @@ class List(list):
 
   def is_a(self, kind):
     "Returns List of experiments of specified kind"
-    condition = lambda p: isinstance
     return self.filter(lambda p: isinstance(p, kind))
       
   def call(self, action, *args, **kwargs):
@@ -110,10 +106,10 @@ class List(list):
     except AttributeError:
       raise ExperimentError('Missing method {0} in a List element'.format(action))
 
-  METADATA_CHECK = {'pull': ('step_size', 'sampling_time'),
+  METADATA_CHECK = {'trap': ('step_size', 'sampling_time'),
                     'fret': ('exposurems', 'frames', 'gain', 'binning') }
 
-  def aggregate(self, datatype='pull', check_metadata=None):
+  def aggregate(self, datatype='trap', check_metadata=None):
     "Aggregate data of given kind from experiments by appending."
     if check_metadata is not None:
       assert isinstance(check_metadata, tuple) or isinstance(check_metadata, list)
@@ -122,10 +118,10 @@ class List(list):
     logger.info('Using experiments {}'.format(filtered))
     aggregated = reduce(add, filtered.get(datatype)) if filtered else None
 
-    meta = filtered.get('metadata')
     check_for_fields = check_metadata or List.METADATA_CHECK[datatype]
     for field in check_for_fields:
       try:
+        meta = filtered.get(datatype+'.metadata')
         values = frozenset(map(itemgetter(field), meta))
         if len(values) > 1:
           logger.warning(
@@ -142,16 +138,15 @@ class List(list):
   def collapse(self, *types):
     "Collapse experiments into a single experiment with all data appended together."
     assert set(types).issubset(List.METADATA_CHECK.keys())
-    fec, fdata = None, None
-    fec = self.aggregate('pull')
+    fec = self.aggregate('trap')
     if fec is None:
-      raise ExperimentError('No experiments in List had any pull data!')
+      raise ExperimentError('No experiments in List had any trap data!')
     fdata = self.aggregate('fret')
     return Pulling(fec, fdata)
 
   def plotall(self, attr=None, **options):
-    "Plot all experiments overlayed onto same panel. Can plot only pull or fret."
-    assert attr in set([None,'pull','fret'])
+    "Plot all experiments overlayed onto same panel. Can plot only trap or fret."
+    assert attr in set([None,'trap','fret'])
     options.setdefault('labels', self.get('filename'))
     if hasattr(self,'figure') and self.figure.exists:
      self.figure.makeCurrent()
@@ -159,9 +154,9 @@ class List(list):
     if attr is None and self.has('fret'):
       options.setdefault('FEC', False)
       options.setdefault('legend', None)
-      fplot.plotall(self.get('fret'), self.get('pull'), hold=True, **options)
+      fplot.plotall(self.get('fret'), self.get('trap'), hold=True, **options)
     else:
-      attr = attr or 'pull'
+      attr = attr or 'trap'
       fplot.plotall( self.get(attr), hold=True, **options)
     self.figure = Figure.fromCurrent()
     return self.figure
@@ -286,36 +281,31 @@ class Figure(object):
   DEFAULT_SIZE = (9, 7.5)
   def toFile(self, filename=None):
     if filename:
-      base, ext = path.splitext(filename)
+      ext = path.splitext(filename)[1]
       if ext[1:] not in Figure.IMAGE_OUTPUT_FORMATS:
         filename += constants.DEFAULT_FIGURE_EXT
     else:
       filename = 'Figure {0}{1}'.format(self.figure.number, constants.DEFAULT_FIGURE_EXT)
-    self.figure.set_size_inches(*DEFAULT_SIZE)
+    self.figure.set_size_inches(*Figure.DEFAULT_SIZE)
     self.figure.savefig(filename, bbox_inches='tight', pad_inches=0.1)
 
 class TrapSettings(object):
   pass
 
 class Base(object):
-  ".fret .f .ext and other meta-data (sample rate, pull speeds, )"
+  ".fret .f .ext and other meta-data (sample rate, trap speeds, )"
   # also classmethods which change experimental constants like bead radii,
   # trap stiffnesses, etc.
-  def __init__(self, pull, fret, **metadata):
-    if pull and not hasTrapData(pull):
+  def __init__(self, trap, fret, **metadata):
+    if trap and not hasTrapData(trap):
       raise ExperimentError(
-          "__init__ argument 'pull' <{}> does not have trap data".format(pull))
+          "__init__ argument 'trap' <{}> does not have trap data".format(trap))
     if fret and not hasFretData(fret):
       raise ExperimentError(
           "__init__ argument 'fret' <{}> does not have fret data".format(fret))
-    self.pull = pull
+    self.trap = trap
     self.fret = fret
-    self.metadata = {}
-    if pull:
-      self.metadata = pull.metadata
-    if fret:
-      self.metadata.update(fret.metadata)
-    self.metadata.update(metadata)
+    self.metadata = metadata
     self.figure = Figure()
     self.filename = ''
 
@@ -328,11 +318,14 @@ class Base(object):
     trap = TrapData.fromFile(strfile) if strfile else None
     fret = FretData.fromFile(fretfile) if fretfile else None
     newCls = cls(trap, fret)
-    newCls.filename = fileIO.splitext(strfile or fretfile)[0]
+    filename = strfile if strfile else fretfile
+    newCls.filename = fileIO.splitext(filename)[0]
     newCls.info = fileIO.parseFilename(newCls.filename)
     if not newCls.info:
       logger.warning('Problem parsing filename %s' % newCls.filename)
     assert isinstance(newCls, cls)
+    assert hasattr(newCls, 'filename')
+    assert newCls.filename is not None
     return newCls
 
   def __repr__(self):
@@ -424,7 +417,7 @@ class Pulling(Base):
 
   def fitForceExtension(self, x=None, f=None, start=0, stop=-1, **fitOptions):
     "Fit WLC to Pulling curve and plot"
-    pull = self.pull.select(x, f, (start,stop))
+    pull = self.trap.select(x, f, (start,stop))
     fit = fitWLC(pull.ext, pull.f, **fitOptions)
     self.lastFit = fit
     if self.figure.exists:
@@ -438,29 +431,29 @@ class Pulling(Base):
     else:
       return [self.lastFit] if self.lastFit else []
 
-  def forceOffset(self, xrange=None):
-    xrange = xrange or Pulling.forceOffsetRange
-    data = self.pull.select(x=xrange)
+  def forceOffset(self, x_range=None):
+    x_range = x_range or Pulling.forceOffsetRange
+    data = self.trap.select(x=x_range)
     if len(data) == 0:
-      raise ExperimentError('No data exists in range {0} - {1}'.format(*xrange))
+      raise ExperimentError('No data exists in range {0} - {1}'.format(*x_range))
     return mean(data.f)
 
   @property
   def meanStiffness(self, stiffness=None):
     inverseAverage = lambda args: 1/sum(map(lambda x: 1./x, args))
-    return inverseAverage(self.metadata.get('stiffness', constants.stiffness))
+    return inverseAverage(self.trap.metadata.get('stiffness', constants.stiffness))
 
   def adjustForceOffset(self, baseline=0.0, offset=None, offset_range=None):
     offset = offset or -self.forceOffset(offset_range)
     offset += baseline
-    self.pull.f += offset
-    self.pull.ext -= offset/self.meanStiffness
+    self.trap.f += offset
+    self.trap.ext -= offset/self.meanStiffness
     return offset
 
   def extensionOffset(self, frange=None):
     'Returns average extension of FEC between given forces'
     frange = frange or Pulling.extensionOffsetRange
-    data = self.pull.select(f=frange)
+    data = self.trap.select(f=frange)
     if len(data) == 0:
       raise ExperimentError('<{0}>: No data exists in range {1} - {2}'.format(self, *frange))
     return mean(data.ext)
@@ -468,35 +461,34 @@ class Pulling(Base):
   def adjustExtensionOffset(self, baseline, offset_range=None):
     'Adjust extension to hit baseline. If offset_range is not given, it is calculated from Pulling.extensionOffsetRange'
     offset = self.extensionOffset(offset_range) - baseline
-    self.pull.ext -= offset
+    self.trap.ext -= offset
     self._ext_offset = offset
     return offset
 
   def recalculate(self, stiffness=None):
     if stiffness and len(stiffness) != 2:
       raise ValueError('Stiffness must be 2-tuple')
-    current_k = self.metadata.get('stiffness', constants.stiffness)
-    ratio_current_k = min(current_k)/max(current_k)
+    current_k = self.trap.metadata.get('stiffness', constants.stiffness)
     new_k = stiffness or current_k
-    self.metadata['stiffness'] = new_k
-    beadRadii = self.metadata.get('bead_radii', constants.sumOfBeadRadii)
+    self.trap.metadata['stiffness'] = new_k
+    beadRadii = self.trap.metadata.get('bead_radii', constants.sumOfBeadRadii)
 
-    displacement = self.pull.f/min(current_k)
+    displacement = self.trap.f/min(current_k)
     ratio = 1+min(new_k)/max(new_k)
 
-    self.pull.f = displacement*min(new_k)
-    self.pull.ext = self.pull.sep - beadRadii - displacement*ratio - self._ext_offset
+    self.trap.f = displacement*min(new_k)
+    self.trap.ext = self.trap.sep - beadRadii - displacement*ratio - self._ext_offset
     return self
 
   def plot(self, **kwargs):
     kwargs.setdefault('FEC', self.fits or not self.fret)
     kwargs.setdefault('title', self.filename or '')
-    loc_x = min(self.pull.ext)+10
+    loc_x = min(self.trap.ext)+10
     location = list(kwargs.setdefault('annotate', (loc_x, 15)))
     if self.fret:
-      self.figure.plot(self.fret, self.pull, **kwargs)
+      self.figure.plot(self.fret, self.trap, **kwargs)
     else:
-      self.figure.plot(self.pull, **kwargs)
+      self.figure.plot(self.trap, **kwargs)
     if self.handles:
       self.figure.plot(self.handles, hold=True)
       self.figure.annotate(unicode(self.handles), location)
@@ -510,9 +502,9 @@ class Pulling(Base):
       self.figure.annotate(text, location)
     return self.figure
 
-  def pickLimits(fig=None):
+  def pickLimits(self, fig=None):
     if not fig: fig=plt.gcf()
-    firstPoint,secondPoint = ginput(2)
+    firstPoint,secondPoint = plt.ginput(2)
 
   def savefig(self, filename=None, path='.'):
     if self.figure is None or not self.figure.exists:
@@ -539,7 +531,7 @@ class OpenLoop(Base):
   def __init__(self, pull, fret, **metadata):
     super(OpenLoop, self).__init__(pull, fret, **metadata)
 
-  FNAME_FLAGS = ('min', 'sec', 'force')
+  OPENLOOP_FNAME_SYNTAX = ('min', 'sec', 'force')
 
   @classmethod
   def hasFiletype(cls, filename):
@@ -548,7 +540,7 @@ class OpenLoop(Base):
     if not finfo:
       logger.warning('Problem parsing filename "{}"'.format(filename))
       return False
-    for attr in OpenLoop.FNAME_FLAGS:
+    for attr in OpenLoop.OPENLOOP_FNAME_SYNTAX:
       if getattr(finfo, attr) is not None:
         return True
     return False
