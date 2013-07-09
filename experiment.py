@@ -4,7 +4,8 @@ import logging
 import cPickle as pickle
 import re
 
-from numpy import min, max, asarray, sum, mean, all, any
+from matplotlib.mlab import find
+from numpy import min, max, asarray, sum, mean, all, any, diff
 import matplotlib.pyplot as plt
 
 import fileIO 
@@ -176,6 +177,9 @@ class List(list):
   def fitHandles(self, *args, **kwargs):
     return self.call('fitHandles', *args, **kwargs)
 
+  def findRip(self, min_rip_ext=None):
+      return asarray(self.call('findRip', min_rip_ext))
+  
   def fitRip(self, *args, **kwargs):
     return self.call('fitRip', *args, **kwargs)
 
@@ -233,6 +237,41 @@ class List(list):
                       for i, item in enumerate(self))
     return '[' + fmt + ']'
 
+class RipAnalysis(object):
+  '''Analyze rips
+  rips = RipAnalysis.fromExperiments( List )
+  RipAnalysis.fromTrapData( list ) ??
+  rips.f
+  rips.ext
+  rips.sep
+  mean rips.f
+  std rips.f
+  '''
+  DEFAULT_MIN_RIP_EXT = 970
+  
+  def __init__(self, experiments):
+    self.experiments = List(experiments)
+    
+  @classmethod
+  def fromExperiments(cls, exps):
+    newRips = cls(exps)
+    newRips.calculate(RipAnalysis.DEFAULT_MIN_RIP_EXT)
+    return newRips
+
+  def calculate(self, min_rip_ext=None):
+    self.rips = self.experiments.findRip(min_rip_ext)
+    
+  def mean(self):
+    return mean(self.rips, axis=0)
+    
+  @property
+  def f(self):
+    return self.rips[:,1]
+
+  @property
+  def ext(self):
+      return self.rips[:,0]
+  
 class Figure(object):
   def __init__(self, fignumber=None):
     self.figure = plt.figure(fignumber) if fignumber else None
@@ -374,6 +413,15 @@ class Pulling(Base):
     except IOError:
       raise ExperimentError('IOError loading file: check image file location!')
 
+  def findRip(self, min_rip_ext=None):
+    min_rip_ext = self.handles.ext_range[1] if not min_rip_ext and self.handles \
+        else min_rip_ext or None
+    if min_rip_ext is None:
+      raise ValueError('Must specify a min_rip_ext below which no rips occur')
+    handle_deriv = diff(self.trap.select(x=(None,min_rip_ext)).f)
+    rip_location = find(diff(self.trap.f) < min(handle_deriv))[0]
+    return self.trap[rip_location].data
+
   def fitHandles(self, x=None, f=None, **fitOptions):
     'Fit a WLC model to the lower part of the FEC corresponding to the handle stretching'
     fitOptions.setdefault('fitfunc','MMS')
@@ -419,6 +467,8 @@ class Pulling(Base):
     "Fit WLC to Pulling curve and plot"
     pull = self.trap.select(x, f, (start,stop))
     fit = fitWLC(pull.ext, pull.f, **fitOptions)
+    fit.ext_range = (min(pull.ext), max(pull.ext))
+    fit.f_range = (min(pull.f), max(pull.f))
     self.lastFit = fit
     if self.figure.exists:
       self.figure.plot(fit, hold=True)
