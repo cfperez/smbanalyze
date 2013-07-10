@@ -9,7 +9,7 @@ from inspect import isfunction
 
 import numpy as np
 
-from useful import toNum, toInt, isInt, makeMatchStrFromArgs
+from useful import toNum, toInt, makeMatchStrFromArgs
 
 IMAGE_FILE = '.img'
 CAMERA_FILE = '.cam'

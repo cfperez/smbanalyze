@@ -3,15 +3,14 @@ from nose.tools import raises
 import operator
 import os.path as path
 import os
-import pickle
 from mock import Mock, patch, MagicMock
 from numpy import array
 
 from smbanalyze import experiment, fileIO, datatypes, image
 
 class TestCase(unittest.TestCase):
-  def _startPatch(self, to_patch):
-    patch_obj = patch(to_patch)
+  def _startPatch(self, to_patch, **kwargs):
+    patch_obj = patch(to_patch, **kwargs)
     self.addCleanup(patch_obj.stop)
     return patch_obj.start()
 
@@ -60,9 +59,6 @@ def testPullingLoadimgNoImage(fromFile):
 def testExperimentFromMatch():
   filenames = filegetter(pulls)
   assert set(map(path.normpath, filenames)) == set(LOADED_FILES)
-
-def testExperimentFromMatchWithOpenLoopExperiments():
-  pass
 
 def testExperimentFromFiles():
   loaded = experiment.fromFiles(LOADED_FILES)
@@ -166,15 +162,15 @@ class TestExperimentRipAnalysis(TestCase):
     
   def testConstructorOneExperiment(self):
     #rips = experiment.RipAnalysis.fromExperiments(pull)
-    rips = experiment.RipAnalysis(self.pull)
+    experiment.RipAnalysis(self.pull)
     self.pull.findRip.assert_called()
     
   def testFromExperimentsOneExperiment(self):
-    rips = experiment.RipAnalysis.fromExperiments(self.pull)
+    experiment.RipAnalysis.fromExperiments(self.pull)
     self.pull.findRip.assert_called()
     
   def testFromExperimentsTwoExperiments(self):
-    rips = experiment.RipAnalysis.fromExperiments(self.pull, self.pull)
+    experiment.RipAnalysis.fromExperiments(self.pull, self.pull)
     self.pull.findRip.assert_called()
     
   def checkSimpleOutput(self, rips):
@@ -188,14 +184,9 @@ class TestExperimentRipAnalysis(TestCase):
     
   def testRipStatisticsFiveExperiments(self):
     rips = experiment.RipAnalysis(experiment.List([self.pull]*5))
-    print rips.mean()
+    rips.mean()
     
-class TestLoadingExperimentsFromFile(unittest.TestCase):
-
-  def _startPatch(self, to_patch):
-    patch_obj = patch(to_patch)
-    self.addCleanup(patch_obj.stop)
-    return patch_obj.start()
+class TestLoadingExperimentsFromFile(TestCase):
 
   def setUp(self):
     self.exists = self._startPatch('smbanalyze.experiment.path.exists')
@@ -207,23 +198,29 @@ class TestLoadingExperimentsFromFile(unittest.TestCase):
     self.tdata = self._startPatch('smbanalyze.experiment.TrapData')
     self.tdata.fromFile.return_value = datatypes.TrapData.fromFields(*data[:3])
 
+  def checkFromFileCalls(self, filename):
+    self.tdata.fromFile.assert_called_with(filename+fileIO.PULL_FILE)
+    self.fdata.fromFile.assert_called_with(filename+fileIO.FRET_FILE)
+    
   def testFromFileReturnsPullingExpWithStrFileNoTime(self):
     filename = 'construct_0.5nM_s1m1'
     self.checkExperimentWithFilename(filename, experiment.Pulling)
-    self.tdata.fromFile.assert_called_with(filename+fileIO.PULL_FILE)
-    self.fdata.fromFile.assert_called_with(filename+fileIO.FRET_FILE)
+    self.checkFromFileCalls(filename)
+    
+  def testFromFileReturnsPullingExpWithStrFileNoConditions(self):
+    filename = 'construct_100pM_s1m1'
+    self.checkExperimentWithFilename(filename, experiment.Pulling)
+    self.checkFromFileCalls(filename)
 
   def testFromFileReturnsOpenLoopExpWithForceInBasename(self):
     filename = 'construct_0.5nM_s1m1_5pN'
     self.checkExperimentWithFilename(filename, experiment.OpenLoop)
-    self.tdata.fromFile.assert_called_with(filename+fileIO.PULL_FILE)
-    self.fdata.fromFile.assert_called_with(filename+fileIO.FRET_FILE)
+    self.checkFromFileCalls(filename)
 
   def testFromFileReturnsOpenLoopExpWithTimeInBasename(self):
     filename = 'construct_0.5nM_s1m1_2min'
     self.checkExperimentWithFilename(filename, experiment.OpenLoop)
-    self.tdata.fromFile.assert_called_with(filename+fileIO.PULL_FILE)
-    self.fdata.fromFile.assert_called_with(filename+fileIO.FRET_FILE)
+    self.checkFromFileCalls(filename)
 
   def testFromFileReturnsOpenLoopExpWithStrFileAndTime(self):
     filename = 'construct_0.5nM_s1m1_2min.str'
@@ -247,7 +244,6 @@ class TestLoadingExperimentsFromFile(unittest.TestCase):
     self.assertEqual(exp.filename, fileIO.splitext(filename)[0])
     self.assertEqual(exp.trap, self.tdata.fromFile.return_value)
     self.assertEqual(exp.fret, self.fdata.fromFile.return_value)
-
 
 class TestOpenLoopLoading(unittest.TestCase):
 
@@ -277,6 +273,10 @@ class TestOpenLoopLoading(unittest.TestCase):
     for tt in self.time_types:
       self.checkTimeTest(tt)
 
+  def testhasFilteypeReturnsFalseWithPullingSyntax(self):
+      self.assertFalse( self.hasFiletype('construct_100nM_s1m1'))
+      self.assertFalse( self.hasFiletype('construct_100nM_s1m1_2'))
+      
   def checkTimeTest(self, time_type):
     time_test = 'SJF4_0.5nM_s1m3_3_2{}.fret'.format(time_type)
     self.assertTrue( self.hasFiletype(time_test) )
@@ -294,3 +294,18 @@ class TestOpenLoopLoading(unittest.TestCase):
       exp = experiment.OpenLoop.fromFile(fname)
       fdata.fromFile.assert_called_with(fname+fileIO.FRET_FILE)
       self.assertEquals(exp.fret, data)
+
+class TestExperimentFromMatch(TestCase):
+    def setUp(self):
+        self.flist = self._startPatch('smbanalyze.experiment.fileIO.flist')
+        self.openloop = self._startPatch('smbanalyze.experiment.OpenLoop.fromFile')
+        self.pulling = self._startPatch('smbanalyze.experiment.Pulling.fromFile')
+        
+    def testReturnsPullingAndOpenLoopExperiment(self):
+        files =  ['construct_100pM_s1m1_2.str','construct_10nM_s1m1_3_5pN.str']
+        self.flist.return_value = files
+        pulls = experiment.fromMatch('construct')
+        self.assertEqual(len(pulls), len(files))
+        self.flist.assert_called_with('construct', '.str')
+        self.pulling.assert_called_with(files[0])
+        self.openloop.assert_called_with(files[1])

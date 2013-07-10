@@ -5,7 +5,7 @@ import cPickle as pickle
 import re
 
 from matplotlib.mlab import find
-from numpy import min, max, asarray, sum, mean, all, any, diff, std
+from numpy import min, max, asarray, sum, mean, all, any, diff, std, vstack
 import matplotlib.pyplot as plt
 
 import fileIO 
