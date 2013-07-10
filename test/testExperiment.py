@@ -1,4 +1,5 @@
 import unittest
+from nose.tools import raises
 import operator
 import os.path as path
 import os
@@ -6,15 +7,13 @@ import pickle
 from mock import Mock, patch, MagicMock
 from numpy import array
 
-from smbanalyze import experiment, fileIO, datatypes
+from smbanalyze import experiment, fileIO, datatypes, image
 
-class FigStub(object):
-  def __init__(self):
-    self.plotCalled = False
-  def plot(self, *args, **kwargs):
-    self.plotCalled = True
-  def annotate(self, text, location):
-    self.annotateCalled = True
+class TestCase(unittest.TestCase):
+  def _startPatch(self, to_patch):
+    patch_obj = patch(to_patch)
+    self.addCleanup(patch_obj.stop)
+    return patch_obj.start()
 
 def attrgetter(attr):
   return lambda x: map(operator.attrgetter(attr), x)
@@ -45,10 +44,18 @@ def testPullingFromFile():
   pullLoad = [ experiment.Pulling.fromFile(f) for f in LOADED_FILES ]
   assert filegetter(pullLoad) == LOADED_FILES
 
-def testPullingLoadimg():
+@patch('smbanalyze.image.fromFile')
+def testPullingLoadimg(fromFile):
   pull = pulls[1] # test_s1m2
-  img = pull.loadimg()
-  assert path.splitext(img.filename)[0] == path.splitext(pull.filename)[0]
+  pull.loadimg()
+  fromFile.assert_called_with(pull.filename)
+  
+@patch('smbanalyze.image.fromFile')
+@raises(experiment.ExperimentError)
+def testPullingLoadimgNoImage(fromFile):
+  pull = pulls[1]
+  fromFile.side_effect = IOError
+  pull.loadimg()
 
 def testExperimentFromMatch():
   filenames = filegetter(pulls)
@@ -80,9 +87,8 @@ def testPullingLoad():
 
 def testExperimentPlot():
   for a_pull in pulls:
-    a_pull.figure = FigStub()
+    a_pull.figure = Mock(autospec=experiment.Figure)
     a_pull.plot()
-    assert a_pull.figure.plotCalled == True
 
 def testList():
   pull_list = experiment.List(pulls)
@@ -141,18 +147,49 @@ class TestDatatypes(unittest.TestCase):
     return patch_obj.start()
 
   def setUp(self):
+    self.data = array([[1,2,3],[4,5,6]])
     def load_file_mock(filename, **kwargs):
-      return {}, array([[1,2,3],[4,5,6]])
-
+      return self.data
     self.load = self._startPatch('smbanalyze.datatypes.load')
+    self.load.return_value = ({},self.data)
 
   def testLoad(self):
-    data = array([[1,2,3],[4,5,6]])
-    self.load.return_value = ({},data)
     fdata = datatypes.FretData.fromFile('testing')
     self.load.assert_called_with('testing', comments=fileIO.toSettings)
-    self.assertEqual(data.tolist(), fdata.data.tolist())
+    self.assertEqual(self.data.tolist(), fdata.data.tolist())
 
+class TestExperimentRipAnalysis(TestCase):
+  def setUp(self):
+    self.pull = MagicMock(autospec=experiment.Pulling)
+    self.ripData = array([500,10,1000])
+    self.pull.findRip.return_value = self.ripData
+    
+  def testConstructorOneExperiment(self):
+    #rips = experiment.RipAnalysis.fromExperiments(pull)
+    rips = experiment.RipAnalysis(self.pull)
+    self.pull.findRip.assert_called()
+    
+  def testFromExperimentsOneExperiment(self):
+    rips = experiment.RipAnalysis.fromExperiments(self.pull)
+    self.pull.findRip.assert_called()
+    
+  def testFromExperimentsTwoExperiments(self):
+    rips = experiment.RipAnalysis.fromExperiments(self.pull, self.pull)
+    self.pull.findRip.assert_called()
+    
+  def checkSimpleOutput(self, rips):
+    self.assertEqual(rips.f, self.ripData[1])
+    self.assertEqual(rips.ext, self.ripData[0])
+    #self.assertListEqual(rips.mean().tolist(), self.pull.findRip().tolist())
+    
+  def testRipStatisticsOneExperiment(self):
+    rips = experiment.RipAnalysis(self.pull)
+    self.checkSimpleOutput(rips)
+    
+  def testRipStatisticsFiveExperiments(self):
+    rips = experiment.RipAnalysis(experiment.List([self.pull]*5))
+    print rips.mean()
+    
 class TestLoadingExperimentsFromFile(unittest.TestCase):
 
   def _startPatch(self, to_patch):

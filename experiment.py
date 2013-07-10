@@ -5,7 +5,7 @@ import cPickle as pickle
 import re
 
 from matplotlib.mlab import find
-from numpy import min, max, asarray, sum, mean, all, any, diff
+from numpy import min, max, asarray, sum, mean, all, any, diff, std
 import matplotlib.pyplot as plt
 
 import fileIO 
@@ -62,7 +62,7 @@ def collapseArgList(arglist):
     return arglist
 
 class List(list):
-  def __init__(self, iterable):
+  def __init__(self, iterable=[]):
     super(List, self).__init__(iterable)
     try:
       self.sort(key=attrgetter('info.mol'))
@@ -249,20 +249,32 @@ class RipAnalysis(object):
   '''
   DEFAULT_MIN_RIP_EXT = 970
   
-  def __init__(self, experiments):
-    self.experiments = List(experiments)
+  def __init__(self, *exps):
+    self.experiments = List()
+    self.addExperiments(exps)
     
   @classmethod
-  def fromExperiments(cls, exps):
-    newRips = cls(exps)
+  def fromExperiments(cls, *exps):
+    newRips = cls(*exps)
     newRips.calculate(RipAnalysis.DEFAULT_MIN_RIP_EXT)
     return newRips
+
+  def addExperiments(self, *exps):
+    exps = collapseArgList(exps)
+    self.experiments += List(exps)
+    self.calculate(RipAnalysis.DEFAULT_MIN_RIP_EXT)
 
   def calculate(self, min_rip_ext=None):
     self.rips = self.experiments.findRip(min_rip_ext)
     
   def mean(self):
     return mean(self.rips, axis=0)
+
+  def std(self):
+    return std(self.rips, axis=0)
+
+  def statistics(self):
+    return vstack((self.mean(), self.std()))
     
   @property
   def f(self):
@@ -270,7 +282,10 @@ class RipAnalysis(object):
 
   @property
   def ext(self):
-      return self.rips[:,0]
+    return self.rips[:,0]
+  
+  def plot(self):
+    raise NotImplementedError
   
 class Figure(object):
   def __init__(self, fignumber=None):
@@ -406,8 +421,8 @@ class Pulling(Base):
       fretfile = None
     return super(Pulling, cls).fromFile(strfile, fretfile)
 
-  def loadimg(self, path='.', **kwargs):
-    filename = self.filename
+  def loadimg(self, directory='.', **kwargs):
+    filename = self.filename if directory=='.' else path.join(directory, self.filename)
     try:
       return image.fromFile(filename, **kwargs)
     except IOError:

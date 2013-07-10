@@ -1,8 +1,6 @@
 import inspect
-from operator import isSequenceType
-from itertools import izip
 
-from numpy import arccos, cos, exp, sqrt, log, fabs, pi, roots, real
+from numpy import roots, real
 import numpy as np 
 
 try:
