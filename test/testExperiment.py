@@ -47,7 +47,7 @@ def testPullingFromFile():
 def testPullingLoadimg(fromFile):
   pull = pulls[1] # test_s1m2
   pull.loadimg()
-  fromFile.assert_called_with(pull.filename)
+  fromFile.assert_called_with(fileIO.add_img_ext(pull.filename))
   
 @patch('smbanalyze.image.fromFile')
 @raises(experiment.ExperimentError)

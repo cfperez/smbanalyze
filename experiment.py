@@ -424,7 +424,7 @@ class Pulling(Base):
   def loadimg(self, directory='.', **kwargs):
     filename = self.filename if directory=='.' else path.join(directory, self.filename)
     try:
-      return image.fromFile(filename, **kwargs)
+      return image.fromFile(fileIO.add_img_ext(filename), **kwargs)
     except IOError:
       raise ExperimentError('IOError loading file: check image file location!')
 
