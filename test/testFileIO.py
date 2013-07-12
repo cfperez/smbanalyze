@@ -9,9 +9,12 @@ glob_mock = Mock(spec='glob.glob')
 class TestFlist(unittest.TestCase):
 
   def testCallsWithGlobOperator(self):
-    glob_mock.return_value = []
-    self.assertEquals( fio.flist(''), [] )
-    glob_mock.assert_called_with('*')
+    fio.flist('SJ')
+    glob_mock.assert_called_with('*SJ*')
+    
+  def testMultipleGlobs(self):
+    fio.flist('SJ','s1m1')
+    glob_mock.assert_called_with('*SJ*s1m1*')
 
 class TestParseFilename(unittest.TestCase):
   def setUp(self):

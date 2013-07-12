@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 
 import fileIO 
 from curvefit import fitWLC
-from useful import groupat, makeMatchStrFromArgs
+from useful import groupat
 import fplot
 import constants
 import image
@@ -35,12 +35,21 @@ def fromData(*datalist, **kwargs):
 def fromMatch(*fglob):
   'Load experiments from files using concatenation of argument list as a glob'
   fglob = list(fglob)
-  files = fileIO.flist(fglob[0], fileIO.PULL_FILE)
+  #files = experiment_flist(fglob[0])
+  files = experiment_flist(*fglob)
   fglob[0] = path.basename(fglob[0])
   if not files:
     raise ExperimentError("No files found matching glob '{0}'".format(fglob))
-  matched = filter(lambda x: re.search(makeMatchStrFromArgs(*fglob), fileIO.splitext(x)[0]), files)
-  return fromFiles(matched)
+  matched = filter(
+    lambda fname: re.search(fileIO.makeMatchStrFromArgs(*fglob), fileIO.splitext(fname)[0]),
+    files)
+  return fromFiles(files)
+  
+def experiment_flist(*fglob):
+  'Return list of unique filenames (without extension) of pulling and fret file types'
+  files = fileIO.filtered_flist(*fglob, extensions=(fileIO.PULL_FILE, fileIO.FRET_FILE))
+  files = map(lambda s: fileIO.splitext(s)[0], files)
+  return list(set(files))
 
 def fromFiles(*filelist):
   'Load experiments from a list of files or an argument list'
@@ -76,7 +85,7 @@ class List(list):
 
   def matching(self, *match):
     "Return List with experiment names matching *match globs"
-    return self.filter(lambda x: re.search(makeMatchStrFromArgs(*match), x.filename))
+    return self.filter(lambda x: re.search(fileIO.makeMatchStrFromArgs(*match), x.filename))
 
   def get(self, name, *more):
     "Get all attributes of experiments in List by name: mol.get('f')"

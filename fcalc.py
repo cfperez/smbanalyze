@@ -33,10 +33,10 @@ def processMatch(*fglob, **kwargs):
 
 def processFiles(flist, roi='roi.txt', background=None, 
 	verbose=True, ext=fileIO.FRET_FILE, **calcOptions):
-  "Process files given in flist as images"
+  "Calculate donor, acceptor, and FRET values for files in flist argument."
 
   if isinstance(background, str):
-    BG = image.fromFile(background,background=True)
+    BG = image.fromFile(background, background=True)
   elif isinstance(background, int):
     BG = background
   else:

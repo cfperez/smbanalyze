@@ -57,19 +57,6 @@ def fix_args(f, **fixed):
 
   return _f
 
-def makeMatchStrFromArgs(*globs, **options):
-  globs = list(globs)
-  last = globs[-1]
-  if isInt(last):
-    globs[-1] = '_'+last
-  if options.get('re_match', True):
-    anychar = '.*'
-    endmatch = r'(_|$)'
-  else:
-    anychar = '*'
-    endmatch = ''
-  return r'{any}{pattern}{end}'.format(pattern=anychar.join(globs), any=anychar, end=endmatch)
-
 ## {{{ http://code.activestate.com/recipes/576693/ (r9)
 # Backport of OrderedDict() class that runs on Python 2.4, 2.5, 2.6, 2.7 and pypy.
 # Passes Python2.7's test suite and incorporates all the latest updates.

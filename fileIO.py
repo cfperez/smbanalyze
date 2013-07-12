@@ -9,7 +9,7 @@ from inspect import isfunction
 
 import numpy as np
 
-from useful import toNum, toInt, makeMatchStrFromArgs
+from useful import toNum, toInt, isInt
 
 IMAGE_FILE = '.img'
 CAMERA_FILE = '.cam'
@@ -18,9 +18,40 @@ PULL_FILE = '.str'
 
 REGISTERED_EXT = (IMAGE_FILE,CAMERA_FILE,FRET_FILE,PULL_FILE)
 
+def filtered_flist(*globs, **options):
+  extensions = options.get('extensions', REGISTERED_EXT)
+  assert(len(globs)>0)
+  files = flist(*globs)
+  return filter_extensions(files, extensions)
+  
+def filter_extensions(files, extensions):
+  filtered_files = files
+  def condition(s):
+    for ext in extensions:
+      if s.endswith(ext):
+        return True
+    return False
+  filtered_files = filter(condition, filtered_files)
+  return filtered_files
+
 def flist(*globs):
+  assert(len(globs)>0)
   return glob.glob(makeMatchStrFromArgs(*globs, re_match=False))
 fmatch = flist
+
+def makeMatchStrFromArgs(*globs, **options):
+  globs = list(globs)
+  last = globs[-1]
+  if isInt(last):
+    globs[-1] = '_'+last
+  if options.get('re_match', True):
+    anychar = '.*'
+    endmatch = r'(_|$)'
+  else:
+    anychar = '*'
+    endmatch = '*'
+  return r'{any}{pattern}{end}'.format(pattern=anychar.join(globs), any=anychar, end=endmatch)
+
 
 class fileIOError(Exception):
   IGNORE = 2
