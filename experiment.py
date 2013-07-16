@@ -75,9 +75,6 @@ def collapseArgList(arglist):
     return arglist
 
 class List(list):
-  def __new__(cls, iterable=[]):
-    return super(List, cls).__new__(cls, iterable)
-
   def __init__(self, iterable=[]):
     super(List, self).__init__(iterable)
     try:
@@ -89,6 +86,12 @@ class List(list):
   def filter(self, condition):
     "Returns a List with experiments matching condition"
     return List( filter(condition, self) )
+
+  def auto_filter(self):
+    "Returns list with auto_filter options applied"
+    options = Options.filtering
+    autoforce = options.required_pulling_force
+    return self.has_value(trap_f_atleast=autoforce) if autoforce else self
 
   def matching(self, *match):
     "Return List with experiment names matching *match globs"
@@ -187,7 +190,7 @@ class List(list):
     else:
       attr = attr or 'trap'
       fplot.plotall( self.get(attr), hold=True, **options)
-    self.figure = Figure.fromCurrent()
+    self.figure = fplot.Figure.fromCurrent()
     return self.figure
 
   def savefig(self, filename):
@@ -232,14 +235,11 @@ class List(list):
     x_range The range of extensions used to calculate the force offset.
             None (default) uses value Pulling.forceOffsetRange
     '''
-    auto_force = Options.auto_filter_pulling_force
-    if auto_force:
-      f_cutoff = (f_range and f_range[1]) or auto_force
-      to_adjust = self.has_value(trap_f_atleast=f_cutoff)
-      if to_adjust != self:
-        msg = '"auto_filter_pulling_force" = {} -- ignoring experiments with f < {} pN!'
-        logger.warning(msg.format(auto_force, f_cutoff))
-        self = to_adjust
+    to_adjust = self.auto_filter()
+    if to_adjust != self:
+      msg = 'Ignoring experiments below {} pN!'
+      logger.warning(msg.format(Options.filtering.required_pulling_force))
+      self = to_adjust
     foffset = self.adjustForceOffset(to_f, x_range)
     xoffset = self.adjustExtensionOffset(to_x, f_range)
     return xoffset, foffset
@@ -671,7 +671,7 @@ class OptionDict(dict):
 Options = OptionDict({
   'loading': {
     'filename_matching': True},
-  'auto_filter_pulling_force': Pulling.extensionOffsetRange[1],
+  'filtering': {
+    'required_pulling_force': Pulling.extensionOffsetRange[1]}
   
 })
-

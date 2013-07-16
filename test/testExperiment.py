@@ -302,7 +302,7 @@ class TestExperimentFromMatch(TestCase):
         self.flist = self._startPatch('smbanalyze.fileIO.flist')
         self.openloop = self._startPatch('smbanalyze.experiment.OpenLoop.fromFile')
         self.pulling = self._startPatch('smbanalyze.experiment.Pulling.fromFile')
-        experiment.Options.auto_filter_pulling_force = False
+        experiment.Options.filtering.required_pulling_force = False
         experiment.Options.loading.filename_matching = True
         
     def testReturnsPullingAndOpenLoopExperiment(self):
