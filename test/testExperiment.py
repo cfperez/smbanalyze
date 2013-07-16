@@ -6,7 +6,7 @@ import os
 from mock import Mock, patch, MagicMock
 from numpy import array
 
-from smbanalyze import experiment, fileIO, datatypes, image
+from smbanalyze import experiment, fileIO, datatypes, image, fplot
 
 class TestCase(unittest.TestCase):
   def _startPatch(self, to_patch, **kwargs):
@@ -22,10 +22,11 @@ filegetter = lambda f: attrgetter('filename')(f)
 def setUp():
   global pulls, LOADED_FILES
   os.chdir('test/')
-  with patch('smbanalyze.experiment.Figure') as mock:
+  experiment.Options['loading']['filename_matching'] = False
+  with patch('smbanalyze.fplot.Figure') as mock:
     pulls = experiment.fromMatch('test')
   LOADED_FILES = map( path.normpath, 
-    [r'test_s1m1', r'test_s1m2', r'test_s1m3', ]
+    [r'test_s1m1', r'test_s1m2', r'test_s1m3', r'test_s1m4']
   )
 
 def testRipFitting():
@@ -83,7 +84,7 @@ def testPullingLoad():
 
 def testExperimentPlot():
   for a_pull in pulls:
-    a_pull.figure = Mock(autospec=experiment.Figure)
+    a_pull.figure = Mock(autospec=fplot.Figure)
     a_pull.plot()
 
 def testList():
@@ -249,7 +250,7 @@ class TestLoadingExperimentsFromFile(TestCase):
 class TestOpenLoopLoading(unittest.TestCase):
 
   def setUp(self):
-    self.hasFiletype = experiment.OpenLoop.hasFiletype
+    self.hasFiletype = experiment.OpenLoop.filenameMatchesType
     self.force_time_test = lambda f,t: 'SJF4_0.5nM_s1m3_3_{}pN_2{}.fret'.format(f,t)
     
     self.time_types = ('min','s')
@@ -298,15 +299,16 @@ class TestOpenLoopLoading(unittest.TestCase):
 
 class TestExperimentFromMatch(TestCase):
     def setUp(self):
-        self.flist = self._startPatch('smbanalyze.experiment.fileIO.flist')
+        self.flist = self._startPatch('smbanalyze.fileIO.flist')
         self.openloop = self._startPatch('smbanalyze.experiment.OpenLoop.fromFile')
         self.pulling = self._startPatch('smbanalyze.experiment.Pulling.fromFile')
+        experiment.Options.auto_filter_pulling_force = False
+        experiment.Options.loading.filename_matching = True
         
     def testReturnsPullingAndOpenLoopExperiment(self):
-        files =  ['construct_100pM_s1m1_2','construct_10nM_s1m1_3_5pN']
+        files = ['construct_100pM_s1m1_2','construct_10nM_s1m1_3_5pN']
         self.flist.return_value = map(fileIO.add_pull_ext, files)
         pulls = experiment.fromMatch('construct')
-        self.assertEqual(len(pulls), len(files))
+        self.assertEqual(len(pulls), 1)
         self.flist.assert_called_with('construct')
         self.pulling.assert_called_with(files[0])
-        self.openloop.assert_called_with(files[1])

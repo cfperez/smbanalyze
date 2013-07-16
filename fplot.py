@@ -1,8 +1,66 @@
 import operator
+from itertools import cycle
+from collections import defaultdict
 import matplotlib.pyplot as plt
 from numpy import concatenate
 
 from datatypes import TrapData,hasTrapData,hasFretData
+
+class Figure(object):
+  def __init__(self, fignumber=None):
+    self.figure = plt.figure(fignumber) if fignumber else None
+
+  @classmethod
+  def fromCurrent(cls):
+    return cls(plt.gcf().number)
+
+  def new(self):
+    self.figure = plt.figure()
+
+  @property
+  def exists(self):
+    return self.figure is not None and plt.fignum_exists(self.figure.number)
+
+  def makeCurrent(self):
+    if not self.exists:
+      raise RuntimeError('Figure object does not exist')
+    plt.figure(self.figure.number)
+    return self
+
+  def plot(self, *args, **kwargs):
+    if not self.exists:
+      self.new()
+    else:
+      self.makeCurrent()
+    try:
+      # Treat the first argument as an object that can plot itself...
+      return args[0].plot(*args[1:], **kwargs)
+    except AttributeError:
+      # ...unless it can't
+      return plot(*args, **kwargs)
+
+  def clear(self):
+    if self.exists:
+      self.figure.clf()
+      self.figure.show()
+
+  def annotate(self, text, location):
+    "Annotate figure with text at location (x,y)"
+    x,y = location
+    return plt.text(x, y, text)
+  IMAGE_OUTPUT_FORMATS = ('emf', 'eps', 'pdf', 'png', 'ps',
+      'raw', 'rgba', 'svg', 'svgz') 
+
+  DEFAULT_SIZE = (9, 7.5)
+  def toFile(self, filename=None):
+    if filename:
+      ext = path.splitext(filename)[1]
+      if ext[1:] not in Figure.IMAGE_OUTPUT_FORMATS:
+        filename += constants.DEFAULT_FIGURE_EXT
+    else:
+      filename = 'Figure {0}{1}'.format(self.figure.number, constants.DEFAULT_FIGURE_EXT)
+    self.figure.set_size_inches(*Figure.DEFAULT_SIZE)
+    self.figure.savefig(filename, bbox_inches='tight', pad_inches=0.1)
 
 def plotall(fret, pull=None,  **kwargs):
   assert isinstance(fret, (list, tuple, type(None)))
@@ -29,6 +87,7 @@ fplot.plot() is going to plot: check PlotStyle.ITEMS
 """
 
   ITEMS = ('donor', 'acceptor', 'fret', 'pull')
+  STYLES = ('--','-','-','-')
   DEFAULT = dict(zip(ITEMS, ('--','-','-','-')))
 
   def __init__(self, **styles):
@@ -40,13 +99,26 @@ fplot.plot() is going to plot: check PlotStyle.ITEMS
       raise ValueError('Item "{}" is not plotted and has no style')
     super(PlotStyle, self).__setitem__(key, value)
 
+  def _nextColor(self):
+    pass
+
+COLOR_CYCLE = plt.rcParams['axes.color_cycle']
+COLOR = (color for color in cycle(COLOR_CYCLE))
+
 def plot(data, pull=None, style=PlotStyle(), **kwargs):
   """Plot FretData and/or TrapData as stacked subplots of counts, FRET, and FEC/FDC
   @data: datatypes.AbstractData
   @pull: datatypes.AbstractData
-  @style: PlotStyle
+  @style: dict or str
   """
-  assert isinstance(style, PlotStyle)
+  if isinstance(style, str):
+    s = str(style)
+    style = defaultdict(lambda : s)
+    colorize = lambda s: next(COLOR)+s
+  else:
+    color = next(COLOR)
+    colorize = lambda s: color+s
+  assert isinstance(style, dict)
   loc = kwargs.get('legend', 'best')
   title = kwargs.get('title','')
   label = kwargs.get('label', '')
@@ -82,19 +154,19 @@ def plot(data, pull=None, style=PlotStyle(), **kwargs):
     plt.subplot(*next(layout))
     not hold and plt.cla()
     plt.hold(True)
-    ax1 = _subplot(data.time, data.donor, style[donor], label=donor)
-    _subplot(data.time, data.acceptor, style[acceptor], label=acceptor, axes=('','counts'))
+    ax1 = _subplot(data.time, data.donor, colorize(style[donor]), label=donor)
+    _subplot(data.time, data.acceptor, colorize(style[acceptor]), label=acceptor, axes=('','counts'))
     plt.hold(hold)
     if loc is not None:
       plt.legend(loc=loc,ncol=2,prop={'size':'small'})
     if displayFRET:
-      _subplot(data.time, data.fret, style['fret'], layout=next(layout), 
+      _subplot(data.time, data.fret, colorize(style['fret']), layout=next(layout), 
                 axes=('Seconds','FRET'))
 
   ax2 = None
   if pull:
     x_coord,x_label = (pull.ext,'Extension (nm)') if FEC else (pull.sep,'Separation (nm)')
-    ax2 = _subplot(x_coord, pull.f, '.', layout=next(layout), axes=(x_label,'Force (pN)'), label=label)
+    ax2 = _subplot(x_coord, pull.f, colorize('.'), layout=next(layout), axes=(x_label,'Force (pN)'), label=label)
     if loc is not None:
       plt.legend(loc=loc,ncol=2,prop={'size':'small'})
 
@@ -136,9 +208,6 @@ def _subplot(*args,**kwargs):
 def hist(data, bins=50, plot='fret', hold=False, **kwargs):
   plt.hold(hold)
   counts,bins,patches = plt.hist( getattr(data, plot), bins )
-        #map(operator.attrgetter(plot),data), bins)
-
   delta = bins[1]-bins[0]
   bins = (bins-delta/2)[1:]
-
   return bins,counts

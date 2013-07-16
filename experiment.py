@@ -1,8 +1,11 @@
 import os.path as path
 from operator import itemgetter, attrgetter, methodcaller, add
+import operator as op
 import logging
 import cPickle as pickle
 import re
+import abc
+from collections import MutableSequence
 
 from matplotlib.mlab import find
 from numpy import min, max, asarray, sum, mean, all, any, diff, std, vstack
@@ -32,20 +35,21 @@ def fromData(*datalist, **kwargs):
       output += [Pulling(pull,fret)]
     return output if len(output)>1 else output[-1]
 
-def fromMatch(*fglob):
-  'Load experiments from files using concatenation of argument list as a glob'
+def fromMatch(*globs):
+  return Pulling.fromMatch(*globs)
+
+def fromMatchAll(*fglob):
+  'Load Pulling experiments with filenames that contain all of the strings listed in the arguments'
   fglob = list(fglob)
-  #files = experiment_flist(fglob[0])
-  files = experiment_flist(*fglob)
+  files = filelist(*fglob)
   fglob[0] = path.basename(fglob[0])
   if not files:
     raise ExperimentError("No files found matching glob '{0}'".format(fglob))
   matched = filter(
-    lambda fname: re.search(fileIO.makeMatchStrFromArgs(*fglob), fileIO.splitext(fname)[0]),
-    files)
+    lambda fname: re.search(fileIO.makeMatchStrFromArgs(*fglob), fileIO.splitext(fname)[0]), files)
   return fromFiles(files)
   
-def experiment_flist(*fglob):
+def filelist(*fglob):
   'Return list of unique filenames (without extension) of pulling and fret file types'
   files = fileIO.filtered_flist(*fglob, extensions=(fileIO.PULL_FILE, fileIO.FRET_FILE))
   files = map(lambda s: fileIO.splitext(s)[0], files)
@@ -57,7 +61,7 @@ def fromFiles(*filelist):
   return List(map(fromFile, filelist))
 
 def fromFile(filename):
-  if OpenLoop.hasFiletype(filename):
+  if OpenLoop.filenameMatchesType(filename):
     return OpenLoop.fromFile(filename)
   else:
     return Pulling.fromFile(filename)
@@ -71,6 +75,9 @@ def collapseArgList(arglist):
     return arglist
 
 class List(list):
+  def __new__(cls, iterable=[]):
+    return super(List, cls).__new__(cls, iterable)
+
   def __init__(self, iterable=[]):
     super(List, self).__init__(iterable)
     try:
@@ -115,6 +122,18 @@ class List(list):
       return map( methodcaller(action, *args, **kwargs), self )
     except AttributeError:
       raise ExperimentError('Missing method {0} in a List element'.format(action))
+
+  COMPARE = {'greater': op.gt, 'atleast': op.ge, 'lesser': op.lt, 'atmost': op.le}
+
+  def has_value(self, **kwargs):
+    for key, value in kwargs.items():
+      attr, comparison = key.rsplit('_', 1)
+      attr = attr.replace('_','.')
+      try:
+        comparator = List.COMPARE[comparison]
+        return self.filter( lambda x: any(comparator(attrgetter(attr)(x), value)) )
+      except AttributeError:
+        raise ValueError('Comparison operator <{}> is not defined'.format(comparison))
 
   METADATA_CHECK = {'trap': ('step_size', 'sampling_time'),
                     'fret': ('exposurems', 'frames', 'gain', 'binning') }
@@ -192,8 +211,8 @@ class List(list):
   def fitRip(self, *args, **kwargs):
     return self.call('fitRip', *args, **kwargs)
 
-  def adjustForceOffset(self, *args, **kwargs):
-    return self.call('adjustForceOffset', *args, **kwargs)
+  def adjustForceOffset(self, baseline=0.0, offset=None, offset_range=None):
+    return self.call('adjustForceOffset', baseline, offset, offset_range)
 
   def adjustExtensionOffset(self, baseline=None, offset_range=None):
     baseline = baseline or mean(self.call('extensionOffset', offset_range))
@@ -213,9 +232,16 @@ class List(list):
     x_range The range of extensions used to calculate the force offset.
             None (default) uses value Pulling.forceOffsetRange
     '''
+    auto_force = Options.auto_filter_pulling_force
+    if auto_force:
+      f_cutoff = (f_range and f_range[1]) or auto_force
+      to_adjust = self.has_value(trap_f_atleast=f_cutoff)
+      if to_adjust != self:
+        msg = '"auto_filter_pulling_force" = {} -- ignoring experiments with f < {} pN!'
+        logger.warning(msg.format(auto_force, f_cutoff))
+        self = to_adjust
     foffset = self.adjustForceOffset(to_f, x_range)
-    mean_x = to_x or mean(self.call('extensionOffset', f_range))
-    xoffset = self.adjustExtensionOffset(mean_x, f_range)
+    xoffset = self.adjustExtensionOffset(to_x, f_range)
     return xoffset, foffset
 
   def saveall(self):
@@ -296,61 +322,6 @@ class RipAnalysis(object):
   def plot(self):
     raise NotImplementedError
   
-class Figure(object):
-  def __init__(self, fignumber=None):
-    self.figure = plt.figure(fignumber) if fignumber else None
-
-  @classmethod
-  def fromCurrent(cls):
-    return cls(plt.gcf().number)
-
-  def new(self):
-    self.figure = plt.figure()
-
-  @property
-  def exists(self):
-    return self.figure is not None and plt.fignum_exists(self.figure.number)
-
-  def makeCurrent(self):
-    if not self.exists:
-      raise RuntimeError('Figure object does not exist')
-    plt.figure(self.figure.number)
-    return self
-
-  def plot(self, *args, **kwargs):
-    if not self.exists:
-      self.new()
-    else:
-      self.makeCurrent()
-    try:
-      # Treat the first argument as an object that can plot itself...
-      return args[0].plot(*args[1:], **kwargs)
-    except AttributeError:
-      # ...unless it can't
-      return fplot.plot(*args, **kwargs)
-
-  def clear(self):
-    if self.exists:
-      self.figure.clf()
-      self.figure.show()
-
-  def annotate(self, text, location):
-    "Annotate figure with text at location (x,y)"
-    x,y = location
-    return plt.text(x, y, text)
-  IMAGE_OUTPUT_FORMATS = ('emf', 'eps', 'pdf', 'png', 'ps',
-      'raw', 'rgba', 'svg', 'svgz') 
-
-  DEFAULT_SIZE = (9, 7.5)
-  def toFile(self, filename=None):
-    if filename:
-      ext = path.splitext(filename)[1]
-      if ext[1:] not in Figure.IMAGE_OUTPUT_FORMATS:
-        filename += constants.DEFAULT_FIGURE_EXT
-    else:
-      filename = 'Figure {0}{1}'.format(self.figure.number, constants.DEFAULT_FIGURE_EXT)
-    self.figure.set_size_inches(*Figure.DEFAULT_SIZE)
-    self.figure.savefig(filename, bbox_inches='tight', pad_inches=0.1)
 
 class TrapSettings(object):
   pass
@@ -359,6 +330,8 @@ class Base(object):
   ".fret .f .ext and other meta-data (sample rate, trap speeds, )"
   # also classmethods which change experimental constants like bead radii,
   # trap stiffnesses, etc.
+  __metaclass__ = abc.ABCMeta
+
   def __init__(self, trap, fret, **metadata):
     if trap and not hasTrapData(trap):
       raise ExperimentError(
@@ -369,8 +342,12 @@ class Base(object):
     self.trap = trap
     self.fret = fret
     self.metadata = metadata
-    self.figure = Figure()
+    self.figure = fplot.Figure()
     self.filename = ''
+
+  @abc.abstractmethod
+  def filenameMatchesType(cls, filename):
+    pass
 
   @classmethod
   def fromFile(cls, strfile, fretfile):
@@ -390,6 +367,18 @@ class Base(object):
     assert hasattr(newCls, 'filename')
     assert newCls.filename is not None
     return newCls
+
+  @classmethod
+  def fromMatch(cls, *filename_pattern):
+    flist = filelist(*filename_pattern)
+    matched = filter(lambda fname: cls.filenameMatchesType(fname), flist)
+    files_not_loading = set(flist)-set(matched)
+    if Options.loading.filename_matching and files_not_loading:
+      msg = "Files matching pattern were skipped because of option 'filename_matching' is ON:\n{}"
+      logger.warning(msg.format('\n'.join(files_not_loading)))
+      return List(map(cls.fromFile, matched))
+    else:
+      return List(map(cls.fromFile, flist))
 
   def __repr__(self):
     if getattr(self,'filename', None):
@@ -429,6 +418,21 @@ class Pulling(Base):
     if not path.exists(fretfile):
       fretfile = None
     return super(Pulling, cls).fromFile(strfile, fretfile)
+
+  FILENAME_SYNTAX = ('construct', 'conditions', 'slide', 'mol', 'pull')
+
+  @classmethod
+  def filenameMatchesType(cls, filename):
+    assert isinstance(filename, str)
+    finfo = fileIO.parseFilename(filename)
+    if not finfo:
+      logger.warning('Problem parsing filename "{}"'.format(filename))
+      return False
+    for attr in finfo._fields:
+      val = getattr(finfo, attr)
+      if attr not in cls.FILENAME_SYNTAX and val:
+        return False
+    return True
 
   def loadimg(self, directory='.', **kwargs):
     filename = self.filename if directory=='.' else path.join(directory, self.filename)
@@ -605,16 +609,16 @@ class OpenLoop(Base):
   def __init__(self, pull, fret, **metadata):
     super(OpenLoop, self).__init__(pull, fret, **metadata)
 
-  OPENLOOP_FNAME_SYNTAX = ('min', 'sec', 'force')
+  FILENAME_SYNTAX = ('min', 'sec', 'force')
 
   @classmethod
-  def hasFiletype(cls, filename):
+  def filenameMatchesType(cls, filename):
     assert isinstance(filename, str)
     finfo = fileIO.parseFilename(filename)
     if not finfo:
       logger.warning('Problem parsing filename "{}"'.format(filename))
       return False
-    for attr in OpenLoop.OPENLOOP_FNAME_SYNTAX:
+    for attr in OpenLoop.FILENAME_SYNTAX:
       if getattr(finfo, attr) is not None:
         return True
     return False
@@ -633,3 +637,41 @@ class OpenLoop(Base):
 class ForceClamp(Base):
   "force-extension .tdms camera .cam image .img"
   pass
+
+class OptionError(Exception):
+  pass
+
+class OptionDict(dict):
+  def __init__(self, mapping):
+    for key, value in mapping.items():
+      if isinstance(value, dict):
+        mapping[key] = OptionDict(value)
+    super(OptionDict, self).__init__(mapping)
+
+  def __getattr__(self, key):
+    try:
+      return self[key]
+    except KeyError:
+      raise OptionError('Option "{}" does not exist'.format(key))
+
+  def __setattr__(self, key, val):
+    if isinstance(val, dict) or not self.has_key(key):
+      raise ValueError('Options are immutable! Can only set *existing* values.')
+    self[key] = val
+
+  def __repr__(self):
+    out = []
+    for key, value in self.items():
+      if isinstance(value, dict):
+        out.append("{}:\n\t{}".format(key, repr(value).replace('\n','\n\t')))
+      else:
+        out.append("{} = {}".format(key, value))
+    return '\n'.join(out)
+
+Options = OptionDict({
+  'loading': {
+    'filename_matching': True},
+  'auto_filter_pulling_force': Pulling.extensionOffsetRange[1],
+  
+})
+
