@@ -43,6 +43,10 @@ class Figure(object):
     if self.exists:
       self.figure.clf()
       self.figure.show()
+      
+  def close(self):
+    if self.exists:
+      plt.close(self.figure)
 
   def annotate(self, text, location):
     "Annotate figure with text at location (x,y)"
