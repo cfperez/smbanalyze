@@ -8,7 +8,7 @@ import abc
 from collections import MutableSequence
 
 from matplotlib.mlab import find
-from numpy import min, max, asarray, sum, mean, all, any, diff, std, vstack
+from numpy import min, max, asarray, sum, mean, all, any, diff, std, vstack, NAN
 import matplotlib.pyplot as plt
 
 import fileIO 
@@ -442,12 +442,24 @@ class Pulling(Base):
       raise ExperimentError('IOError loading file: check image file location!')
 
   def findRip(self, min_rip_ext=None):
+    assert self.trap is not None
     min_rip_ext = self.handles.ext_range[1] if not min_rip_ext and self.handles \
         else min_rip_ext or None
     if min_rip_ext is None:
       raise ValueError('Must specify a min_rip_ext below which no rips occur')
-    handle_deriv = diff(self.trap.select(x=(None,min_rip_ext)).f)
-    rip_location = find(diff(self.trap.f) < min(handle_deriv))[0]
+
+    handle_data = self.trap.select(x=(None,min_rip_ext))
+
+    # the difference derivative of the force below min_rip_ext is
+    # used as the baseline/expected derivative for WLC curve
+    handle_deriv = diff(handle_data.f)
+    
+    # where the derivative first exceeds the minimum derivative found in
+    # the handle region, call that the rip
+    rip_location = find(diff(self.trap.f) < min(handle_deriv))
+    if len(rip_location)==0:
+        return asarray([NAN,NAN,NAN])
+    rip_location = rip_location[0]
     return self.trap[rip_location].data
 
   def fitHandles(self, x=None, f=None, **fitOptions):
@@ -672,6 +684,7 @@ Options = OptionDict({
   'loading': {
     'filename_matching': True},
   'filtering': {
+    'auto_filter': True, # apply these options automagically where needed
     'required_pulling_force': Pulling.extensionOffsetRange[1]}
   
 })
