@@ -1,10 +1,12 @@
 import operator
+import os.path as path
 from itertools import cycle
 from collections import defaultdict
 import matplotlib.pyplot as plt
 from numpy import concatenate
 
 from datatypes import TrapData,hasTrapData,hasFretData
+import constants
 
 class Figure(object):
   def __init__(self, fignumber=None):
