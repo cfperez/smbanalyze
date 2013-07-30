@@ -21,6 +21,7 @@ def count_transitions(transition_array, transition_direction):
   return count_states(transition_array, transition_direction)
 
 def state_lifetime(state_array, state):
+  "Return array of lifetimes for specified state in FRAMES"
   assert iterable(state_array)
   count = 0
   lifetime = []
@@ -43,17 +44,21 @@ def count_blinking(exp, acc_threshold, donor_threshold):
 class StateFinder(object):
   """
   sf = StateFinder.fromThreshold(donor=1500, acceptor=1200, fret=0.5)
-  sf.findStates( long_trace.fret )
-  
+  sf( p.fret )
+
+  # OR 
+  sf = StateFinder.fromThreshold(1300)
+  sf( any_array )
+
   sf.states['donor']
   sf.states['acceptor']
   sf.states['fret']
   """
 
   @classmethod
-  def fromThreshold(cls, **thresholds):
+  def fromThreshold(cls, threshold=None, **thresholds):
     states = cls()
-    states.thresholds = thresholds
+    states.thresholds = thresholds if threshold is None else threshold
     return states
 
   def __call__(self, data):
@@ -61,16 +66,22 @@ class StateFinder(object):
 
   def findStates(self, data):
     self.states = {}
-    for attr in self.thresholds:
-      self.states[attr] = find_states( getattr(data, attr), self.thresholds[attr] )
+    if iterable(self.thresholds):
+      for attr in self.thresholds:
+        self.states[attr] = find_states( getattr(data, attr), self.thresholds[attr] )
+    else:
+      self.states = find_states(data, self.thresholds)
     return self.states
 
-  def lifetime(self, attr):
-    if attr not in self.states:
-      raise ValueError('"{}" not in states'.format(attr))
-    state_array = self.states[attr]
-    on = state_lifetimes(state_array, ON_STATE)
-    off = state_lifetimes(state_array, OFF_STATE)
+  def lifetime(self, attr=None):
+    if iterable(self.thresholds):
+      if attr not in self.states:
+        raise ValueError('"{}" not in states'.format(attr))
+      state_array = self.states[attr]
+    else:
+      state_array = self.states
+    on = state_lifetime(state_array, ON_STATE)
+    off = state_lifetime(state_array, OFF_STATE)
     return on, off
 
   def findTransitions(self):
