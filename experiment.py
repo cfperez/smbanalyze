@@ -235,13 +235,18 @@ class List(list):
     x_range The range of extensions used to calculate the force offset.
             None (default) uses value Pulling.forceOffsetRange
     '''
-    to_adjust = self.auto_filter()
+    if f_range:
+        filter_f = f_range[1]
+        to_adjust = self.has_value(trap_f_atleast=filter_f)
+    else:
+        to_adjust = self.auto_filter()
+        filter_f = Options.filtering.required_pulling_force
     if to_adjust != self:
-      msg = 'Ignoring experiments below {} pN!'
-      logger.warning(msg.format(Options.filtering.required_pulling_force))
+      msg = 'Ignoring experiments below {} pN!'.format(filter_f)
+      logger.warning(msg)
       self = to_adjust
-    foffset = self.adjustForceOffset(to_f, x_range)
-    xoffset = self.adjustExtensionOffset(to_x, f_range)
+    foffset = self.adjustForceOffset(to_f, offset_range=x_range)
+    xoffset = self.adjustExtensionOffset(to_x, offset_range=f_range)
     return xoffset, foffset
 
   def saveall(self):
