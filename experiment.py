@@ -78,8 +78,8 @@ class List(list):
   def __init__(self, iterable=[]):
     super(List, self).__init__(iterable)
     try:
-      self.sort(key=attrgetter('info.mol'))
       self.sort(key=attrgetter('info.pull'))
+      self.sort(key=attrgetter('info.mol'))
     except AttributeError:
       pass
 
