@@ -10,7 +10,8 @@ except ImportError:
 
 from constants import parameters,kT
 from fplot import _subplot
-from useful import OrderedDict, fix_args, broadcast
+from useful import fix_args, broadcast
+from collections import OrderedDict
 
 class FitError(Exception):
   pass
