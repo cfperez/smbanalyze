@@ -618,9 +618,6 @@ class Pulling(Base):
       raise ExperimentError('Specify a filename')
     pickle.dump( self, open(filename,'wb') )
 
-def hasAnyAttr(obj, *attr):
-  return any( map(lambda a: hasattr(obj, a), attr) )
-
 class OpenLoop(Base):
   "Object for manipulating FretData (and optional TrapData) for open loop measurements"
   def __init__(self, pull, fret, **metadata):
