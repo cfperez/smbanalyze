@@ -12,7 +12,7 @@ from smbanalyze import experiment, fileIO
 from numpy import r_, mean, median, std
 import matplotlib.pyplot as plt
 
-# Change the drive letter for your machine!
+# DEFAULT: Change the path for your machine!
 PROJECT_DIR = r'/Volumes/users2/Force-FRET Project'
 
 @contextmanager
