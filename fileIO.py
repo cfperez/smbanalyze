@@ -20,7 +20,8 @@ REGISTERED_EXT = (IMAGE_FILE,CAMERA_FILE,FRET_FILE,PULL_FILE)
 
 def filtered_flist(*globs, **options):
   extensions = options.get('extensions', REGISTERED_EXT)
-  assert(len(globs)>0)
+  if not globs:
+    globs = ['']
   files = flist(*globs)
   return filter_extensions(files, extensions)
   

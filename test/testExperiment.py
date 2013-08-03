@@ -26,7 +26,7 @@ def setUp():
   with patch('smbanalyze.fplot.Figure') as mock:
     pulls = experiment.fromMatch('test')
   LOADED_FILES = map( path.normpath, 
-    [r'test_s1m1', r'test_s1m2', r'test_s1m3', r'test_s1m4']
+    [r'test_s1m1', r'test_s1m2', r'test_s1m3']
   )
 
 def testRipFitting():
