@@ -42,8 +42,8 @@ class ExperimentBrowser(object):
             pulls = eval('r_[{}]'.format(pulls))
         
             for mol in byMolecule(path.join(self.data_dir, directory),
-                                        exp_type=self._exp_type,
-                                        matching=mol_info):
+                            exp_type=self._exp_type,
+                            matching=mol_info):
                 mol = mol.filter(lambda p: p.info.pull in pulls)
                 if len(mol) == 0:
                     print 'No pulling files found matching {}\{}\n'.format(
@@ -67,3 +67,8 @@ def byMolecule(directory='.', exp_type=experiment.Pulling, matching=('')):
         flist.sort()
         for mol, group in groupby(flist, lambda f: fileIO.parseFilename(f).mol):
             yield experiment.List(map(exp_type.fromFile, group))
+
+
+def execute(func, filename):
+    with ExperimentBrowser(filename) as exp_browser:
+        return [func(mol) for mol in exp_browser]
