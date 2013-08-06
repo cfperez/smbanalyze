@@ -5,7 +5,6 @@ Created on Fri Aug 2, 2013
 """
 import os
 import os.path as path
-import sys
 from itertools import groupby
 from contextlib import contextmanager
 from smbanalyze import experiment, fileIO
@@ -39,6 +38,24 @@ class ExperimentBrowser(object):
             self._info = [line.strip().split() for line in fh.readlines()]
 
     def __iter__(self):
+        return self._iter()
+        for info in self._info:
+            directory, mol_info, pulls = info[0], info[1:4], info[4]
+            pulls = eval('r_[{}]'.format(pulls))
+        
+            for mol in byMolecule(path.join(self.data_dir, directory),
+                            exp_type=self._exp_type,
+                            matching=mol_info):
+                mol = mol.filter(lambda p: p.info.pull in pulls)
+                if len(mol) == 0:
+                    print 'No pulling files found matching {}\{}\n'.format(
+                                directory,'_'.join(mol_info))
+                # else:
+                #     # yield mol
+                #     yield self._iter_data(mol)
+
+    def _iter(self, with_directory=False):
+        assert isinstance(with_directory, bool)
         for info in self._info:
             directory, mol_info, pulls = info[0], info[1:4], info[4]
             pulls = eval('r_[{}]'.format(pulls))
@@ -51,7 +68,13 @@ class ExperimentBrowser(object):
                     print 'No pulling files found matching {}\{}\n'.format(
                                 directory,'_'.join(mol_info))
                 else:
-                    yield mol
+                    if with_directory:
+                        yield directory, mol
+                    else:
+                        yield mol
+
+    def with_directory(self):
+        return self._iter(with_directory=True)
 
     def __enter__(self):
         return self
@@ -62,12 +85,16 @@ class ExperimentBrowser(object):
 def fromTabFile(filename, exp_type=experiment.Pulling, project_dir=PROJECT_DIR):
     return ExperimentBrowser(filename, exp_type=exp_type, project_dir=project_dir)
 
+def groupMolecules(it):
+    group_iter = groupby(it, lambda p: p.info[:4])
+    for info, group in group_iter:
+        yield experiment.List(group)
+
 def byMolecule(directory='.', exp_type=experiment.Pulling, matching=('')):
     with ChangeDirectory(directory):
         flist = filter(exp_type.filenameMatchesType,
             experiment.filelist(*matching))
-        flist.sort()
-        for mol, group in groupby(flist, lambda f: fileIO.parseFilename(f).mol):
+        for mol, group in groupby(flist, lambda f: fileIO.parseFilename(f)[:4]):
             yield experiment.List(map(exp_type.fromFile, group))
 
 
