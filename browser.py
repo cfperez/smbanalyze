@@ -19,9 +19,11 @@ PROJECT_DIR = r'/Volumes/users2/Force-FRET Project'
 def ChangeDirectory(directory):
     'Create context inside directory, returning to original on exit'
     original = os.getcwd()
-    os.chdir(directory)
-    yield os.getcwd()
-    os.chdir(original)
+    try:
+        os.chdir(directory)
+        yield directory
+    finally:
+        os.chdir(original)
 
 class ExperimentBrowser(object):
     DATA_DIR = 'Data'
