@@ -5,8 +5,6 @@ from datatypes import FretData
 from collections import namedtuple
 from smbanalyze.dotdict import dotdict
 
-import unittest
-
 ON_STATE = 1
 OFF_STATE = 0
 
@@ -62,6 +60,8 @@ def count_blinking(exp, acc_threshold, donor_threshold):
 
 Lifetime = namedtuple('Lifetime', 'on off')
 
+def single(threshold):
+    return StateFinder(threshold)
 
 class StateFinder(object):
 
@@ -127,25 +127,6 @@ class StateFinder(object):
         return find_transitions(self.states)
 
 
-class TestStateFinder(unittest.TestCase):
-
-    def setUp(self):
-        self.threshold = 1000
-        self.level_change_data = array([0, 0, 1, 1, 0])
-        self.SF = StateFinder.fromThreshold(self.threshold)
-
-    def test_fromThreshold_returns_StateFinder(self):
-        self.assertIsInstance(self.SF, StateFinder)
-
-    def test_findStates_returns_correct_states(self):
-        data = self.level_change_data * self.threshold * 2
-        self.assertListEqual(
-            self.SF(data).tolist(), self.level_change_data.tolist())
-
-    def test_lifetimes_returns_tuple(self):
-        pass
-
-
 class StateFinderMultipleThreshold(StateFinder):
 
     def __init__(self, **thresholds):
@@ -175,21 +156,6 @@ class StateFinderMultipleThreshold(StateFinder):
         return self.transitions
 
 
-class TestStateFinderMultipleThreshold(unittest.TestCase):
-
-    def setUp(self):
-        self.SF = StateFinderMultipleThreshold(donor=1000)
-        self.array = array([0, 0, 1, 1, 0])
-        self.input_data = FretData.fromFields(*[self.array] * 4)
-
-    def test_lifetimes_returns_dict_of_tuples(self):
-        self.SF(self.input_data)
-        lifetimes = self.SF.lifetimes()
-        self.assertIsInstance(lifetimes, dict)
-        for key in lifetimes:
-            self.assertIsInstance(lifetimes[key], tuple)
-
-
 class StateFinderFretData(StateFinderMultipleThreshold):
 
     def findStates(self, fret_data):
@@ -204,7 +170,3 @@ class StateFinderFretData(StateFinderMultipleThreshold):
         for key, val in lifetime.iteritems():
             lifetime[key] = Lifetime(*(v * t for v in val))
         return lifetime
-
-
-class TestStateFinderFretData(TestStateFinderMultipleThreshold):
-    pass
