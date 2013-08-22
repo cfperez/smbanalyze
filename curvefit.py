@@ -18,6 +18,9 @@ class FitError(Exception):
 
 def fitWLC(x, f, mask=None, **fitOptions):
   "Fit stretching data to WLC model"
+  assert len(x) > 0
+  assert len(x) == len(f)
+  assert mask is None or len(mask) == len(x)
   fitOptions.setdefault('fitfunc', 'MMS')
   fitOptions.setdefault('Lc', max(x)*1.05)
   try:
