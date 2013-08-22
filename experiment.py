@@ -5,10 +5,9 @@ import logging
 import cPickle as pickle
 import re
 import abc
-from collections import MutableSequence
 
 from matplotlib.mlab import find
-from numpy import min, max, asarray, sum, mean, all, any, diff, std, vstack, NAN
+from numpy import min, max, asarray, insert, sum, mean, all, any, diff, std, vstack, NAN
 import matplotlib.pyplot as plt
 
 import fileIO 
@@ -45,8 +44,6 @@ def fromMatchAll(*fglob):
   fglob[0] = path.basename(fglob[0])
   if not files:
     raise ExperimentError("No files found matching glob '{0}'".format(fglob))
-  matched = filter(
-    lambda fname: re.search(fileIO.makeMatchStrFromArgs(*fglob), fileIO.splitext(fname)[0]), files)
   return fromFiles(files)
   
 def filelist(*fglob):
@@ -126,14 +123,21 @@ class List(list):
     except AttributeError:
       raise ExperimentError('Missing method {0} in a List element'.format(action))
 
-  COMPARE = {'greater': op.gt, 'atleast': op.ge, 'lesser': op.lt, 'atmost': op.le}
+  HAS_VALUE_COMPARE = {'greaterthan': op.gt, 'atleast': op.ge, 'lessthan': op.lt, 'atmost': op.le}
 
   def has_value(self, **kwargs):
+    '''
+    See HAS_VALUE_COMPARE for list of operators
+    Examples:
+    >>> pulls.has_value(trap_f_atleast=15)
+    >>> pulls.has_value(trap_ext_greaterthan=750)
+    >>> pulls.has_value(fret_time_atleast=30)
+    '''
     for key, value in kwargs.items():
       attr, comparison = key.rsplit('_', 1)
       attr = attr.replace('_','.')
       try:
-        comparator = List.COMPARE[comparison]
+        comparator = List.HAS_VALUE_COMPARE[comparison]
         return self.filter( lambda x: any(comparator(attrgetter(attr)(x), value)) )
       except AttributeError:
         raise ValueError('Comparison operator <{}> is not defined'.format(comparison))
@@ -235,7 +239,7 @@ class List(list):
     x_range The range of extensions used to calculate the force offset.
             None (default) uses value Pulling.forceOffsetRange
     '''
-    if f_range:
+    if f_range is not None:
         filter_f = f_range[1]
         to_adjust = self.has_value(trap_f_atleast=filter_f)
     else:
@@ -406,14 +410,10 @@ class Pulling(Base):
   def __init__(self, pull, fret=None, **metadata):
     super(Pulling, self).__init__(pull, fret, **metadata)
     self.handles = None
-    self.rips = []
     self.lastFit = None
-    self._appendNewRip = True
+    self.resetRips()
     self._ext_offset = 0
 
-  @classmethod
-  def aggregate(cls, *pulling):
-    pass
 
   @classmethod
   def fromFile(cls, strfile, fretfile=None):
@@ -500,17 +500,26 @@ class Pulling(Base):
   def nextRip(self):
     self._appendNewRip = True
 
+  def resetRips(self):
+    self.rips = []
+    self._appendNewRip = True
+
   @property
   def ripSizes(self):
     rips = asarray(map(itemgetter('Lc1'), self.rips))
     if len(rips) == 1:
       return rips
     else:
-      return rips[1:]-rips[:-1]
+      rips = insert(rips, 0, 0)
+      return diff(rips)
 
   def fitForceExtension(self, x=None, f=None, start=0, stop=-1, **fitOptions):
     "Fit WLC to Pulling curve and plot"
     pull = self.trap.select(x, f, (start,stop))
+    if len(pull)==0:
+      raise ValueError(
+        'No trap data in interval defined by arguments x={} and f={}'.fromat(
+          x,f))
     fit = fitWLC(pull.ext, pull.f, **fitOptions)
     fit.ext_range = (min(pull.ext), max(pull.ext))
     fit.f_range = (min(pull.f), max(pull.f))
@@ -530,10 +539,11 @@ class Pulling(Base):
     x_range = x_range or Pulling.forceOffsetRange
     data = self.trap.select(x=x_range)
     if len(data) == 0:
-      raise ExperimentError('No data exists in range {0} - {1}'.format(*x_range))
+      raise ExperimentError(
+        '{0}: No data exists in range {1} - {2}'.format(
+          str(self), *x_range))
     return mean(data.f)
 
-  @property
   def meanStiffness(self, stiffness=None):
     inverseAverage = lambda args: 1/sum(map(lambda x: 1./x, args))
     return inverseAverage(self.trap.metadata.get('stiffness', constants.stiffness))
@@ -542,7 +552,7 @@ class Pulling(Base):
     offset = offset or -self.forceOffset(offset_range)
     offset += baseline
     self.trap.f += offset
-    self.trap.ext -= offset/self.meanStiffness
+    self.trap.ext -= offset/self.meanStiffness()
     return offset
 
   def extensionOffset(self, frange=None):

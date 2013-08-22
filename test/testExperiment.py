@@ -127,14 +127,6 @@ def testListCall():
     p.testFunc = testFunc
   assert pull_list.call('testFunc') == [True]*len(pull_list)
 
-def testHasAnyAttrReturnsTrue():
-  mock = Mock()
-  assert experiment.hasAnyAttr(mock, 'test','foo','bar')
-
-def testHasAnyAttrReturnsFalse():
-  mock = Mock(spec=['foo'])
-  assert experiment.hasAnyAttr(mock, 'test', 'bar') == False
-
 def tearDown():
   pass
 
