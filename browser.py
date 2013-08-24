@@ -89,7 +89,7 @@ def groupMolecules(exps):
         yield experiment.List(group)
 
 
-def byMolecule(directory='.', exp_type=experiment.Pulling, fromMatch=('',)):
+def byMolecule(directory='./', exp_type=experiment.Pulling, fromMatch=('',)):
     """Return a generator (iterator) which yields experiment.List for all molecules in given directory."""
     assert issubclass(exp_type, experiment.Base)
     assert isinstance(fromMatch, (tuple, list))

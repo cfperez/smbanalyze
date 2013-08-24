@@ -26,7 +26,7 @@ def setUp():
   with patch('smbanalyze.fplot.Figure') as mock:
     pulls = experiment.fromMatch('test')
   LOADED_FILES = map( path.normpath, 
-    [r'test_s1m1', r'test_s1m2', r'test_s1m3']
+    [r'test_cond_s1m1', r'test_cond_s1m2', r'test_cond_s1m3']
   )
 
 def testRipFitting():
@@ -144,8 +144,8 @@ class TestDatatypes(unittest.TestCase):
     self.load.return_value = ({},self.data)
 
   def testLoad(self):
-    fdata = datatypes.FretData.fromFile('testing')
-    self.load.assert_called_with('testing', comments=fileIO.toSettings)
+    fdata = datatypes.FretData.fromFile('test_cond_s1m1')
+    self.load.assert_called_with('test_cond_s1m1', comments=fileIO.toSettings)
     self.assertEqual(self.data.tolist(), fdata.data.tolist())
 
 class TestExperimentRipAnalysis(TestCase):
@@ -284,7 +284,7 @@ class TestOpenLoopLoading(unittest.TestCase):
       data = [[1,2,3],[1,2,3],[1,2,3],[1,2,3]]
       data = datatypes.FretData.fromFields(*data)
       fdata.fromFile.return_value = data
-      fname = 'testing'
+      fname = 'test_cond_s1m1'
       exp = experiment.OpenLoop.fromFile(fname)
       fdata.fromFile.assert_called_with(fname+fileIO.FRET_FILE)
       self.assertEquals(exp.fret, data)
