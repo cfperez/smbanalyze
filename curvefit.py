@@ -17,6 +17,27 @@ from operator import or_, itemgetter
 class FitError(Exception):
   pass
 
+def fitWLC_masks(x, y, masks, **fitOptions):
+  '''
+  Return Fit using MMS_rip_region fit function on data in x and y.
+  masks: list of boolean arrays which indicate:
+    1) the handle (1st element)
+    2) the rips (following elements)
+  '''
+  assert isinstance(x, Iterable)
+  assert isinstance(y, Iterable)
+  assert map(lambda m: isinstance(m, np.ndarray), masks)
+  assert map(lambda m: m.dtype is np.dtype('bool'), masks)
+
+  fitOptions.setdefault('Lc', max(x[masks[-1]]))
+  fitOptions.setdefault('fixed', tuple())
+  fitOptions['fixed'] += ('K', 'K1', 'Lp1')
+  mask_for_mask = combine_masks(masks)
+  masks_trimmed = map(lambda m: m[mask_for_mask], masks)
+  fit = Fit(x, y, fitfunc=MMS_rip_region_maker(masks_trimmed), 
+    mask=mask_for_mask, **fitOptions)
+  return fit
+  
 def fitWLC(x, f, mask=None, **fitOptions):
   "Fit stretching data to WLC model"
   assert len(x) > 0
@@ -116,17 +137,12 @@ def combine_masks(masks):
     return masks[0]
   return np.array(reduce(or_, masks))
 
-def fitWLC_masks(x, y, masks, **fitOptions):
-  fitOptions.setdefault('Lc', 1150) # max(x[masks[-1]]))
-  fitOptions.setdefault('fixed', tuple())
-  fitOptions['fixed'] += ('K', 'K1', 'Lp1')
-  mask_for_mask = combine_masks(masks)
-  masks_trimmed = map(lambda m: m[mask_for_mask], masks)
-  fit = Fit(x, y, fitfunc=MMS_rip_region_maker(masks_trimmed), 
-    mask=mask_for_mask, **fitOptions)
-  return fit
+
 
 def MMS_rip_region_maker(masks):
+  '''Creates a fitting function for an arbitrary number of fit regions in masks
+  that allows simultaneous fitting of each as MMS rips.
+  '''
   assert isinstance(masks, (tuple,list))
   assert len(masks) > 1
   assert map(lambda e: isinstance(e, np.ndarray), masks)
@@ -143,6 +159,9 @@ def MMS_rip_region_maker(masks):
     handle_ext = MMS(handle_force, Lp, Lc, F0, K)
     rip_ext = [MMS_rip(force, Lp, Lc, F0, K, Lp1, Lc_rip, K1) 
                 for force,Lc_rip in rip_items]
+
+    if len(rip_ext) > 1:
+      rip_ext = np.append(*rip_ext)
     return np.append(handle_ext, rip_ext)
   
   addl_rips = ['Lc{}'.format(n) for n in range(2,1+len(masks))]
@@ -257,7 +276,6 @@ class Fit(object):
     return (x,y), kwargs
 
   def plot(self, **kwargs):
-    # args, kwargs = self._to_plot(**kwargs)
     args = (self.x, self.fitOutput)
     if self.inverted:
       args = reversed(args)
