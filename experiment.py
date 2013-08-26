@@ -11,7 +11,7 @@ from numpy import min, max, asarray, insert, sum, mean, all, any, diff, std, vst
 import matplotlib.pyplot as plt
 
 import fileIO 
-from curvefit import fitWLC
+from curvefit import fitWLC, fitWLC_masks
 from useful import groupat
 import fplot
 import constants
@@ -406,6 +406,7 @@ class Pulling(Base):
 
   forceOffsetRange = (740,770)
   extensionOffsetRange = (13,16)
+  maximum_fitting_force = 25
 
   def __init__(self, pull, fret=None, **metadata):
     super(Pulling, self).__init__(pull, fret, **metadata)
@@ -528,6 +529,20 @@ class Pulling(Base):
       self.figure.plot(fit, hold=True)
     return fit
 
+  def fitRegions(self, *extensions, **fitOptions):
+    '''
+    Return MMS_rip_region fit using specied (min,max) regions in *extensions
+    Example: pull.fitRegions( (840,970), (1000,1030), max_force=16)
+    '''
+    max_force = fitOptions.pop('max_force', Pulling.maximum_fitting_force)
+    masks = [self.trap.maskFromLimits(region) for region in extensions[:-1]]
+    masks.append( self.trap.maskFromLimits(extensions[-1], (None, max_force)) )
+    fit = fitWLC_masks(self.trap.ext, self.trap.f, masks)
+    self.lastFit = self.fit = fit
+    if self.figure.exists:
+      self.figure.plot(fit, hold=True)
+    return fit
+
   @property
   def fits(self):
     if self.handles:
@@ -594,6 +609,8 @@ class Pulling(Base):
       self.figure.plot(self.fret, self.trap, **kwargs)
     else:
       self.figure.plot(self.trap, **kwargs)
+    if self.lastFit:
+      self.figure.plot(self.lastFit, hold=True)
     if self.handles:
       self.figure.plot(self.handles, hold=True)
       self.figure.annotate(unicode(self.handles), location)
@@ -609,7 +626,7 @@ class Pulling(Base):
 
   def pickLimits(self, fig=None):
     if not fig: fig=plt.gcf()
-    firstPoint,secondPoint = plt.ginput(2)
+    return plt.ginput(2)
 
   def savefig(self, filename=None, path='.'):
     if self.figure is None or not self.figure.exists:
