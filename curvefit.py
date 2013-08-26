@@ -10,8 +10,9 @@ except ImportError:
 
 from constants import parameters,kT
 from fplot import _subplot
-from useful import fix_args, broadcast
-from collections import OrderedDict
+from useful import fix_args, broadcast, static_args
+from collections import OrderedDict, Iterable
+from operator import or_, itemgetter
 
 class FitError(Exception):
   pass
@@ -70,20 +71,89 @@ def MMS_rip2(F, Lp, Lc, F0, K, Lp1, Lc1, K1, helix):
 MMS_rip2.default = dict(MMS_rip.default, helix=2)
 MMS_rip.inverted = True
 
-############################################################
-## Fit class
-############################################################
+def _is_between(val, range_):
+  assert len(range_) == 2
+  low, high = range_
+  return (val>=low) & (val<=high)
+
+def MMS_rip_maker(handle_limits, upper_limits, split_point=None):
+  assert isinstance(handle_limits, Iterable)
+  assert isinstance(upper_limits, Iterable)
+  assert len(handle_limits) == 2
+  assert len(upper_limits) == 2
+
+  if split_point:
+    def MMS_rip_global(F, Lp, Lc, F0, K, Lp1, Lc1, K1):
+      handle_ext = MMS(F[:split_point], Lp, Lc, F0, K)
+      upper_ext = MMS(F[split_point:], Lp, Lc, F0, K) + \
+                  MMS(F[split_point:], Lp1, Lc1, F0, K1)
+      return np.append(handle_ext, upper_ext)
+  else:      
+    def MMS_rip_global(F, Lp, Lc, F0, K, Lp1, Lc1, K1):
+      handle_ext = MMS(F, Lp, Lc, F0, K)
+      upper_ext = handle_ext + MMS(F, Lp1, Lc1, F0, K1)
+      return np.where(_is_between(F, upper_limits), upper_ext, handle_ext)
+  MMS_rip_global.default = dict(MMS_rip.default)
+  MMS_rip_global.inverted = True
+
+  return MMS_rip_global
+
+def fitWLCrip(x_handle, f_handle, x_upper, f_upper, mask=None, **fitOptions):
+  fitOptions.setdefault('Lc', max(x_upper))
+  fitOptions.setdefault('fixed', tuple())
+  fitOptions['fixed'] += ('K', 'K1', 'Lp1')
+  ext = np.append(x_handle, x_upper)
+  force = np.append(f_handle, f_upper)
+  def limits(data):
+    return (min(data), max(data))
+  fit = Fit(ext, force, fitfunc=MMS_rip_maker(limits(f_handle), limits(f_upper), split_point=len(x_handle)),
+            mask=mask, 
+            **fitOptions)
+  return fit
+
+def combine_masks(masks):
+  if len(masks) == 1:
+    return masks[0]
+  return np.array(reduce(or_, masks))
+
+def fitWLC_masks(x, y, masks, **fitOptions):
+  fitOptions.setdefault('Lc', 1150) # max(x[masks[-1]]))
+  fitOptions.setdefault('fixed', tuple())
+  fitOptions['fixed'] += ('K', 'K1', 'Lp1')
+  mask_for_mask = combine_masks(masks)
+  masks_trimmed = map(lambda m: m[mask_for_mask], masks)
+  fit = Fit(x, y, fitfunc=MMS_rip_region_maker(masks_trimmed), 
+    mask=mask_for_mask, **fitOptions)
+  return fit
+
+def MMS_rip_region_maker(masks):
+  assert isinstance(masks, (tuple,list))
+  assert len(masks) > 1
+  assert map(lambda e: isinstance(e, np.ndarray), masks)
+  handle = masks.pop(0)
+  def MMS_rip_region(F, Lp, Lc, F0, K, Lp1, Lc1, K1, **rips):
+    rips['Lc1'] = Lc1
+    handle_ext = MMS(F[handle], Lp, Lc, F0, K)
+    rip_ext = [MMS_rip(F[mask], Lp, Lc, F0, K, Lp1, rips[Lc_rip], K1) for mask,Lc_rip in zip(masks, sorted(rips.keys()))]
+    return np.append(handle_ext, rip_ext)
+  addl_rips = ['Lc{}'.format(n) for n in range(2,1+len(masks))]
+  MMS_rip_region.default = MMS_rip.default.copy()
+  MMS_rip_region.default.update([(rip,10) for rip in addl_rips])
+  MMS_rip_region.arglist = ['F', 'Lp', 'Lc', 'F0', 'K', 'Lp1', 'Lc1', 'K1'] + addl_rips
+  MMS_rip_region.inverted = True
+  return MMS_rip_region
+
+
 class Fit(object):
   @classmethod
   def extends(cls, fit, x, y, fitfunc, fixed=(), mask=None, verbose=False, **user_parameters):
     fixed = tuple(fixed) + tuple(fit.parameters)
     params = fit.parameters.copy()
     params.update(user_parameters)
-    newfit = cls(x, y, fitfunc, fixed, mask, verbose, **params)
-    #newfit.error.update(fit.error)
+    newfit = cls(x, y, fitfunc, fixed, mask, verbose=verbose, **params)
     return newfit
     
-  def __init__(self, x, y, fitfunc, fixed=(), mask=None, verbose=False, **user_parameters):
+  def __init__(self, x, y, fitfunc, fixed=(), mask=None, weights=None, verbose=False, **user_parameters):
     "Initialize to a specific fitting function, optionally fitting to data specified"
 
     if isinstance(fitfunc,str):
@@ -139,7 +209,7 @@ class Fit(object):
       x,y = y,x
     self.x = x
 
-    param_best_fit, self.covariance = curve_fit(fitfunc, x, y, starting_p)
+    param_best_fit, self.covariance = curve_fit(fitfunc, x, y, starting_p, sigma=weights)
     self.fitOutput = fitfunc(x, *param_best_fit)
     self.residual = self.fitOutput-y
 
