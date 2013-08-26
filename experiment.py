@@ -218,29 +218,35 @@ class List(list):
   def fitRip(self, *args, **kwargs):
     return self.call('fitRip', *args, **kwargs)
 
-  def adjustForceOffset(self, baseline=0.0, offset=None, offset_range=None):
-    return self.call('adjustForceOffset', baseline, offset, offset_range)
+  def adjustForceOffset(self, baseline=0.0, offset=None, x_range=None):
+    return self.call('adjustForceOffset', baseline, offset, x_range)
 
-  def adjustExtensionOffset(self, baseline=None, offset_range=None):
-    baseline = baseline or mean(self.call('extensionOffset', offset_range))
-    return self.call('adjustExtensionOffset', baseline)
+  def adjustExtensionOffset(self, baseline=None, x_range=None, f_range=None):
+    baseline = baseline or mean(self.call('extensionOffset',
+									x_range=x_range, f_range=f_range))
+    return self.call('adjustExtensionOffset', baseline, 
+									x_range=x_range, f_range=f_range)
 
-  def adjustOffset(self, to_f=0.5, to_x=None, f_range=None, x_range=None):
+  def adjustOffset(self, to_f=0.5, to_x=None, 
+					ext_f_range=None, ext_x_range=None,
+					force_x_range=None):
     '''Adjust force and extension offsets returning xoffset, foffset
     
-    to_f  The force baseline that traces will be adjusted to. Default: 0.5 pN
+    to_f:  The force baseline that traces will be adjusted to. Default: 0.5 pN
 
-    to_x  The extension baseline. None (default) calculates average extension over
+    to_x:  The extension baseline. None (default) calculates average extension over
             f_range.
             
-    f_range The range of forces used to calculate the extension offset.
+    ext_f_range: The range of forces used to calculate the extension offset.
             None (default) uses value Pulling.extensionOffsetRange
 
-    x_range The range of extensions used to calculate the force offset.
+	ext_x_range: The range of extensions used to calculate the extension offset.
+	
+    force_x_range: The range of extensions used to calculate the force offset.
             None (default) uses value Pulling.forceOffsetRange
     '''
-    if f_range is not None:
-        filter_f = f_range[1]
+    if ext_f_range is not None:
+        filter_f = ext_f_range[1]
         to_adjust = self.has_value(trap_f_atleast=filter_f)
     else:
         to_adjust = self.auto_filter()
@@ -249,8 +255,8 @@ class List(list):
       msg = 'Ignoring experiments below {} pN!'.format(filter_f)
       logger.warning(msg)
       self = to_adjust
-    foffset = self.adjustForceOffset(to_f, offset_range=x_range)
-    xoffset = self.adjustExtensionOffset(to_x, offset_range=f_range)
+    foffset = self.adjustForceOffset(to_f, x_range=force_x_range)
+    xoffset = self.adjustExtensionOffset(to_x, x_range=ext_x_range, f_range=ext_f_range)
     return xoffset, foffset
 
   def saveall(self):
@@ -423,7 +429,7 @@ def split_reverse_data(data, split):
     raise ValueError('Split cannot be None')
   cls = type(data)
   forward, reverse = (cls.fromObject(data[:split]), 
-          cls.fromObject(data[split:]))
+          cls.fromObject(data[:split-1:-1]))
   return forward, reverse
 
 def find_reverse_splitpoint(trap):
@@ -568,14 +574,13 @@ class Pulling(Base):
     Example: 
     fit = pull.fitRegions( (840,970), (1000,1030), max_force=16)
     '''
-    max_force = fitOptions.pop('max_force', Pulling.maximum_fitting_force)
-    masks = [self.trap.maskFromLimits(region) for region in extensions[:-1]]
-    masks.append( self.trap.maskFromLimits(extensions[-1], (None, max_force)) )
-    fit = fitWLC_masks(self.trap.ext, self.trap.f, masks)
-    self.lastFit = self.fit = fit
+    # max_force = fitOptions.pop('max_force', Pulling.maximum_fitting_force)
+    masks = [self.trap.maskFromLimits(region) for region in extensions]
+    # masks.append( self.trap.maskFromLimits(extensions[-1], (None, max_force)) )
+    self.lastFit = self.fit = fitWLC_masks(self.trap.ext, self.trap.f, masks, **fitOptions)
     if self.figure.exists:
-      self.figure.plot(fit, hold=True)
-    return fit
+      self.figure.plot(self.fit, marker='x', hold=True)
+    return self.fit
 
   @property
   def fits(self):
@@ -604,17 +609,17 @@ class Pulling(Base):
     self.trap.ext -= offset/self.meanStiffness()
     return offset
 
-  def extensionOffset(self, frange=None):
+  def extensionOffset(self, f_range=None, x_range=None):
     'Returns average extension of FEC between given forces'
-    frange = frange or Pulling.extensionOffsetRange
-    data = self.trap.select(f=frange)
+    f_range = f_range or Pulling.extensionOffsetRange
+    data = self.trap.select(x=x_range, f=f_range)
     if len(data) == 0:
       raise ExperimentError('<{0}>: No data exists in range {1} - {2}'.format(self, *frange))
     return mean(data.ext)
 
-  def adjustExtensionOffset(self, baseline, offset_range=None):
-    'Adjust extension to hit baseline. If offset_range is not given, it is calculated from Pulling.extensionOffsetRange'
-    offset = self.extensionOffset(offset_range) - baseline
+  def adjustExtensionOffset(self, baseline, f_range=None, x_range=None):
+    'Adjust extension to hit baseline. If f_range is not given, it is calculated from Pulling.extensionOffsetRange'
+    offset = self.extensionOffset(x_range=x_range, f_range=f_range) - baseline
     self.trap.ext -= offset
     self._ext_offset = offset
     return offset
@@ -658,10 +663,13 @@ class Pulling(Base):
       self.figure.annotate(text, location)
     return self.figure
 
-  def pickLimits(self, fig=None):
-    if not fig: fig=plt.gcf()
-    return plt.ginput(2)
+  def pickPoints(self, num=1):
+    return self.figure.pickPoints(num*2)
 
+  def pickRegions(self, num=1):
+	points = sorted(x for x,f in self.pickPoints(num))
+	return [(points[i],points[i+1]) for i in range(0,len(points),2)]
+	
   def savefig(self, filename=None, path='.'):
     if self.figure is None or not self.figure.exists:
       raise ExperimentError('No figure available for experiment {0}'.format(str(self)))

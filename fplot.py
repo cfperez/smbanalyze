@@ -23,6 +23,9 @@ class Figure(object):
   def exists(self):
     return self.figure is not None and plt.fignum_exists(self.figure.number)
 
+  def pickPoints(self, num_of_pts=2):
+	return plt.ginput(num_of_pts)
+	
   def makeCurrent(self):
     if not self.exists:
       raise RuntimeError('Figure object does not exist')
