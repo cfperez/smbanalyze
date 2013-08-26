@@ -135,9 +135,14 @@ class AbstractData(object):
 class TrapData(AbstractData):
   _fields = TrapData_fields
 
-  def maskFromLimits(self, x, f, limits=(0,-1)):
-    start, stop = limits
-    ext_fit,f_fit = self.ext[start:stop], self.f[start:stop]
+  def maskFromLimits(self, x=None, f=None, limits=()):
+    if x is None and f is None:
+      raise ValueError('Must specific either x limits of f limits')
+    if limits:
+      start, stop = limits
+      ext_fit,f_fit = self.ext[start:stop], self.f[start:stop]
+    else:
+      ext_fit, f_fit = self.ext, self.f
 
     min_f, max_f = TrapData._normalizeLimits( f,
                       min_max=(min(f_fit), max(f_fit)),
