@@ -130,17 +130,25 @@ def MMS_rip_region_maker(masks):
   assert isinstance(masks, (tuple,list))
   assert len(masks) > 1
   assert map(lambda e: isinstance(e, np.ndarray), masks)
+
   handle = masks.pop(0)
+  handle_force = F[handle]
+  rip_forces = [F[mask] for mask in masks]
+  rip_sizes = map(lambda r: rips[r], sorted(rips))
+  rip_items = zip(rip_forces, rip_sizes)
   def MMS_rip_region(F, Lp, Lc, F0, K, Lp1, Lc1, K1, **rips):
     rips['Lc1'] = Lc1
-    handle_ext = MMS(F[handle], Lp, Lc, F0, K)
-    rip_ext = [MMS_rip(F[mask], Lp, Lc, F0, K, Lp1, rips[Lc_rip], K1) for mask,Lc_rip in zip(masks, sorted(rips.keys()))]
+    handle_ext = MMS(handle_force, Lp, Lc, F0, K)
+    rip_ext = [MMS_rip(force, Lp, Lc, F0, K, Lp1, Lc_rip, K1) 
+        for force,Lc_rip in rip_items]
     return np.append(handle_ext, rip_ext)
+  
   addl_rips = ['Lc{}'.format(n) for n in range(2,1+len(masks))]
   MMS_rip_region.default = MMS_rip.default.copy()
   MMS_rip_region.default.update([(rip,10) for rip in addl_rips])
   MMS_rip_region.arglist = ['F', 'Lp', 'Lc', 'F0', 'K', 'Lp1', 'Lc1', 'K1'] + addl_rips
   MMS_rip_region.inverted = True
+
   return MMS_rip_region
 
 
