@@ -272,14 +272,12 @@ class Fit(object):
     y = self(x)
     if self.inverted:
       x,y = y,x
-    kwargs.setdefault('linewidth', 2)
     return (x,y), kwargs
 
   def plot(self, **kwargs):
     args = (self.x, self.fitOutput)
     if self.inverted:
       args = reversed(args)
-    kwargs.setdefault('linewidth', 2)
     return _subplot(*args,**kwargs)
 
   def __repr__(self):
