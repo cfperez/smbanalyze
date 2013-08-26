@@ -1,14 +1,12 @@
 import logging
-
 from numpy import all, asarray, sign, vstack
 from operator import isSequenceType, add
-
 from fileIO import load, toSettings, fileIOError
-from constants import logHandler, logLevel, stiffness, sumOfBeadRadii
+import constants
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logLevel)
-logger.addHandler(logHandler)
+logger.setLevel(constants.logLevel)
+logger.addHandler(constants.logHandler)
 
 TYPE_CHECKING = 'STRICT'
 
@@ -18,6 +16,7 @@ TrapData_fields = ('ext','f','sep')
 class AbstractData(object):
   def __init__(self, data, **meta):
     self.data = data
+    self._original_data = None
     self.metadata = {}
     self.metadata.update(meta)
 
@@ -161,14 +160,23 @@ class TrapData(AbstractData):
     x,f,s = self
     return x,f
 
+  def meanStiffness(self):
+    inverseAverage = lambda args: 1/sum(map(lambda x: 1./x, args))
+    return inverseAverage(self.metadata.get('stiffness', constants.stiffness))
+
+  def adjustOffset(self, ext=None, force=None):
+    if ext:
+      self.ext -= ext
+    if force:
+      self.force += force
+
   def recalculate(self, stiffness=None):
     if stiffness and len(stiffness) != 2:
       raise ValueError('Stiffness must be 2-tuple')
     current_k = self.metadata.get('stiffness', stiffness)
-    ratio_current_k = min(current_k)/max(current_k)
     new_k = stiffness or current_k
     self.metadata['stiffness'] = new_k
-    beadRadii = self.metadata.get('bead_radii', sumOfBeadRadii)
+    beadRadii = self.metadata.get('bead_radii', constants.sumOfBeadRadii)
 
     displacement = self.trap.f/min(current_k)
     ratio = 1+min(new_k)/max(new_k)
