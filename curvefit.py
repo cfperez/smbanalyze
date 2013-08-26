@@ -132,15 +132,17 @@ def MMS_rip_region_maker(masks):
   assert map(lambda e: isinstance(e, np.ndarray), masks)
 
   handle = masks.pop(0)
-  handle_force = F[handle]
-  rip_forces = [F[mask] for mask in masks]
-  rip_sizes = map(lambda r: rips[r], sorted(rips))
-  rip_items = zip(rip_forces, rip_sizes)
+
   def MMS_rip_region(F, Lp, Lc, F0, K, Lp1, Lc1, K1, **rips):
     rips['Lc1'] = Lc1
+    handle_force = F[handle]
+    rip_forces = [F[mask] for mask in masks]
+    rip_sizes = map(lambda r: rips[r], sorted(rips))
+    rip_items = zip(rip_forces, rip_sizes)
+
     handle_ext = MMS(handle_force, Lp, Lc, F0, K)
     rip_ext = [MMS_rip(force, Lp, Lc, F0, K, Lp1, Lc_rip, K1) 
-        for force,Lc_rip in rip_items]
+                for force,Lc_rip in rip_items]
     return np.append(handle_ext, rip_ext)
   
   addl_rips = ['Lc{}'.format(n) for n in range(2,1+len(masks))]
@@ -255,7 +257,11 @@ class Fit(object):
     return (x,y), kwargs
 
   def plot(self, **kwargs):
-    args, kwargs = self._to_plot(**kwargs)
+    # args, kwargs = self._to_plot(**kwargs)
+    args = (self.x, self.fitOutput)
+    if self.inverted:
+      args = reversed(args)
+    kwargs.setdefault('linewidth', 2)
     return _subplot(*args,**kwargs)
 
   def __repr__(self):
