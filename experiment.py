@@ -518,7 +518,7 @@ class Pulling(Base):
     pull = self.trap.select(x, f, (start,stop))
     if len(pull)==0:
       raise ValueError(
-        'No trap data in interval defined by arguments x={} and f={}'.fromat(
+        'No trap data in interval defined by arguments x={} and f={}'.format(
           x,f))
     fit = fitWLC(pull.ext, pull.f, **fitOptions)
     fit.ext_range = (min(pull.ext), max(pull.ext))
