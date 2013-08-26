@@ -68,6 +68,8 @@ class fitWLCripTest(unittest.TestCase):
         print handle_x - fit(handle_f)
         print fit
         self.assertItemsAlmostEqual(handle_x, fit(handle_f))
+        print upper_x
+        print fit(upper_f)
         # self.assertItemsAlmostEqual(upper_x, fit(upper_f))
         print fit.parameters
         print self.rip_params()

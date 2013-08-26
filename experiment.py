@@ -71,6 +71,7 @@ def collapseArgList(arglist):
   else:
     return arglist
 
+
 class List(list):
   def __init__(self, iterable=[]):
     super(List, self).__init__(iterable)
@@ -287,6 +288,41 @@ class List(list):
                       for i, item in enumerate(self))
     return '[' + fmt + ']'
 
+
+def split_reverse_pull(exp):
+  '''
+  fwd, rev = split_reverse_pull(exp)
+  Return forward and reverse pulls as separate experiments
+  '''
+  assert isinstance(exp, Pulling)
+  split = find_reverse_splitpoint(exp.trap)
+  if split is None:
+    return exp, None
+  fwd, rev = split_reverse_data(exp.trap, split)
+  fwd_fret, rev_fret = None, None
+  if exp.fret:
+    fwd_fret, rev_fret = split_reverse_data(exp.fret, split)
+  return Pulling(fwd, fwd_fret), Pulling(rev, rev_fret)
+
+def split_reverse_data(data, split):
+  '''Return forward and reverse data on split'''
+  assert isinstance(data, AbstractData)
+  if split is None:
+    raise ValueError('Split cannot be None')
+  cls = type(data)
+  forward, reverse = (cls.fromObject(data[:split]), 
+          cls.fromObject(data[split:]))
+  return forward, reverse
+
+def find_reverse_splitpoint(trap):
+  '''Return index location of reverse pull splitpoint or None if not found'''
+  ext, force, sep = trap
+  i = where(diff(sep)==0)[0]
+  if len(i) == 0:
+    return None
+  else:
+    return i[0]
+
 class RipAnalysis(object):
   '''Analyze rips
   rips = RipAnalysis.fromExperiments( List )
@@ -340,6 +376,7 @@ class RipAnalysis(object):
 
 class TrapSettings(object):
   pass
+
 
 class Base(object):
   ".fret .f .ext and other meta-data (sample rate, trap speeds, )"
@@ -406,40 +443,6 @@ class Base(object):
 
   def plot(self):
     raise NotImplementedError
-
-def split_reverse_pull(exp):
-  '''
-  fwd, rev = split_reverse_pull(exp)
-  Return forward and reverse pulls as separate experiments
-  '''
-  assert isinstance(exp, Pulling)
-  split = find_reverse_splitpoint(exp.trap)
-  if split is None:
-    return exp, None
-  fwd, rev = split_reverse_data(exp.trap, split)
-  fwd_fret, rev_fret = None, None
-  if exp.fret:
-    fwd_fret, rev_fret = split_reverse_data(exp.fret, split)
-  return Pulling(fwd, fwd_fret), Pulling(rev, rev_fret)
-
-def split_reverse_data(data, split):
-  '''Return forward and reverse data on split'''
-  assert isinstance(data, AbstractData)
-  if split is None:
-    raise ValueError('Split cannot be None')
-  cls = type(data)
-  forward, reverse = (cls.fromObject(data[:split]), 
-          cls.fromObject(data[:split-1:-1]))
-  return forward, reverse
-
-def find_reverse_splitpoint(trap):
-  '''Return index location of reverse pull splitpoint or None if not found'''
-  ext, force, sep = trap
-  i = where(diff(sep)==0)[0]
-  if len(i) == 0:
-    return None
-  else:
-    return i[0]
 
 class Pulling(Base):
   "stretching curves of single molecule .str camera .cam image .img"
@@ -687,6 +690,7 @@ class Pulling(Base):
       raise ExperimentError('Specify a filename')
     pickle.dump( self, open(filename,'wb') )
 
+
 class OpenLoop(Base):
   "Object for manipulating FretData (and optional TrapData) for open loop measurements"
   def __init__(self, pull, fret, **metadata):
@@ -717,12 +721,15 @@ class OpenLoop(Base):
   def plot(self, **kwargs):
     self.figure.plot(self.fret, **kwargs)
 
+
 class ForceClamp(Base):
   "force-extension .tdms camera .cam image .img"
   pass
 
+
 class OptionError(Exception):
   pass
+
 
 class OptionDict(dict):
   def __init__(self, mapping):
@@ -750,6 +757,7 @@ class OptionDict(dict):
       else:
         out.append("{} = {}".format(key, value))
     return '\n'.join(out)
+
 
 Options = OptionDict({
   'loading': {
