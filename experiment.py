@@ -7,7 +7,7 @@ import re
 import abc
 
 from matplotlib.mlab import find
-from numpy import min, max, asarray, insert, sum, mean, all, any, diff, std, vstack, NAN
+from numpy import min, max, asarray, insert, sum, mean, all, any, diff, std, vstack, NAN, where
 import matplotlib.pyplot as plt
 
 import fileIO 
@@ -16,7 +16,7 @@ from useful import groupat
 import fplot
 import constants
 import image
-from datatypes import TrapData, FretData, hasTrapData, hasFretData
+from datatypes import TrapData, FretData, hasTrapData, hasFretData, AbstractData
 
 logger = logging.getLogger(__name__)
 logger.setLevel(constants.logLevel)
@@ -400,7 +400,41 @@ class Base(object):
 
   def plot(self):
     raise NotImplementedError
-    
+
+def split_reverse_pull(exp):
+  '''
+  fwd, rev = split_reverse_pull(exp)
+  Return forward and reverse pulls as separate experiments
+  '''
+  assert isinstance(exp, Pulling)
+  split = find_reverse_splitpoint(exp.trap)
+  if split is None:
+    return exp, None
+  fwd, rev = split_reverse_data(exp.trap, split)
+  fwd_fret, rev_fret = None, None
+  if exp.fret:
+    fwd_fret, rev_fret = split_reverse_data(exp.fret, split)
+  return Pulling(fwd, fwd_fret), Pulling(rev, rev_fret)
+
+def split_reverse_data(data, split):
+  '''Return forward and reverse data on split'''
+  assert isinstance(data, AbstractData)
+  if split is None:
+    raise ValueError('Split cannot be None')
+  cls = type(data)
+  forward, reverse = (cls.fromObject(data[:split]), 
+          cls.fromObject(data[split:]))
+  return forward, reverse
+
+def find_reverse_splitpoint(trap):
+  '''Return index location of reverse pull splitpoint or None if not found'''
+  ext, force, sep = trap
+  i = where(diff(sep)==0)[0]
+  if len(i) == 0:
+    return None
+  else:
+    return i[0]
+
 class Pulling(Base):
   "stretching curves of single molecule .str camera .cam image .img"
 
@@ -414,7 +448,6 @@ class Pulling(Base):
     self.lastFit = None
     self.resetRips()
     self._ext_offset = 0
-
 
   @classmethod
   def fromFile(cls, strfile, fretfile=None):
@@ -532,7 +565,8 @@ class Pulling(Base):
   def fitRegions(self, *extensions, **fitOptions):
     '''
     Return MMS_rip_region fit using specied (min,max) regions in *extensions
-    Example: pull.fitRegions( (840,970), (1000,1030), max_force=16)
+    Example: 
+    fit = pull.fitRegions( (840,970), (1000,1030), max_force=16)
     '''
     max_force = fitOptions.pop('max_force', Pulling.maximum_fitting_force)
     masks = [self.trap.maskFromLimits(region) for region in extensions[:-1]]
