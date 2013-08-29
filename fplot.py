@@ -61,14 +61,15 @@ class Figure(object):
       'raw', 'rgba', 'svg', 'svgz') 
 
   DEFAULT_SIZE = (9, 7.5)
-  def toFile(self, filename=None):
+  def toFile(self, filename=None, size=None):
+    size = size or Figure.DEFAULT_SIZE
     if filename:
       ext = path.splitext(filename)[1]
       if ext[1:] not in Figure.IMAGE_OUTPUT_FORMATS:
         filename += constants.DEFAULT_FIGURE_EXT
     else:
       filename = 'Figure {0}{1}'.format(self.figure.number, constants.DEFAULT_FIGURE_EXT)
-    self.figure.set_size_inches(*Figure.DEFAULT_SIZE)
+    self.figure.set_size_inches(*size)
     self.figure.savefig(filename, bbox_inches='tight', pad_inches=0.1)
 
 def plotall(fret, pull=None,  **kwargs):
@@ -181,7 +182,6 @@ def plot(data, pull=None, style=PlotStyle(), **kwargs):
 
   first_plot = ax1 or ax2
   first_plot.set_title(title)
-  plt.show()
 
 def subplotsNeeded(data):
   num = 0
