@@ -10,9 +10,9 @@ except ImportError:
 
 from constants import parameters,kT
 from fplot import _subplot
-from useful import fix_args, broadcast, static_args
+from useful import fix_args, broadcast
 from collections import OrderedDict, Iterable
-from operator import or_, itemgetter
+from operator import or_
 
 class FitError(Exception):
   pass
@@ -138,7 +138,6 @@ def combine_masks(masks):
   return np.array(reduce(or_, masks))
 
 
-
 def MMS_rip_region_maker(masks):
   '''Creates a fitting function for an arbitrary number of fit regions in masks
   that allows simultaneous fitting of each as MMS rips.
@@ -146,6 +145,7 @@ def MMS_rip_region_maker(masks):
   assert isinstance(masks, (tuple,list))
   assert len(masks) > 1
   assert map(lambda e: isinstance(e, np.ndarray), masks)
+  assert map(lambda e: e.dtype == np.dtype('bool'), masks)
 
   handle = masks.pop(0)
 
@@ -161,7 +161,7 @@ def MMS_rip_region_maker(masks):
                 for force,Lc_rip in rip_items]
 
     if len(rip_ext) > 1:
-      rip_ext = np.append(*rip_ext)
+      rip_ext = np.concatenate(rip_ext)
     return np.append(handle_ext, rip_ext)
   
   addl_rips = ['Lc{}'.format(n) for n in range(2,1+len(masks))]
@@ -261,7 +261,10 @@ class Fit(object):
   def __call__(self, x=None):
     return self.fitfunc(x, *self.parameters.values())
 	
-  def __getitem__(self,key):
+  def __iter__(self):
+    return iter(self.parameters)
+
+  def __getitem__(self, key):
     return self.parameters[key]
 
   def __len__(self):
@@ -278,7 +281,8 @@ class Fit(object):
     args = (self.x, self.fitOutput)
     if self.inverted:
       args = reversed(args)
-    return _subplot(*args,**kwargs)
+    kwargs.setdefault('marker', 'x')
+    return _subplot(*args, **kwargs)
 
   def __repr__(self):
     return "<Fit function '{0}' using parameters {1}".format(self.fitfunc.func_name, 
