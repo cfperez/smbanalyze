@@ -201,6 +201,7 @@ def plot(data, pull=None, style=None, **kwargs):
     if displayFRET:
       _subplot(data.time, data.fret, style['fret'], layout=next(layout), 
                 axes=('Seconds','FRET'))
+      plt.ylim(-0.1, 1.1)
 
   ax2 = None
   if pull:
