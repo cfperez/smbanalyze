@@ -37,7 +37,7 @@ def filter_extensions(files, extensions):
 
 def flist(*globs):
   assert(len(globs)>0)
-  return glob.glob(makeMatchStrFromArgs(*globs, re_match=False))
+  return sorted(glob.glob(makeMatchStrFromArgs(*globs, re_match=False)))
 fmatch = flist
 
 def makeMatchStrFromArgs(*globs, **options):
@@ -315,7 +315,7 @@ FileInfo = collections.namedtuple('FileInfo', FILENAME_FIELDS)
 # construct, conditions, slide, mol, pull
 basePattern = re.compile(r'^(?P<construct>[a-zA-Z0-9]+)_(.*)_s(\d+)(?:m(\d+))?'+_opt_('pull',r'\d+'))
 
-forcePattern = re.compile(r'_(\d+)pN')
+forcePattern = re.compile(r'_(\d+(?:\.\d+)?)pN')
 
 # min, sec, series
 timePattern = re.compile(r'_(?:(\d+)min)?(?:(\d+)s)?(?:_(\d+))?(?:_|$)')
