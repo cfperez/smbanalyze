@@ -143,41 +143,6 @@ class List(list):
       except AttributeError:
         raise ValueError('Comparison operator <{}> is not defined'.format(comparison))
 
-  METADATA_CHECK = {'trap': ('step_size', 'sampling_time'),
-                    'fret': ('exposurems', 'frames', 'gain', 'binning') }
-
-  def aggregate(self, datatype='trap', check_metadata=None):
-    "Aggregate data of given kind from experiments by appending."
-    if check_metadata is not None:
-      assert isinstance(check_metadata, tuple) or isinstance(check_metadata, list)
-
-    filtered = self.has(datatype)
-    logger.info('Using experiments {}'.format(filtered))
-    # aggregated = reduce(add, filtered.get(datatype)) if filtered else None
-    data = filtered.get(datatype)
-    if data:
-      cls = type(data[0])
-      aggregated = cls.aggregate(data, sort_by='sep')
-    else:
-      return None
-
-    check_for_fields = check_metadata or List.METADATA_CHECK[datatype]
-    for field in check_for_fields:
-      try:
-        meta = filtered.get(datatype+'.metadata')
-        values = frozenset(map(itemgetter(field), meta))
-        if len(values) > 1:
-          logger.warning(
-              'Multiple values found for metadata field <{}>: {}'.format(
-               field, tuple(values))
-               )
-      except KeyError:
-        logger.warning(
-            'Not all items in List have metadata field <{}>'.format(
-              field)
-            )
-    return aggregated
-
   def collapse(self, trap_sorted_by='sep', fret_sorted_by='time'):
     "Collapse experiments into a single experiment with all data appended together."
     assert isinstance(trap_sorted_by, str)
@@ -694,8 +659,7 @@ class Pulling(Base):
     return self.figure.pickPoints(num*2)
 
   def pickRegions(self, num=1):
-    points = sorted(x for x,f in self.pickPoints(num))
-    return [(points[i],points[i+1]) for i in range(0,len(points),2)]
+    return self.figure.pickRegions(num)
 	
   def savefig(self, filename=None, path='.'):
     if self.figure is None or not self.figure.exists:
