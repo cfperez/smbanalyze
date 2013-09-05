@@ -1,8 +1,10 @@
 import logging
 from numpy import all, asarray, sign, vstack
-from operator import isSequenceType, add
+from operator import isSequenceType, attrgetter
+from collections import Iterable
 from fileIO import load, toSettings, fileIOError
 import constants
+import copy
 
 logger = logging.getLogger(__name__)
 logger.setLevel(constants.logLevel)
@@ -23,7 +25,7 @@ class AbstractData(object):
   @classmethod
   def fromObject(cls, obj):
     try:
-      return cls(obj.data, **obj.metadata)
+      return cls(copy.copy(obj.data), **obj.metadata)
     except AttributeError:
       raise ValueError('Constructor method only takes object with AbstractData interface')
 
@@ -48,10 +50,15 @@ class AbstractData(object):
     return me
 
   @classmethod
-  def aggregate(cls, *data):
-    assert len(data) > 0
-    assert all(isinstance(d, AbstractData) or d is None for d in data)
-    return cls.fromObject(reduce(add, data))
+  def aggregate(cls, abstractdata, sort_by=None):
+    assert isinstance(abstractdata, Iterable)
+    assert len(abstractdata) > 0
+    assert all(isinstance(d, AbstractData) or d is None for d in abstractdata)
+    if sort_by and sort_by not in cls._fields:
+      raise ValueError('sort_by argument must be a field in this data type')
+    key = lambda e: e[cls._fields.index(sort_by)] if sort_by else None
+    data = map(attrgetter('data'), abstractdata)
+    return cls(asarray(sorted(vstack(data), key=key)))
     
   @classmethod
   def fromFields(cls, *args, **meta):

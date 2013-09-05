@@ -98,14 +98,16 @@ def testList():
 
 def testListAggregatePull():
   pull_list = experiment.List(pulls)
-  aggregated = pull_list.aggregate('trap')
+  aggregated = datatypes.TrapData.aggregate(
+    pull_list.get('trap'))
   rows, cols = aggregated.shape
   total_rows = sum(p.shape[0] for p in pull_list.get('trap'))
   assert total_rows == rows
 
 def testListAggregatePullNoFRET():
   pull_list = experiment.List(pulls).not_has('fret')
-  aggregated = pull_list.aggregate('trap')
+  aggregated = datatypes.TrapData.aggregate(
+    pull_list.get('trap'))
   assert type(aggregated) == datatypes.TrapData
   rows, cols = aggregated.shape
   total_rows = sum(p.shape[0] for p in pull_list.get('trap'))
@@ -304,3 +306,29 @@ class TestExperimentFromMatch(TestCase):
         self.assertEqual(len(pulls), 1)
         self.flist.assert_called_with('construct')
         self.pulling.assert_called_with(files[0])
+
+
+class ListTest(unittest.TestCase):
+
+    DATA_LENGTH = 10
+ 
+    def setUp(self):
+        self.trap_data = datatypes.TrapData.fromFields(
+            [1]*ListTest.DATA_LENGTH, 
+            [2]*ListTest.DATA_LENGTH,
+            [3]*ListTest.DATA_LENGTH
+            )
+
+    def tearDown(self):
+        pass
+
+    def test_collapse_on_two_exp_with_trap_data(self):
+        to_collapse = [self.trap_data]*2
+        test_list = experiment.List(
+            map(experiment.Pulling, to_collapse))
+        collapsed = test_list.collapse()
+        print collapsed.trap
+        correct = datatypes.TrapData.aggregate(to_collapse)
+        print correct
+        self.assertItemsEqual(collapsed.trap.data.flat, 
+            correct.data.flat)

@@ -1,5 +1,5 @@
 import os.path as path
-from operator import itemgetter, attrgetter, methodcaller, add
+from operator import itemgetter, attrgetter, methodcaller
 import operator as op
 import logging
 import cPickle as pickle
@@ -8,7 +8,6 @@ import abc
 
 from matplotlib.mlab import find
 from numpy import min, max, asarray, insert, sum, mean, all, any, diff, std, vstack, NAN, where
-import matplotlib.pyplot as plt
 
 import fileIO 
 from curvefit import fitWLC, fitWLC_masks
@@ -50,7 +49,7 @@ def filelist(*fglob):
   'Return list of unique filenames (without extension) of pulling and fret file types'
   files = fileIO.filtered_flist(*fglob, extensions=(fileIO.PULL_FILE, fileIO.FRET_FILE))
   files = map(lambda s: fileIO.splitext(s)[0], files)
-  return list(set(files))
+  return sorted(list(set(files)))
 
 def fromFiles(*filelist):
   'Load experiments from a list of files or an argument list'
@@ -124,7 +123,8 @@ class List(list):
     except AttributeError:
       raise ExperimentError('Missing method {0} in a List element'.format(action))
 
-  HAS_VALUE_COMPARE = {'greaterthan': op.gt, 'atleast': op.ge, 'lessthan': op.lt, 'atmost': op.le}
+  HAS_VALUE_COMPARE = {'greaterthan': op.gt, 'atleast': op.ge, 
+                      'lessthan': op.lt, 'atmost': op.le}
 
   def has_value(self, **kwargs):
     '''
@@ -153,7 +153,13 @@ class List(list):
 
     filtered = self.has(datatype)
     logger.info('Using experiments {}'.format(filtered))
-    aggregated = reduce(add, filtered.get(datatype)) if filtered else None
+    # aggregated = reduce(add, filtered.get(datatype)) if filtered else None
+    data = filtered.get(datatype)
+    if data:
+      cls = type(data[0])
+      aggregated = cls.aggregate(data, sort_by='sep')
+    else:
+      return None
 
     check_for_fields = check_metadata or List.METADATA_CHECK[datatype]
     for field in check_for_fields:
@@ -172,14 +178,24 @@ class List(list):
             )
     return aggregated
 
-  def collapse(self, *types):
+  def collapse(self, trap_sorted_by='sep', fret_sorted_by='time'):
     "Collapse experiments into a single experiment with all data appended together."
-    assert set(types).issubset(List.METADATA_CHECK.keys())
-    fec = self.aggregate('trap')
-    if fec is None:
-      raise ExperimentError('No experiments in List had any trap data!')
-    fdata = self.aggregate('fret')
-    return Pulling(fec, fdata)
+    assert isinstance(trap_sorted_by, str)
+    assert isinstance(fret_sorted_by, str)
+    filtered_by_trap = self.has('trap')
+    if len(filtered_by_trap) != len(self):
+      raise ExperimentError(
+        'Experiments in List must have attribute "trap"')
+    filtered_by_fret = self.has('fret')
+    num_with_fret = len(filtered_by_fret)
+    if num_with_fret == len(filtered_by_trap):
+        fret_data = FretData.aggregate(self.get('fret'), fret_sorted_by)
+    else:
+      fret_data = None
+      if num_with_fret > 0:
+          logger.warning('Not all experiments have fret: not collapsing fret data!')
+    trap_data = TrapData.aggregate(self.get('trap'), sort_by='sep')
+    return Pulling(trap_data, fret_data)
 
   def plotall(self, attr=None, **options):
     "Plot all experiments overlayed onto same panel. Can plot only trap or fret."
@@ -260,7 +276,7 @@ class List(list):
     xoffset = self.adjustExtensionOffset(to_x, x_range=ext_x_range, f_range=ext_f_range)
     return xoffset, foffset
 
-  def saveall(self):
+  def saveall(self, dir=None):
     self.call('save')
 
   def __getslice__(self, i, j):
@@ -311,7 +327,7 @@ def split_reverse_data(data, split):
     raise ValueError('Split cannot be None')
   cls = type(data)
   forward, reverse = (cls.fromObject(data[:split]), 
-          cls.fromObject(data[split:]))
+          cls.fromObject(data[:split-1:-1]))
   return forward, reverse
 
 def find_reverse_splitpoint(trap):
@@ -395,11 +411,14 @@ class Base(object):
     self.fret = fret
     self.metadata = metadata
     self.figure = fplot.Figure()
-    self.filename = ''
 
   @abc.abstractmethod
   def filenameMatchesType(cls, filename):
     pass
+
+  @property
+  def filename(self):
+    return self.metadata.get('filename', None)
 
   @classmethod
   def fromFile(cls, strfile, fretfile):
@@ -411,7 +430,7 @@ class Base(object):
     fret = FretData.fromFile(fretfile) if fretfile else None
     newCls = cls(trap, fret)
     filename = strfile if strfile else fretfile
-    newCls.filename = fileIO.splitext(filename)[0]
+    newCls.metadata['filename'] = fileIO.splitext(filename)[0]
     newCls.info = fileIO.parseFilename(newCls.filename)
     if not newCls.info:
       logger.warning('Problem parsing filename %s' % newCls.filename)
@@ -419,6 +438,11 @@ class Base(object):
     assert hasattr(newCls, 'filename')
     assert newCls.filename is not None
     return newCls
+
+  @classmethod
+  def toFile(cls, exp, filename):
+    with open(filename, 'wb') as fh:
+      pickle.dump(exp, fh)
 
   @classmethod
   def fromMatch(cls, *filename_pattern):
@@ -577,12 +601,10 @@ class Pulling(Base):
     Example: 
     fit = pull.fitRegions( (840,970), (1000,1030), max_force=16)
     '''
-    # max_force = fitOptions.pop('max_force', Pulling.maximum_fitting_force)
-    masks = [self.trap.maskFromLimits(region) for region in extensions]
-    # masks.append( self.trap.maskFromLimits(extensions[-1], (None, max_force)) )
-    self.lastFit = self.fit = fitWLC_masks(self.trap.ext, self.trap.f, masks, **fitOptions)
+    self.fit_masks = [self.trap.maskFromLimits(region) for region in extensions]
+    self.lastFit = self.fit = fitWLC_masks(self.trap.ext, self.trap.f, self.fit_masks,  **fitOptions)
     if self.figure.exists:
-      self.figure.plot(self.fit, marker='x', hold=True)
+      self.figure.plot(self.fit, hold=True)
     return self.fit
 
   @property
@@ -617,7 +639,9 @@ class Pulling(Base):
     f_range = f_range or Pulling.extensionOffsetRange
     data = self.trap.select(x=x_range, f=f_range)
     if len(data) == 0:
-      raise ExperimentError('<{0}>: No data exists in range {1} - {2}'.format(self, *frange))
+      raise ExperimentError(
+        '<{0}>: No data exists in f_range {1} - {2} and x_range {3} - {4}'.format(
+          self, *(f_range+x_range)))
     return mean(data.ext)
 
   def adjustExtensionOffset(self, baseline, f_range=None, x_range=None):
@@ -642,11 +666,11 @@ class Pulling(Base):
     self.trap.ext = self.trap.sep - beadRadii - displacement*ratio - self._ext_offset
     return self
 
-  def plot(self, **kwargs):
+  def plot(self, fret=True, **kwargs):
     kwargs.setdefault('FEC', self.fits or not self.fret)
     kwargs.setdefault('title', self.filename or '')
     loc_x = min(self.trap.ext)+10
-    location = list(kwargs.setdefault('annotate', (loc_x, 15)))
+    location = list(kwargs.pop('annotate', (loc_x, 15)))
     if self.fret:
       self.figure.plot(self.fret, self.trap, **kwargs)
     else:
@@ -670,8 +694,8 @@ class Pulling(Base):
     return self.figure.pickPoints(num*2)
 
   def pickRegions(self, num=1):
-	points = sorted(x for x,f in self.pickPoints(num))
-	return [(points[i],points[i+1]) for i in range(0,len(points),2)]
+    points = sorted(x for x,f in self.pickPoints(num))
+    return [(points[i],points[i+1]) for i in range(0,len(points),2)]
 	
   def savefig(self, filename=None, path='.'):
     if self.figure is None or not self.figure.exists:
@@ -688,7 +712,7 @@ class Pulling(Base):
     filename = filename or self.filename+'.exp'
     if not filename:
       raise ExperimentError('Specify a filename')
-    pickle.dump( self, open(filename,'wb') )
+    Pulling.toFile(self, filename)  
 
 
 class OpenLoop(Base):
