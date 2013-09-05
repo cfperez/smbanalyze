@@ -1,11 +1,9 @@
-import operator
 import os.path as path
 from itertools import cycle
 from collections import defaultdict
 import matplotlib.pyplot as plt
-from numpy import concatenate
 
-from datatypes import TrapData,hasTrapData,hasFretData
+from datatypes import TrapData,hasTrapData,hasFretData,hasTrapData
 import constants
 
 class Figure(object):
@@ -24,7 +22,11 @@ class Figure(object):
     return self.figure is not None and plt.fignum_exists(self.figure.number)
 
   def pickPoints(self, num_of_pts=2):
-	return plt.ginput(num_of_pts)
+  	return self.figure.ginput(num_of_pts)
+
+  def pickRegions(self, num=1):
+    points = sorted(x for x,f in self.pickPoints(num))
+    return [(points[i],points[i+1]) for i in range(0,len(points),2)]
 	
   def makeCurrent(self):
     if not self.exists:
@@ -80,13 +82,12 @@ def plotall(fret, pull=None,  **kwargs):
     pull = [None]*len(fret)
 
   labels = kwargs.pop('labels', [])
-  figure = plt.gcf()
   for obj in fret:
     label = labels.pop(0) if len(labels)>0 else ''
     plot(obj, pull=pull.pop(0), label=label, **kwargs)
-  return figure
 
-class PlotStyle(dict):
+
+class PlotStyle(object):
   """Dictionary-like class for setting styles on fplots
 
 PlotStyle constructor will only allow setting styles on things that
@@ -94,46 +95,73 @@ fplot.plot() is going to plot: check PlotStyle.ITEMS
 
 >>> style = PlotStyle(donor='r--', fret='.')
 >>> fplot.plot(fret_data_object, style=style)
+
+    # donor is dots with default color scheme
+    plot( ... , ... , style=PlotStyle(donor='.') )
+    
+    # donor is blue line, acceptor is red line, rest is black
+    plot( ... , ... , style=PlotStyle(color='k', donor='b-', acceptor='r-') )
+    
+    # all plots are lines
+    plot( ... , ... , style='-' )
+    
+    # all plots are green
+    plot( ... , ... , style=PlotStyle(color='g') )
+    
+    # color cycles for every line drawn (like matplotlib default)
+    plot( ... , ... , style=PlotStyle(color='auto') )
 """
 
-  ITEMS = ('donor', 'acceptor', 'fret', 'pull')
-  STYLES = ('--','-','-','-')
-  DEFAULT = dict(zip(ITEMS, ('--','-','-','-')))
+  ITEMS = ('donor', 'acceptor', 'fret', 'trap')
+  STYLES = (':','-','-','.')
 
-  def __init__(self, **styles):
-    self.update(PlotStyle.DEFAULT)
-    self.update(styles)
+  TRAP_STYLE_NAME = 'trap'
+
+  def __init__(self, color=None, **styles):
+    if color is None:
+      color = next_color_in_cycle()
+    elif color == 'auto':
+      color = ''
+    default_style = [color+linestyle for linestyle in PlotStyle.STYLES]
+    for item,style in styles.items():
+      if not style[0].isalnum():
+        styles[item] = color+style
+    self._styles = dict(
+      zip(PlotStyle.ITEMS, default_style),
+      **styles)
+
+  @classmethod
+  def with_default_style(cls, style):
+    style_dict = dict(zip(cls.ITEMS, [style]*len(cls.ITEMS)))
+    return cls(**style_dict)
+
+  def __getitem__(self, key):
+    return self._styles[key]
 
   def __setitem__(self, key, value):
     if key not in PlotStyle.ITEMS:
       raise ValueError('Item "{}" is not plotted and has no style')
-    super(PlotStyle, self).__setitem__(key, value)
+    self._styles[key] = value
 
-  def _nextColor(self):
-    pass
 
 COLOR_CYCLE = plt.rcParams['axes.color_cycle']
 COLOR = (color for color in cycle(COLOR_CYCLE))
+next_color_in_cycle = lambda : next(COLOR)
 
-def plot(data, pull=None, style=PlotStyle(), **kwargs):
+def plot(data, pull=None, style=None, **kwargs):
   """Plot FretData and/or TrapData as stacked subplots of counts, FRET, and FEC/FDC
   @data: datatypes.AbstractData
   @pull: datatypes.AbstractData
   @style: dict or str
   """
   if isinstance(style, str):
-    s = str(style)
-    style = defaultdict(lambda : s)
-    colorize = lambda s: next(COLOR)+s
-  else:
-    color = next(COLOR)
-    colorize = lambda s: color+s
-  assert isinstance(style, dict)
-  loc = kwargs.get('legend', 'best')
-  title = kwargs.get('title','')
-  label = kwargs.get('label', '')
-  FEC = kwargs.get('FEC',False)
-  displayFRET = kwargs.get('show_fret', hasattr(data,'fret'))
+    style = PlotStyle.with_default_style(style)
+  elif style is None:
+    style = PlotStyle()
+  loc = kwargs.pop('legend', 'best')
+  title = kwargs.pop('title','')
+  label = kwargs.pop('label', '')
+  displayFRET = kwargs.pop('show_fret', hasattr(data,'fret'))
 
   hold=kwargs.pop('hold', None)
   if hold is not None:
@@ -143,12 +171,13 @@ def plot(data, pull=None, style=PlotStyle(), **kwargs):
     pull = TrapData.fromObject(data)
 
   num = 0
-  if hasattr(data, 'donor'): num += 1
+  if displayFRET and hasattr(data, 'donor'): num += 1
   if displayFRET and hasFretData(data): num += 1
-  if pull: 
+  if pull:
     num += 1
-    if num == 1:
-      FEC = kwargs.setdefault('FEC', True)
+    FEC = kwargs.pop('FEC', num==1)
+  else:
+    FEC = kwargs.pop('FEC', False)
 
   if num == 0:
     raise ValueError("Don't know how to plot arguments: need TrapData or FretData")
@@ -159,24 +188,25 @@ def plot(data, pull=None, style=PlotStyle(), **kwargs):
     layout = iter((num,1,x) for x in range(1,num+1))
 
   ax1 = None
-  if hasFretData(data):
+  if hasFretData(data) and displayFRET:
     donor, acceptor = 'donor', 'acceptor'
     plt.subplot(*next(layout))
     not hold and plt.cla()
     plt.hold(True)
-    ax1 = _subplot(data.time, data.donor, colorize(style[donor]), label=donor)
-    _subplot(data.time, data.acceptor, colorize(style[acceptor]), label=acceptor, axes=('','counts'))
+    ax1 = _subplot(data.time, data.donor, style[donor], label=donor, **kwargs)
+    _subplot(data.time, data.acceptor, style[acceptor], label=acceptor, axes=('','counts'), **kwargs)
     plt.hold(hold)
     if loc is not None:
       plt.legend(loc=loc,ncol=2,prop={'size':'small'})
     if displayFRET:
-      _subplot(data.time, data.fret, colorize(style['fret']), layout=next(layout), 
+      _subplot(data.time, data.fret, style['fret'], layout=next(layout), 
                 axes=('Seconds','FRET'))
 
   ax2 = None
   if pull:
+    trap_style = PlotStyle.TRAP_STYLE_NAME
     x_coord,x_label = (pull.ext,'Extension (nm)') if FEC else (pull.sep,'Separation (nm)')
-    ax2 = _subplot(x_coord, pull.f, colorize('.'), layout=next(layout), axes=(x_label,'Force (pN)'), label=label)
+    ax2 = _subplot(x_coord, pull.f, style[trap_style], layout=next(layout), axes=(x_label,'Force (pN)'), label=label, **kwargs)
     if loc is not None:
       plt.legend(loc=loc,ncol=2,prop={'size':'small'})
 
@@ -189,11 +219,11 @@ def subplotsNeeded(data):
     num += 1
   if hasattr(data,'fret'):
     num += 1
-  if hasPullData(data):
+  if hasTrapData(data):
     num += 1
   return num
 
-def _subplot(*args,**kwargs):
+def _subplot(*args, **kwargs):
   sub = kwargs.pop('layout',())
   axes = kwargs.pop('axes', ())
   hold = kwargs.get('hold', None)
