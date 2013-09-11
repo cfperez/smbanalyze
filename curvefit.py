@@ -32,12 +32,33 @@ def fitWLC_masks(x, y, masks, **fitOptions):
   fitOptions.setdefault('Lc', max(x[masks[-1]]))
   fitOptions.setdefault('fixed', tuple())
   fitOptions['fixed'] += ('K', 'K1', 'Lp1')
-  mask_for_mask = combine_masks(masks)
-  masks_trimmed = map(lambda m: m[mask_for_mask], masks)
+  mask_for_mask = combine_masks_with_or(masks)
+  masks_trimmed = convert_masks_to_contiguous_regions(masks, mask_for_mask)
   fit = Fit(x, y, fitfunc=MMS_rip_region_maker(masks_trimmed), 
     mask=mask_for_mask, **fitOptions)
   return fit
+
+def fitWLCrip(x_handle, f_handle, x_upper, f_upper, mask=None, **fitOptions):
+  fitOptions.setdefault('Lc', max(x_upper))
+  fitOptions.setdefault('fixed', tuple())
+  fitOptions['fixed'] += ('K', 'K1', 'Lp1')
+  ext = np.append(x_handle, x_upper)
+  force = np.append(f_handle, f_upper)
+  def limits(data):
+    return (min(data), max(data))
+  fit = Fit(ext, force, fitfunc=MMS_rip_maker(limits(f_handle), limits(f_upper), split_point=len(x_handle)),
+            mask=mask, 
+            **fitOptions)
+  return fit
   
+def convert_masks_to_contiguous_regions(masks, mask_for_mask):
+  return map(lambda m: m[mask_for_mask], masks)
+
+def combine_masks_with_or(masks):
+  if len(masks) == 1:
+    return masks[0]
+  return np.array(reduce(or_, masks))
+
 def fitWLC(x, f, mask=None, **fitOptions):
   "Fit stretching data to WLC model"
   assert len(x) > 0
@@ -118,25 +139,6 @@ def MMS_rip_maker(handle_limits, upper_limits, split_point=None):
   MMS_rip_global.inverted = True
 
   return MMS_rip_global
-
-def fitWLCrip(x_handle, f_handle, x_upper, f_upper, mask=None, **fitOptions):
-  fitOptions.setdefault('Lc', max(x_upper))
-  fitOptions.setdefault('fixed', tuple())
-  fitOptions['fixed'] += ('K', 'K1', 'Lp1')
-  ext = np.append(x_handle, x_upper)
-  force = np.append(f_handle, f_upper)
-  def limits(data):
-    return (min(data), max(data))
-  fit = Fit(ext, force, fitfunc=MMS_rip_maker(limits(f_handle), limits(f_upper), split_point=len(x_handle)),
-            mask=mask, 
-            **fitOptions)
-  return fit
-
-def combine_masks(masks):
-  if len(masks) == 1:
-    return masks[0]
-  return np.array(reduce(or_, masks))
-
 
 def MMS_rip_region_maker(masks):
   '''Creates a fitting function for an arbitrary number of fit regions in masks
@@ -282,6 +284,7 @@ class Fit(object):
     if self.inverted:
       args = reversed(args)
     kwargs.setdefault('marker', 'x')
+    kwargs.setdefault('linestyle', '')
     return _subplot(*args, **kwargs)
 
   def __repr__(self):
