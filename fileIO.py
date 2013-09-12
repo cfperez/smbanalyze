@@ -15,8 +15,11 @@ IMAGE_FILE = '.img'
 CAMERA_FILE = '.cam'
 FRET_FILE = '.fret'
 PULL_FILE = '.str'
+OFC_FILE = '.dat'
 
 REGISTERED_EXT = (IMAGE_FILE,CAMERA_FILE,FRET_FILE,PULL_FILE)
+
+OFC_NUM_OF_COLUMNS = 2
 
 def filtered_flist(*globs, **options):
   extensions = options.get('extensions', REGISTERED_EXT)
@@ -58,7 +61,8 @@ class fileIOError(Exception):
   IGNORE = 2
   WARNING = 1
   ERROR = 0
-  def __init__(self, level, message):
+
+  def __init__(self, message, level=ERROR):
     self.level = level
     self.strerror = message
 
@@ -82,8 +86,8 @@ def load(fname, comments=toSettings, header=False, **kwargs):
       loadComments = comments(loadComments) if isfunction(comments) \
                       else loadComments
     except ValueError:
-      raise fileIOError(fileIOError.WARNING, 
-          'Comments from file {0} could not be processed'.format(fname))
+      raise fileIOError(level=fileIOError.WARNING, 
+          message='Comments from file {0} could not be processed'.format(fname))
     output = [loadData]
     if header:
       output.insert(0,loadHeader)
@@ -97,7 +101,7 @@ def loadstr(fname, **loadOptions):
   loadOptions.setdefault('comments', ('/*', '#'))
   filecomments,fileheader,data = loaddat(fname, **loadOptions)
   if fileheader != ['extension','force','trapdistance']:
-    raise IOError, "Stretch file must contain extension, force, and separation"
+    raise fileIOError("Stretch file must contain extension, force, and separation")
   return filecomments, fileheader, data
 loadstr.extension=PULL_FILE
 
@@ -202,9 +206,19 @@ def loadimg(filename, datatype='>h', **kwargs):
   try:
     img = img.reshape(img_size)
   except ValueError:
-    raise IOError("Image file %s is corrupted, expected frame: %d, height: %d, width: %d" % 
+    raise fileIOError("Image file %s is corrupted, expected frame: %d, height: %d, width: %d" % 
         (filename, img_size[0], img_size[1], img_size[2]))
   return img
+
+def loadofc(filename, datatype='>f4', **kwargs):
+  data = np.fromfile(filename, datatype)
+  num_columns = OFC_NUM_OF_COLUMNS
+  try:
+    data_reshaped = data.reshape( (-1,num_columns) )
+  except ValueError:
+    raise fileIOError(
+      "OFC file is wrong format or is corrupted; expect {} columns".format(num_columns))
+  return data_reshaped
 
 def loadcam(filename):
   "Return dictionary of camera settings as contained in .cam file"
