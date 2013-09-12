@@ -1,9 +1,8 @@
 import os.path as path
 from itertools import cycle
-from collections import defaultdict
 import matplotlib.pyplot as plt
 
-from datatypes import TrapData,hasTrapData,hasFretData,hasTrapData
+from datatypes import TrapData,hasTrapData,hasFretData
 import constants
 
 class Figure(object):
@@ -25,7 +24,7 @@ class Figure(object):
   	return self.figure.ginput(num_of_pts)
 
   def pickRegions(self, num=1):
-    points = sorted(x for x,f in self.pickPoints(num))
+    points = sorted(x for x,f in self.pickPoints(num*2))
     return [(points[i],points[i+1]) for i in range(0,len(points),2)]
 	
   def makeCurrent(self):
@@ -59,12 +58,14 @@ class Figure(object):
     "Annotate figure with text at location (x,y)"
     x,y = location
     return plt.text(x, y, text)
+
   IMAGE_OUTPUT_FORMATS = ('emf', 'eps', 'pdf', 'png', 'ps',
       'raw', 'rgba', 'svg', 'svgz') 
 
-  DEFAULT_SIZE = (9, 7.5)
+  DEFAULT_FILE_DIMENSIONS = (9, 7.5)
+
   def toFile(self, filename=None, size=None):
-    size = size or Figure.DEFAULT_SIZE
+    size = size or Figure.DEFAULT_FILE_DIMENSIONS
     if filename:
       ext = path.splitext(filename)[1]
       if ext[1:] not in Figure.IMAGE_OUTPUT_FORMATS:
@@ -86,15 +87,17 @@ def plotall(fret, pull=None,  **kwargs):
     label = labels.pop(0) if len(labels)>0 else ''
     plot(obj, pull=pull.pop(0), label=label, **kwargs)
 
+def _has_color(style_string):
+  return style_string[0].isalnum()
 
-class PlotStyle(object):
+class PlotStyle(dict):
   """Dictionary-like class for setting styles on fplots
 
 PlotStyle constructor will only allow setting styles on things that
 fplot.plot() is going to plot: check PlotStyle.ITEMS
 
->>> style = PlotStyle(donor='r--', fret='.')
->>> fplot.plot(fret_data_object, style=style)
+    style = PlotStyle(donor='r--', fret='.')
+    fplot.plot(fret_data_object, style=style)
 
     # donor is dots with default color scheme
     plot( ... , ... , style=PlotStyle(donor='.') )
@@ -121,12 +124,12 @@ fplot.plot() is going to plot: check PlotStyle.ITEMS
     if color is None:
       color = next_color_in_cycle()
     elif color == 'auto':
-      color = ''
+      color = '' # lets matplotlib decide
     default_style = [color+linestyle for linestyle in PlotStyle.STYLES]
     for item,style in styles.items():
-      if not style[0].isalnum():
+      if not _has_color(style):
         styles[item] = color+style
-    self._styles = dict(
+    super(PlotStyle, self).__init__(
       zip(PlotStyle.ITEMS, default_style),
       **styles)
 
@@ -134,15 +137,11 @@ fplot.plot() is going to plot: check PlotStyle.ITEMS
   def with_default_style(cls, style):
     style_dict = dict(zip(cls.ITEMS, [style]*len(cls.ITEMS)))
     return cls(**style_dict)
-
-  def __getitem__(self, key):
-    return self._styles[key]
-
+    
   def __setitem__(self, key, value):
     if key not in PlotStyle.ITEMS:
       raise ValueError('Item "{}" is not plotted and has no style')
-    self._styles[key] = value
-
+    super(PlotStyle, self).__setitem__(key, value)
 
 COLOR_CYCLE = plt.rcParams['axes.color_cycle']
 COLOR = (color for color in cycle(COLOR_CYCLE))
