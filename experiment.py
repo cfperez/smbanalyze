@@ -166,9 +166,9 @@ class List(list):
     "Plot all experiments overlayed onto same panel. Can plot only trap or fret."
     assert attr in set([None,'trap','fret'])
     options.setdefault('labels', self.get('filename'))
-    if hasattr(self,'figure') and self.figure.exists:
-     self.figure.makeCurrent()
-     self.figure.clear()
+    if hasattr(self, '_figure') and self._figure.exists:
+     self._figure.makeCurrent()
+     self._figure.clear()
     if attr is None and self.has('fret'):
       options.setdefault('FEC', False)
       options.setdefault('legend', None)
@@ -176,12 +176,12 @@ class List(list):
     else:
       attr = attr or 'trap'
       fplot.plotall( self.get(attr), hold=True, **options)
-    self.figure = fplot.Figure.fromCurrent()
-    return self.figure
+    self._figure = fplot.Figure.fromCurrent()
+    return self._figure
 
   def savefig(self, filename):
     "Save figure from last plotall()"
-    self.figure.toFile(filename)
+    self._figure.toFile(filename)
 
   def plot(self, **options):
     "Create individual plots"
@@ -304,60 +304,6 @@ def find_reverse_splitpoint(trap):
   else:
     return i[0]
 
-class RipAnalysis(object):
-  '''Analyze rips
-  rips = RipAnalysis.fromExperiments( List )
-  RipAnalysis.fromTrapData( list ) ??
-  rips.f
-  rips.ext
-  rips.sep
-  mean rips.f
-  std rips.f
-  '''
-  DEFAULT_MIN_RIP_EXT = 970
-  
-  def __init__(self, *exps):
-    self.experiments = List()
-    self.addExperiments(exps)
-    
-  @classmethod
-  def fromExperiments(cls, *exps):
-    newRips = cls(*exps)
-    newRips.calculate(RipAnalysis.DEFAULT_MIN_RIP_EXT)
-    return newRips
-
-  def addExperiments(self, *exps):
-    exps = collapseArgList(exps)
-    self.experiments += List(exps)
-    self.calculate(RipAnalysis.DEFAULT_MIN_RIP_EXT)
-
-  def calculate(self, min_rip_ext=None):
-    self.rips = self.experiments.findRip(min_rip_ext)
-    
-  def mean(self):
-    return mean(self.rips, axis=0)
-
-  def std(self):
-    return std(self.rips, axis=0)
-
-  def statistics(self):
-    return vstack((self.mean(), self.std()))
-    
-  @property
-  def f(self):
-    return self.rips[:,1]
-
-  @property
-  def ext(self):
-    return self.rips[:,0]
-  
-  def plot(self):
-    raise NotImplementedError
-  
-
-class TrapSettings(object):
-  pass
-
 
 class Base(object):
   ".fret .f .ext and other meta-data (sample rate, trap speeds, )"
@@ -375,7 +321,7 @@ class Base(object):
     self.trap = trap
     self.fret = fret
     self.metadata = metadata
-    self.figure = fplot.Figure()
+    self._figure = fplot.Figure()
 
   @abc.abstractmethod
   def filenameMatchesType(cls, filename):
@@ -384,6 +330,10 @@ class Base(object):
   @property
   def filename(self):
     return self.metadata.get('filename', None)
+
+  @property
+  def figure(self):
+    return self._figure
 
   @classmethod
   def fromFile(cls, strfile, fretfile):
@@ -404,10 +354,14 @@ class Base(object):
     assert newCls.filename is not None
     return newCls
 
-  @classmethod
-  def toFile(cls, exp, filename):
+  def save(self, filename):
     with open(filename, 'wb') as fh:
-      pickle.dump(exp, fh)
+      figure = self._figure
+      self._figure = None
+      try:
+        pickle.dump(self, fh)
+      finally:
+        self._figure = figure
 
   @classmethod
   def fromMatch(cls, *filename_pattern):
@@ -422,7 +376,7 @@ class Base(object):
       return List(map(cls.fromFile, flist))
 
   def __repr__(self):
-    if getattr(self,'filename', None):
+    if getattr(self, 'filename', None):
       return "<Experiment.%s from '%s'>" % (self.__class__.__name__, self.filename)
     else:
       return super(Base,self).__repr__()
@@ -433,10 +387,11 @@ class Base(object):
   def plot(self):
     raise NotImplementedError
 
+
 class Pulling(Base):
   "stretching curves of single molecule .str camera .cam image .img"
 
-  forceOffsetRange = (740,770)
+  forceOffsetRange = (760,790)
   extensionOffsetRange = (13,16)
   maximum_fitting_force = 25
 
@@ -556,8 +511,8 @@ class Pulling(Base):
     fit.ext_range = (min(pull.ext), max(pull.ext))
     fit.f_range = (min(pull.f), max(pull.f))
     self.lastFit = fit
-    if self.figure.exists:
-      self.figure.plot(fit, hold=True)
+    if self._figure.exists:
+      self._figure.plot(fit, hold=True)
     return fit
 
   def fitRegions(self, *extensions, **fitOptions):
@@ -568,8 +523,8 @@ class Pulling(Base):
     '''
     self.fit_masks = [self.trap.maskFromLimits(region) for region in extensions]
     self.lastFit = self.fit = fitWLC_masks(self.trap.ext, self.trap.f, self.fit_masks,  **fitOptions)
-    if self.figure.exists:
-      self.figure.plot(self.fit, hold=True)
+    if self._figure.exists:
+      self._figure.plot(self.fit, hold=True)
     return self.fit
 
   @property
@@ -637,46 +592,46 @@ class Pulling(Base):
     loc_x = min(self.trap.ext)+10
     location = list(kwargs.pop('annotate', (loc_x, 15)))
     if self.fret:
-      self.figure.plot(self.fret, self.trap, **kwargs)
+      self._figure.plot(self.fret, self.trap, **kwargs)
     else:
-      self.figure.plot(self.trap, **kwargs)
+      self._figure.plot(self.trap, **kwargs)
     if self.lastFit:
-      self.figure.plot(self.lastFit, hold=True)
+      self._figure.plot(self.lastFit, hold=True)
     if self.handles:
-      self.figure.plot(self.handles, hold=True)
-      self.figure.annotate(unicode(self.handles), location)
+      self._figure.plot(self.handles, hold=True)
+      self._figure.annotate(unicode(self.handles), location)
       location[1] -= 1
     for fit in self.rips:
-      self.figure.plot(fit, hold=True)
+      self._figure.plot(fit, hold=True)
       text = unicode(fit)
       cutoff = 51
       if len(text) >= cutoff:
         text = text[:cutoff]+'\n'+text[cutoff:]
-      self.figure.annotate(text, location)
-    return self.figure
+      self._figure.annotate(text, location)
+    return self._figure
 
   def pickPoints(self, num=1):
-    return self.figure.pickPoints(num*2)
+    return self._figure.pickPoints(num)
 
   def pickRegions(self, num=1):
-    return self.figure.pickRegions(num)
+    return self._figure.pickRegions(num)
 	
   def savefig(self, filename=None, path='.'):
-    if self.figure is None or not self.figure.exists:
+    if self._figure is None or not self._figure.exists:
       raise ExperimentError('No figure available for experiment {0}'.format(str(self)))
     else: 
       filename = filename or self.filename
-      self.figure.toFile(filename)
+      self._figure.toFile(filename)
 
   @classmethod
   def load(cls, filename):
     return pickle.load(open(filename,'rb'))
 
   def save(self, filename=None):
+    if filename is None and self.filename is None:
+      raise ValueError('Please choose a filename')
     filename = filename or self.filename+'.exp'
-    if not filename:
-      raise ExperimentError('Specify a filename')
-    Pulling.toFile(self, filename)  
+    super(Pulling, self).save(filename)
 
 
 class OpenLoop(Base):
