@@ -1,4 +1,4 @@
-import os.path as path
+import os.path as opath
 from operator import itemgetter, attrgetter, methodcaller
 import operator as op
 import logging
@@ -40,7 +40,7 @@ def fromMatchAll(*fglob):
   'Load Pulling experiments with filenames that contain all of the strings listed in the arguments'
   fglob = list(fglob)
   files = filelist(*fglob)
-  fglob[0] = path.basename(fglob[0])
+  fglob[0] = opath.basename(fglob[0])
   if not files:
     raise ExperimentError("No files found matching glob '{0}'".format(fglob))
   return fromFiles(files)
@@ -187,7 +187,7 @@ class List(list):
     "Create individual plots"
     self.call('plot', **options)
 
-  def saveallfig(self, path='.'):
+  def saveallfig(self, path=''):
     "Save all individual plots"
     self.call('savefig', path=path)
 
@@ -241,8 +241,8 @@ class List(list):
     xoffset = self.adjustExtensionOffset(to_x, x_range=ext_x_range, f_range=ext_f_range)
     return xoffset, foffset
 
-  def saveall(self, dir=None):
-    self.call('save')
+  def saveall(self, path=''):
+    self.call('save', path=path)
 
   def __getslice__(self, i, j):
     return self.__getitem__(slice(i, j))
@@ -354,8 +354,9 @@ class Base(object):
     assert newCls.filename is not None
     return newCls
 
-  def save(self, filename):
-    with open(filename, 'wb') as fh:
+  def save(self, filename, path=''):
+    full_path = opath.join(path, filename)
+    with open(full_path, 'wb') as fh:
       figure = self._figure
       self._figure = None
       try:
@@ -407,7 +408,7 @@ class Pulling(Base):
     'Load stretching data and corresponding fret data from files'
     basename, strfile, fretfileFromBase = fileIO.filesFromName(strfile)
     fretfile = fretfile or fretfileFromBase
-    if not path.exists(fretfile):
+    if not opath.exists(fretfile):
       fretfile = None
     return super(Pulling, cls).fromFile(strfile, fretfile)
 
@@ -427,7 +428,7 @@ class Pulling(Base):
     return True
 
   def loadimg(self, directory='.', **kwargs):
-    filename = self.filename if directory=='.' else path.join(directory, self.filename)
+    filename = self.filename if directory=='.' else opath.join(directory, self.filename)
     try:
       return image.fromFile(fileIO.add_img_ext(filename), **kwargs)
     except IOError:
@@ -616,7 +617,7 @@ class Pulling(Base):
   def pickRegions(self, num=1):
     return self._figure.pickRegions(num)
 	
-  def savefig(self, filename=None, path='.'):
+  def savefig(self, filename=None, path=''):
     if self._figure is None or not self._figure.exists:
       raise ExperimentError('No figure available for experiment {0}'.format(str(self)))
     else: 
@@ -627,11 +628,11 @@ class Pulling(Base):
   def load(cls, filename):
     return pickle.load(open(filename,'rb'))
 
-  def save(self, filename=None):
+  def save(self, filename=None, path=''):
     if filename is None and self.filename is None:
       raise ValueError('Please choose a filename')
     filename = filename or self.filename+'.exp'
-    super(Pulling, self).save(filename)
+    super(Pulling, self).save(filename, path=path)
 
 
 class OpenLoop(Base):
@@ -657,7 +658,7 @@ class OpenLoop(Base):
   def fromFile(cls, fretfile):
     assert isinstance(fretfile, str)
     basename, strfile, fretfile = fileIO.filesFromName(fretfile)
-    if not path.exists(strfile):
+    if not opath.exists(strfile):
       strfile = None
     return super(OpenLoop, cls).fromFile(strfile, fretfile)
 
