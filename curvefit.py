@@ -32,10 +32,11 @@ def fitWLC_masks(x, y, masks, **fitOptions):
   fitOptions.setdefault('Lc', max(x[masks[-1]]))
   fitOptions.setdefault('fixed', tuple())
   fitOptions['fixed'] += ('K', 'K1', 'Lp1')
-  mask_for_mask = combine_masks_with_or(masks)
-  masks_trimmed = convert_masks_to_contiguous_regions(masks, mask_for_mask)
+  combined_mask = combine_masks_with_or(masks)
+  masks_trimmed = convert_masks_to_contiguous_regions(masks, combined_mask)
   fit = Fit(x, y, fitfunc=MMS_rip_region_maker(masks_trimmed), 
-    mask=mask_for_mask, **fitOptions)
+    mask=combined_mask, regions=masks_trimmed,
+    **fitOptions)
   return fit
 
 def fitWLCrip(x_handle, f_handle, x_upper, f_upper, mask=None, **fitOptions):
@@ -165,6 +166,7 @@ def MMS_rip_region_maker(masks):
     if len(rip_ext) > 1:
       rip_ext = np.concatenate(rip_ext)
     return np.append(handle_ext, rip_ext)
+  MMS_rip_region.__reduce__ = lambda : (MMS_rip_region_maker, (masks,))
   
   addl_rips = ['Lc{}'.format(n) for n in range(2,1+len(masks))]
   MMS_rip_region.default = MMS_rip.default.copy()
@@ -177,14 +179,14 @@ def MMS_rip_region_maker(masks):
 
 class Fit(object):
   @classmethod
-  def extends(cls, fit, x, y, fitfunc, fixed=(), mask=None, verbose=False, **user_parameters):
+  def extends(cls, fit, x, y, fitfunc, fixed=(), mask=None, **user_parameters):
     fixed = tuple(fixed) + tuple(fit.parameters)
     params = fit.parameters.copy()
     params.update(user_parameters)
-    newfit = cls(x, y, fitfunc, fixed, mask, verbose=verbose, **params)
+    newfit = cls(x, y, fitfunc, fixed, mask, **params)
     return newfit
     
-  def __init__(self, x, y, fitfunc, fixed=(), mask=None, weights=None, verbose=False, **user_parameters):
+  def __init__(self, x, y, fitfunc, fixed=(), mask=None, regions=None, weights=None, **user_parameters):
     "Initialize to a specific fitting function, optionally fitting to data specified"
 
     if isinstance(fitfunc,str):
@@ -198,6 +200,8 @@ class Fit(object):
     else:
       self.mask = None
       to_masked = lambda ar: ar
+
+    self._regions = regions
 
     # Use inspection to get parameter names from fit function
     # assuming first argument is independent variable
