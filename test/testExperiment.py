@@ -72,19 +72,51 @@ def testPullingSave():
     pull.save(fname)
     mock.assert_called()
 
+@patch('smbanalyze.experiment.pickle.dump')
+class ExperimentSave(object):
+    """save() in Pulling and List"""
+
+    def __init__(self, *args, **kwargs):
+        self.fname = 'test'
+        super(ExperimentSave, self).__init__(*args, **kwargs)
+
+    def testPullingSaveFilenameEndsWithExp(self, dump):
+        self.exp.save(self.fname)
+        (p,fh),kw = dump.call_args
+        self.assertEqual(fh.name, self.fname+'.exp')
+        self.assertEqual(p, self.exp)
+
+    def testPullingSaveEmptyFilenameEndsWithExp(self, dump):
+        self.exp.metadata['filename'] = self.fname
+        self.exp.save()
+        self.assertEqual(self.fname+'.exp', self._filename_from_dump(dump))
+
+    def _filename_from_dump(self, dump):
+        (p,fh),kw = dump.call_args
+        return fh.name
+
+class TestPullingSave(ExperimentSave, unittest.TestCase):
+    def setUp(self):
+        self.exp = experiment.Pulling(None, None)
+
+class TestOpenLoopSave(ExperimentSave, unittest.TestCase):
+    def setUp(self):
+        self.exp = experiment.OpenLoop(None, None)
+
+
 def testPullingLoad():
   fname = 'save_s1m1.exp'
-  with patch('smbanalyze.experiment.pickle.load') as mock:
+  with patch('smbanalyze.experiment.pickle.load', autospec=True) as mock:
     mock.return_value = pulls[0]
     pull = experiment.Pulling.load(fname)
-    mock.assert_called()
+    assert mock.called
     assert type(pull) == experiment.Pulling
     assert pull.trap == pulls[0].trap
     assert pull.fret == pulls[0].fret
 
 def testExperimentPlot():
   for a_pull in pulls:
-    a_pull.figure = Mock(autospec=fplot.Figure)
+    a_pull._figure = Mock(autospec=fplot.Figure)
     a_pull.plot()
 
 def testList():
@@ -150,42 +182,10 @@ class TestDatatypes(unittest.TestCase):
     self.load.assert_called_with('test_cond_s1m1', comments=fileIO.toSettings)
     self.assertEqual(self.data.tolist(), fdata.data.tolist())
 
-class TestExperimentRipAnalysis(TestCase):
-  def setUp(self):
-    self.pull = MagicMock(autospec=experiment.Pulling)
-    self.ripData = array([500,10,1000])
-    self.pull.findRip.return_value = self.ripData
-    
-  def testConstructorOneExperiment(self):
-    #rips = experiment.RipAnalysis.fromExperiments(pull)
-    experiment.RipAnalysis(self.pull)
-    self.pull.findRip.assert_called()
-    
-  def testFromExperimentsOneExperiment(self):
-    experiment.RipAnalysis.fromExperiments(self.pull)
-    self.pull.findRip.assert_called()
-    
-  def testFromExperimentsTwoExperiments(self):
-    experiment.RipAnalysis.fromExperiments(self.pull, self.pull)
-    self.pull.findRip.assert_called()
-    
-  def checkSimpleOutput(self, rips):
-    self.assertEqual(rips.f, self.ripData[1])
-    self.assertEqual(rips.ext, self.ripData[0])
-    #self.assertListEqual(rips.mean().tolist(), self.pull.findRip().tolist())
-    
-  def testRipStatisticsOneExperiment(self):
-    rips = experiment.RipAnalysis(self.pull)
-    self.checkSimpleOutput(rips)
-    
-  def testRipStatisticsFiveExperiments(self):
-    rips = experiment.RipAnalysis(experiment.List([self.pull]*5))
-    rips.mean()
-    
 class TestLoadingExperimentsFromFile(TestCase):
 
   def setUp(self):
-    self.exists = self._startPatch('smbanalyze.experiment.path.exists')
+    self.exists = self._startPatch('smbanalyze.experiment.opath.exists')
     self.exists.return_value = True
     self.fdata = self._startPatch('smbanalyze.experiment.FretData')
     data = [[1,2,3],[1,2,3],[1,2,3],[1,2,3]]
@@ -277,7 +277,7 @@ class TestOpenLoopLoading(unittest.TestCase):
     time_test = 'SJF4_0.5nM_s1m3_3_2{}.fret'.format(time_type)
     self.assertTrue( self.hasFiletype(time_test) )
 
-  @patch('smbanalyze.experiment.path.exists')
+  @patch('smbanalyze.experiment.opath.exists')
   @patch('smbanalyze.experiment.TrapData')
   @patch('smbanalyze.experiment.FretData')
   def testOpenLoopFromFile(self, fdata, tdata, exists_mock):
@@ -311,6 +311,7 @@ class TestExperimentFromMatch(TestCase):
 class ListTest(unittest.TestCase):
 
     DATA_LENGTH = 10
+    FILENAME = 'test'
  
     def setUp(self):
         self.trap_data = datatypes.TrapData.fromFields(
@@ -318,17 +319,27 @@ class ListTest(unittest.TestCase):
             [2]*ListTest.DATA_LENGTH,
             [3]*ListTest.DATA_LENGTH
             )
+        self.to_collapse = [self.trap_data]*2
 
     def tearDown(self):
         pass
 
     def test_collapse_on_two_exp_with_trap_data(self):
-        to_collapse = [self.trap_data]*2
         test_list = experiment.List(
-            map(experiment.Pulling, to_collapse))
+            map(experiment.Pulling, self.to_collapse))
         collapsed = test_list.collapse()
         print collapsed.trap
-        correct = datatypes.TrapData.aggregate(to_collapse)
+        correct = datatypes.TrapData.aggregate(self.to_collapse)
         print correct
         self.assertItemsEqual(collapsed.trap.data.flat, 
             correct.data.flat)
+        self.assertEqual(collapsed.filename, 'collapsed')
+
+    def test_collapse_two_exp_with_filename(self):
+        filename = 'test'
+        test_list = experiment.List(
+            map(experiment.Pulling, self.to_collapse))
+        for p in test_list:
+            p.metadata['filename'] = filename
+        collapsed = test_list.collapse()
+        self.assertEqual(collapsed.filename, filename+'_collapsed')         

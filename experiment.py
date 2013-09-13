@@ -160,7 +160,9 @@ class List(list):
       if num_with_fret > 0:
           logger.warning('Not all experiments have fret: not collapsing fret data!')
     trap_data = TrapData.aggregate(self.get('trap'), sort_by='sep')
-    return Pulling(trap_data, fret_data)
+    fname = self[0].filename or ''
+    fname += '_collapsed' if fname else 'collapsed'
+    return Pulling(trap_data, fret_data, filename=fname)
 
   def plotall(self, attr=None, **options):
     "Plot all experiments overlayed onto same panel. Can plot only trap or fret."
@@ -236,9 +238,8 @@ class List(list):
     if to_adjust != self:
       msg = 'Ignoring experiments below {} pN!'.format(filter_f)
       logger.warning(msg)
-      self = to_adjust
-    foffset = self.adjustForceOffset(to_f, x_range=force_x_range)
-    xoffset = self.adjustExtensionOffset(to_x, x_range=ext_x_range, f_range=ext_f_range)
+    foffset = to_adjust.adjustForceOffset(to_f, x_range=force_x_range)
+    xoffset = to_adjust.adjustExtensionOffset(to_x, x_range=ext_x_range, f_range=ext_f_range)
     return xoffset, foffset
 
   def saveall(self, path=''):
@@ -354,15 +355,27 @@ class Base(object):
     assert newCls.filename is not None
     return newCls
 
-  def save(self, filename, path=''):
+  def save(self, filename=None, path=''):
+    if filename is None and self.filename is None:
+      raise ValueError('Please choose a filename')
+    filename = filename or self.filename
+    if not filename.endswith('.exp'):
+      filename = filename + '.exp'
     full_path = opath.join(path, filename)
     with open(full_path, 'wb') as fh:
+      # Temporarily remove figure and fit.fitfunc so pickle.dump will work
       figure = self._figure
       self._figure = None
+      fit = None
+      if hasattr(self, 'fit'):
+        fit = self.fit.fitfunc
+        self.fit.fitfunc = None
       try:
-        pickle.dump(self, fh)
+        pickle.dump(self, fh, protocol=2)
       finally:
         self._figure = figure
+        if fit:
+          self.fit.fitfunc = fit
 
   @classmethod
   def fromMatch(cls, *filename_pattern):
@@ -627,12 +640,6 @@ class Pulling(Base):
   @classmethod
   def load(cls, filename):
     return pickle.load(open(filename,'rb'))
-
-  def save(self, filename=None, path=''):
-    if filename is None and self.filename is None:
-      raise ValueError('Please choose a filename')
-    filename = filename or self.filename+'.exp'
-    super(Pulling, self).save(filename, path=path)
 
 
 class OpenLoop(Base):
