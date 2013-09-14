@@ -409,7 +409,7 @@ class Base(object):
 class Pulling(Base):
   "stretching curves of single molecule .str camera .cam image .img"
 
-  forceOffsetRange = (760,790)
+  forceOffsetRange = (740,770)
   extensionOffsetRange = (13,16)
   maximum_fitting_force = 25
 
