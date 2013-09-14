@@ -49,7 +49,12 @@ def filelist(*fglob):
   'Return list of unique filenames (without extension) of pulling and fret file types'
   files = fileIO.filtered_flist(*fglob, extensions=(fileIO.PULL_FILE, fileIO.FRET_FILE))
   files = map(lambda s: fileIO.splitext(s)[0], files)
-  return sorted(list(set(files)))
+  return unique(files)
+
+def unique(list_):
+  seen = set()
+  seen_add = seen.add
+  return [x for x in list_ if x not in seen and not seen_add(x)]
 
 def fromFiles(*filelist):
   'Load experiments from a list of files or an argument list'
@@ -322,7 +327,7 @@ class Base(object):
     self.trap = trap
     self.fret = fret
     self.metadata = metadata
-    self._figure = fplot.Figure()
+    self._figure = fplot.Figure(self.filename)
 
   @abc.abstractmethod
   def filenameMatchesType(cls, filename):
@@ -344,9 +349,8 @@ class Base(object):
 
     trap = TrapData.fromFile(strfile) if strfile else None
     fret = FretData.fromFile(fretfile) if fretfile else None
-    newCls = cls(trap, fret)
     filename = strfile if strfile else fretfile
-    newCls.metadata['filename'] = fileIO.splitext(filename)[0]
+    newCls = cls(trap, fret, filename=fileIO.splitext(filename)[0])
     newCls.info = fileIO.parseFilename(newCls.filename)
     if not newCls.info:
       logger.warning('Problem parsing filename %s' % newCls.filename)

@@ -40,7 +40,8 @@ def filter_extensions(files, extensions):
 
 def flist(*globs):
   assert(len(globs)>0)
-  return sorted(glob.glob(makeMatchStrFromArgs(*globs, re_match=False)))
+  return sorted(glob.glob(makeMatchStrFromArgs(*globs, re_match=False)),
+    key=lambda x: x.split('.')[0].split('_'))
 fmatch = flist
 
 def makeMatchStrFromArgs(*globs, **options):
