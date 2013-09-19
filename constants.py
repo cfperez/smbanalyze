@@ -10,6 +10,9 @@ gamma = 1.16
 sumOfBeadRadii = 715
 stiffness = (1.525, 0.25)
 
+default_pulling_sampling_time = 0.025
+default_fret_exposure_time_ms = 50
+
 default_background_subtract = 94
 
 logHandler = logging.StreamHandler()
