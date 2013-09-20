@@ -311,7 +311,7 @@ class TestExperimentFromMatch(TestCase):
 class ListTest(unittest.TestCase):
 
     DATA_LENGTH = 10
-    FILENAME = 'test'
+    FILENAME = 'construct_100pM_s1m1_2'
  
     def setUp(self):
         self.trap_data = datatypes.TrapData.fromFields(

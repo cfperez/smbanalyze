@@ -1,27 +1,56 @@
 import os.path as path
 from itertools import cycle
 import matplotlib.pyplot as plt
+from collections import OrderedDict
 
 from datatypes import TrapData,hasTrapData,hasFretData
 import constants
 
 class Figure(object):
-  def __init__(self, fignumber=None):
-    self.figure = plt.figure(fignumber) if fignumber else None
+  def __init__(self, fig_id=None):
+    self.figure_id = fig_id
+    self._figure = None
+
+  def __getstate__(self):
+    ''' Return __dict__ for pickling with _figure attribute removed (can't be pickled)
+    '''
+    state = self.__dict__.copy()
+    state['_figure'] = None
+    return state
 
   @classmethod
   def fromCurrent(cls):
-    return cls(plt.gcf().number)
+    gcf = plt.gcf()
+    current = cls(gcf.number)
+    current._figure = gcf
+    return current
+
+  def show(self):
+    self.exists or self.new()
+    plt.figure(self.figure_id)
+    return self
 
   def new(self):
-    self.figure = plt.figure()
+    self._figure = plt.figure(self.figure_id)
+    self.figure_id = self._figure.get_label() or self._figure.number
+    return self
+
+  @property
+  def visible(self):
+    return self.exists and plt.fignum_exists(self._figure.number)
 
   @property
   def exists(self):
-    return self.figure is not None and plt.fignum_exists(self.figure.number)
+    return self._figure is not None
+
+  @property
+  def figure(self):
+    if not self.exists:
+      self.new()
+    return self
 
   def pickPoints(self, num_of_pts=2):
-  	return self.figure.ginput(num_of_pts)
+  	return self._figure.ginput(num_of_pts)
 
   def pickRegions(self, num=1):
     points = sorted(x for x,f in self.pickPoints(num*2))
@@ -29,15 +58,12 @@ class Figure(object):
 	
   def makeCurrent(self):
     if not self.exists:
-      raise RuntimeError('Figure object does not exist')
-    plt.figure(self.figure.number)
+      raise RuntimeError('Figure is not visible')
+    plt.figure(self._figure.number)
     return self
 
   def plot(self, *args, **kwargs):
-    if not self.exists:
-      self.new()
-    else:
-      self.makeCurrent()
+    self.show()
     try:
       # Treat the first argument as an object that can plot itself...
       return args[0].plot(*args[1:], **kwargs)
@@ -45,14 +71,18 @@ class Figure(object):
       # ...unless it can't
       return plot(*args, **kwargs)
 
+  def plotall(self, *args, **kwargs):
+    
+    plotall(*args, **kwargs)
+
   def clear(self):
     if self.exists:
-      self.figure.clf()
-      self.figure.show()
+      self._figure.clf()
+      self._figure.show()
       
   def close(self):
     if self.exists:
-      plt.close(self.figure)
+      plt.close(self._figure)
 
   def annotate(self, text, location):
     "Annotate figure with text at location (x,y)"
@@ -72,8 +102,8 @@ class Figure(object):
         filename += constants.DEFAULT_FIGURE_EXT
     else:
       filename = 'Figure {0}{1}'.format(self.figure.number, constants.DEFAULT_FIGURE_EXT)
-    self.figure.set_size_inches(*size)
-    self.figure.savefig(filename, bbox_inches='tight', pad_inches=0.1)
+    self._figure.set_size_inches(*size)
+    self._figure.savefig(filename, bbox_inches='tight', pad_inches=0.1)
 
 def plotall(fret, pull=None,  **kwargs):
   assert isinstance(fret, (list, tuple, type(None)))
@@ -88,7 +118,7 @@ def plotall(fret, pull=None,  **kwargs):
     plot(obj, pull=pull.pop(0), label=label, **kwargs)
 
 def _has_color(style_string):
-  return style_string[0].isalnum()
+  return style_string and len(style_string) > 0 and style_string[0].isalnum()
 
 class PlotStyle(dict):
   """Dictionary-like class for setting styles on fplots
@@ -127,8 +157,8 @@ fplot.plot() is going to plot: check PlotStyle.ITEMS
       color = '' # lets matplotlib decide
     default_style = [color+linestyle for linestyle in PlotStyle.STYLES]
     for item,style in styles.items():
-      if not _has_color(style):
-        styles[item] = color+style
+      if style and not _has_color(style):
+        styles[item] = color + style
     super(PlotStyle, self).__init__(
       zip(PlotStyle.ITEMS, default_style),
       **styles)
@@ -187,31 +217,80 @@ def plot(data, pull=None, style=None, **kwargs):
     layout = iter((num,1,x) for x in range(1,num+1))
 
   ax1 = None
+  donor, acceptor = 'donor', 'acceptor'
   if hasFretData(data) and displayFRET:
-    donor, acceptor = 'donor', 'acceptor'
     plt.subplot(*next(layout))
     not hold and plt.cla()
     plt.hold(True)
-    ax1 = _subplot(data.time, data.donor, style[donor], label=donor, **kwargs)
-    _subplot(data.time, data.acceptor, style[acceptor], label=acceptor, axes=('','counts'), **kwargs)
+    ax1 = subplot(data.time, data.donor, style[donor], label=donor, **kwargs)
+    subplot(data.time, data.acceptor, style[acceptor], label=acceptor, axes=('','counts'), **kwargs)
     plt.hold(hold)
     if loc is not None:
       plt.legend(loc=loc,ncol=2,prop={'size':'small'})
-    if displayFRET:
-      _subplot(data.time, data.fret, style['fret'], layout=next(layout), 
-                axes=('Seconds','FRET'))
-      plt.ylim(-0.1, 1.1)
+  if displayFRET:
+    subplot(data.time, data.fret, style['fret'], layout=next(layout), 
+              axes=('Seconds','FRET'))
+    plt.ylim(-0.1, 1.1)
 
   ax2 = None
   if pull:
     trap_style = PlotStyle.TRAP_STYLE_NAME
     x_coord,x_label = (pull.ext,'Extension (nm)') if FEC else (pull.sep,'Separation (nm)')
-    ax2 = _subplot(x_coord, pull.f, style[trap_style], layout=next(layout), axes=(x_label,'Force (pN)'), label=label, **kwargs)
+    ax2 = subplot(x_coord, pull.f, style[trap_style], layout=next(layout), axes=(x_label,'Force (pN)'), label=label, **kwargs)
     if loc is not None:
       plt.legend(loc=loc,ncol=2,prop={'size':'small'})
 
   first_plot = ax1 or ax2
   first_plot.set_title(title)
+
+fret_default_style = OrderedDict(
+                    [('donor', '--'), 
+                    ('acceptor', '-'),
+                    ('fret', '-')])
+
+def _num_of_visible_styles(style_dict):
+  return len(filter(None, style_dict.values()))
+
+def _n_row_layout_generator(num):
+  return ((num,1,x) for x in range(1,num+1))
+
+def axes_label(x, y):
+  plt.xlabel(x)
+  plt.ylabel(y)
+
+def axes_limits(x=None, y=None):
+  return plt.xlim(x), plt.ylim(y)
+  
+def plot_fret(data, hold=False, layout=None, **styles):
+  styles_w_defaults = fret_default_style.copy()
+  styles_w_defaults.update(styles)
+  donor, acceptor, fret = styles_w_defaults.values()
+  if layout is None:
+    num_layouts = 2 if fret and (donor or acceptor) else 1
+    layout = _n_row_layout_generator(num_layouts)
+  elif isinstance(layout, list):
+    layout = iter(layout)
+  else:
+    layout = cycle([layout])
+
+  not hold and plt.cla()
+  plt.hold(True)
+
+  count_layout = next(layout)
+  if donor:
+    subplot(data.time, data.donor, donor, label='donor', layout=count_layout)
+    count_layout = None
+
+  if acceptor:
+    subplot(data.time, data.acceptor, acceptor, label='acceptor', layout=count_layout)
+  axes_label('', 'Counts')
+
+  if fret:
+    subplot(data.time, data.fret, fret, layout=next(layout), 
+            axes=('Seconds','FRET'))
+    plt.ylim(-0.1, 1.1)
+   
+  plt.legend(loc='best', ncol=2, prop={'size':'small'})
 
 def subplotsNeeded(data):
   num = 0
@@ -223,15 +302,15 @@ def subplotsNeeded(data):
     num += 1
   return num
 
-def _subplot(*args, **kwargs):
-  sub = kwargs.pop('layout',())
+def subplot(*args, **kwargs):
+  layout = kwargs.pop('layout',())
   axes = kwargs.pop('axes', ())
   hold = kwargs.get('hold', None)
 
   if hold is not None:
     plt.hold(hold)
-  if sub:
-    ax = plt.subplot(*sub)
+  if layout:
+    ax = plt.subplot(*layout)
   else:
     ax = plt.gca()
   plt.plot(*args,**kwargs)
@@ -241,7 +320,7 @@ def _subplot(*args, **kwargs):
       plt.xlabel(axes[0])
       plt.ylabel(axes[1])
     except IndexError:
-      raise ValueError('_subplot expects labels for BOTH axes')
+      raise ValueError('subplot expects labels for BOTH axes')
   return ax
 
 def hist(data, bins=50, plot='fret', hold=False, **kwargs):
