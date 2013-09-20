@@ -104,12 +104,17 @@ class AbstractData(object):
         if field not in self._fields:
             raise ValueError('Keyword argument must be a field')
 
+        return self[getattr(self, field) > value][0]
         index = search_monotonic(getattr(self, field), value)
         return self[index]
 
     def __getattr__(self, attr):
         if attr in self._fields:
-            return self.data[:, self._fields.index(attr)]
+            attr_position = self._fields.index(attr)
+            if len(self.shape) == 1:
+                return self.data[attr_position]
+            else:
+                return self.data[:, attr_position]
         else:
             try:
                 return getattr(super(AbstractData, self), attr)
