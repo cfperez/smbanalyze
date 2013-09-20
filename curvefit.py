@@ -9,7 +9,7 @@ except ImportError:
   from curve_fit import curve_fit
 
 from constants import parameters,kT
-from fplot import _subplot
+from fplot import subplot
 from useful import fix_args, broadcast
 from collections import OrderedDict, Iterable
 from operator import or_
@@ -32,10 +32,8 @@ def fitWLC_masks(x, y, masks, **fitOptions):
   fitOptions.setdefault('Lc', max(x[masks[-1]]))
   fitOptions.setdefault('fixed', tuple())
   fitOptions['fixed'] += ('K', 'K1', 'Lp1')
-  combined_mask = combine_masks_with_or(masks)
-  masks_trimmed = convert_masks_to_contiguous_regions(masks, combined_mask)
-  fit = Fit(x, y, fitfunc=MMS_rip_region_maker(masks_trimmed), 
-    mask=combined_mask, regions=masks_trimmed,
+  fit = FitRegions(x, y, fitfunc=MMS_rip_region_maker,
+    regions=masks,
     **fitOptions)
   return fit
 
@@ -186,7 +184,7 @@ class Fit(object):
     newfit = cls(x, y, fitfunc, fixed, mask, **params)
     return newfit
     
-  def __init__(self, x, y, fitfunc, fixed=(), mask=None, regions=None, weights=None, **user_parameters):
+  def __init__(self, x, y, fitfunc, fixed=(), mask=None, weights=None, **user_parameters):
     "Initialize to a specific fitting function, optionally fitting to data specified"
 
     if isinstance(fitfunc,str):
@@ -201,8 +199,6 @@ class Fit(object):
       self.mask = None
       to_masked = lambda ar: ar
 
-    self._regions = regions
-
     # Use inspection to get parameter names from fit function
     # assuming first argument is independent variable
     arg_names = getattr(fitfunc, 'arglist', inspect.getargspec(fitfunc).args)[1:]
@@ -212,7 +208,7 @@ class Fit(object):
     if not set(user_parameters.keys()) <= valid_args:
       raise FitError('Keyword arguments {0} can only set valid fit parameters {1}'.format(user_parameters.keys(), list(valid_args)))
 
-    # Don't bother getting function defaults of user specifies everything
+    # Don't bother getting function defaults if user specifies everything
     if set(user_parameters.keys()) == valid_args:
       fit_parameters.update(user_parameters)
     else:
@@ -264,7 +260,7 @@ class Fit(object):
     error = self.covariance.diagonal()
     self.error = OrderedDict(zip(self.free_parameters.keys(), error))
 
-  def __call__(self, x=None):
+  def __call__(self, x):
     return self.fitfunc(x, *self.parameters.values())
 	
   def __iter__(self):
@@ -272,9 +268,6 @@ class Fit(object):
 
   def __getitem__(self, key):
     return self.parameters[key]
-
-  def __len__(self):
-    return len(self.parameters)
 
   def _to_plot(self, **kwargs):
     x = sorted(self.x)
@@ -289,7 +282,19 @@ class Fit(object):
       args = reversed(args)
     kwargs.setdefault('marker', 'x')
     kwargs.setdefault('linestyle', '')
-    return _subplot(*args, **kwargs)
+    return subplot(*args, **kwargs)
+
+  def __getstate__(self):
+    state = self.__dict__.copy()
+    state['fitfunc'] = (self.fitfunc.__module__, self.fitfunc.func_name)
+    return state
+
+  def __setstate__(self, state):
+    self.__dict__ = state
+    func_module, func_name = state['fitfunc']
+    import importlib
+    func_mod = importlib.import_module(func_module)
+    self.fitfunc = getattr(func_mod, func_name)
 
   def __repr__(self):
     return "<Fit function '{0}' using parameters {1}".format(self.fitfunc.func_name, 
@@ -306,6 +311,30 @@ class Fit(object):
 
   def toFile(self,filename):
     raise NotImplementedError
+
+class FitRegions(Fit):
+  def __init__(self, x, y, fitfunc, fixed=(), regions=None, weights=None, **user_parameters):
+    self.fitfunc_generator = fitfunc
+    fitfunc, combined_mask = self._make_fitfunc_from_regions(fitfunc, regions)
+    super(FitRegions, self).__init__(
+        x, y, 
+        fitfunc,
+        mask=combined_mask,
+        fixed=fixed,
+        weights=weights,
+        **user_parameters
+    )
+    self.regions = regions
+
+  def _make_fitfunc_from_regions(self, func_gen, regions):
+    combined_mask = combine_masks_with_or(regions)
+    masks_trimmed = convert_masks_to_contiguous_regions(regions, combined_mask)
+    return func_gen(masks_trimmed), combined_mask
+
+  def __setstate__(self, state):
+    self.__dict__ = state
+    fitfunc_maker = state['fitfunc_generator'] #getattr(mod, func_name)
+    self.fitfunc = self._make_fitfunc_from_regions(fitfunc_maker, self.regions)
 
 class FitFret(Fit):
   fitfunc = gauss
