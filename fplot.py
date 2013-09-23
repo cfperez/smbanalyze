@@ -71,13 +71,12 @@ class Figure(object):
       # ...unless it can't
       return plot(*args, **kwargs)
 
-  def plotall(self, *args, **kwargs):
-    
+  def plotall(self, *args, **kwargs):   
     plotall(*args, **kwargs)
 
   def clear(self):
     if self.visible:
-      self._figure.close().show()
+      self.close().show()
     return self
       
   def close(self):
