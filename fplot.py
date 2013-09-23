@@ -76,7 +76,8 @@ class Figure(object):
 
   def clear(self):
     if self.visible:
-      self.close().show()
+      self._figure.clf()
+      plt.draw()
     return self
       
   def close(self):
