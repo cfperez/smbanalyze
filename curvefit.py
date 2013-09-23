@@ -333,8 +333,8 @@ class FitRegions(Fit):
 
   def __setstate__(self, state):
     self.__dict__ = state
-    fitfunc_maker = state['fitfunc_generator'] #getattr(mod, func_name)
-    self.fitfunc = self._make_fitfunc_from_regions(fitfunc_maker, self.regions)
+    fitfunc_maker = state['fitfunc_generator']
+    self.fitfunc, mask = self._make_fitfunc_from_regions(fitfunc_maker, self.regions)
 
 class FitFret(Fit):
   fitfunc = gauss
