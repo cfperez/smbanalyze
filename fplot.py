@@ -1,7 +1,7 @@
 import os.path as path
 from itertools import cycle
 import matplotlib.pyplot as plt
-from collections import OrderedDict
+from collections import OrderedDict, namedtuple
 
 from datatypes import TrapData,hasTrapData,hasFretData
 import constants
@@ -76,13 +76,14 @@ class Figure(object):
     plotall(*args, **kwargs)
 
   def clear(self):
-    if self.exists:
-      self._figure.clf()
-      self._figure.show()
+    if self.visible:
+      self._figure.close().show()
+    return self
       
   def close(self):
     if self.exists:
       plt.close(self._figure)
+    return self
 
   def annotate(self, text, location):
     "Annotate figure with text at location (x,y)"
@@ -104,6 +105,35 @@ class Figure(object):
       filename = 'Figure {0}{1}'.format(self.figure.number, constants.DEFAULT_FIGURE_EXT)
     self._figure.set_size_inches(*size)
     self._figure.savefig(filename, bbox_inches='tight', pad_inches=0.1)
+
+Region = namedtuple('Region', 'start end')
+
+class Regions(list):
+  def __init__(self, iterable):
+      items = map(Region._make, iterable)
+      if not self._valid_regions(items):
+        raise ValueError('Regions must be non-overlapping: {}'.format(items))
+      super(Regions, self).__init__(items)
+      
+  def _valid_regions(self, regions):
+    last = 0
+    for start,end in regions:
+      if start < last:
+        return False
+    return True
+
+  def __str__(self):
+      return '\n'.join(
+    'Region {n}: ({start:0.1f}, {end:0.1f})'.format(
+      n=n, start=region.start, end=region.end) for n,region in enumerate(self)
+    )
+
+  def __add__(self, other):
+      return Regions(Region(x+other, y+other) for x,y in self)
+  
+  def __setitem__(self, index, val):
+      super(Regions, self).__setitem__(index, Region._make(val))
+
 
 def plotall(fret, pull=None,  **kwargs):
   assert isinstance(fret, (list, tuple, type(None)))
@@ -191,6 +221,7 @@ def plot(data, pull=None, style=None, **kwargs):
   title = kwargs.pop('title','')
   label = kwargs.pop('label', '')
   displayFRET = kwargs.pop('show_fret', hasattr(data,'fret'))
+  kwargs.setdefault('markersize', 2)
 
   hold=kwargs.pop('hold', None)
   if hold is not None:
