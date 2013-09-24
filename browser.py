@@ -8,7 +8,7 @@ import os.path as path
 from itertools import groupby
 from contextlib import contextmanager
 from smbanalyze import experiment, fileIO
-from numpy import r_, mean, median, std
+from numpy import mean, median, std
 import datetime
 
 # DEFAULT: Change the path for your machine!
@@ -34,15 +34,17 @@ class ExperimentBrowser(object):
     DATA_DIR = 'Data'
     ANALYSIS_DIR = 'Analysis'
 
-    def __init__(self, filename, exp_type=experiment.Pulling, project_dir=PROJECT_DIR):
+    def __init__(self, filename=None, exp_type=experiment.Pulling, project_dir=PROJECT_DIR):
         self._exp_type = exp_type
         self.project_dir = project_dir
         self.data_dir = path.join(project_dir,
                                   ExperimentBrowser.DATA_DIR)
         self.analysis_dir = path.join(project_dir,
                                       ExperimentBrowser.ANALYSIS_DIR)
-        with open(filename) as fh:
-            self._info = [line.strip().split() for line in fh.readlines()]
+        # self.molecules = {}
+        if filename:
+            with open(filename) as fh:
+                self._info = [line.strip().split() for line in fh.readlines()]
 
     def __iter__(self):
         return self._iter()
@@ -96,8 +98,10 @@ def byMolecule(directory='./', exp_type=experiment.Pulling, fromMatch=('',)):
     assert isinstance(directory, str)
     with ChangeDirectory(directory):
         flist = filter(exp_type.filenameMatchesType,
-                       experiment.filelist(*fromMatch))
-        for mol, group in groupby(flist, lambda f: fileIO.parseFilename(f)[:4]):
+                   experiment.filelist(*fromMatch))
+    filelist = groupby(flist, lambda f: fileIO.parseFilename(f)[:4])
+    for mol, group in filelist:
+        with ChangeDirectory(directory):
             yield experiment.List(map(exp_type.fromFile, group))
 
 
