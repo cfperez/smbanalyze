@@ -10,6 +10,7 @@ class Figure(object):
   def __init__(self, fig_id=None):
     self.figure_id = fig_id
     self._figure = None
+    self.reversed = False
 
   def __getstate__(self):
     ''' Return __dict__ for pickling with _figure attribute removed (can't be pickled)
@@ -62,6 +63,13 @@ class Figure(object):
     plt.figure(self._figure.number)
     return self
 
+  def xlim(self, xmin=None, xmax=None, reverse=False):
+    assert not reverse or not (xmin or xmax)
+    if reverse and not self.reversed:
+      xmax, xmin = plt.xlim()
+      self.reversed = True
+    return plt.xlim(xmin, xmax)
+
   def plot(self, *args, **kwargs):
     self.show()
     try:
@@ -77,6 +85,7 @@ class Figure(object):
   def clear(self):
     if self.visible:
       self._figure.clf()
+      self.reverse = False
       plt.draw()
     return self
       

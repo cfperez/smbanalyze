@@ -6,10 +6,9 @@ import cPickle as pickle
 import re
 import abc
 from functools import total_ordering
-from itertools import cycle
 
 from matplotlib.mlab import find
-from numpy import min, max, asarray, insert, sum, mean, all, any, diff, std, vstack, NAN, where
+from numpy import min, max, asarray, insert, sum, mean, all, any, diff, NAN, where
 
 import fileIO 
 from curvefit import fitWLC, fitWLC_masks
@@ -138,9 +137,9 @@ class List(list):
     '''
     See HAS_VALUE_COMPARE for list of operators
     Examples:
-    >>> pulls.has_value(trap_f_atleast=15)
-    >>> pulls.has_value(trap_ext_greaterthan=750)
-    >>> pulls.has_value(fret_time_atleast=30)
+    pulls.has_value(trap_f_atleast=15)
+    pulls.has_value(trap_ext_greaterthan=750)
+    pulls.has_value(fret_time_atleast=30)
     '''
     for key, value in kwargs.items():
       attr, comparison = key.rsplit('_', 1)
@@ -151,32 +150,45 @@ class List(list):
       except AttributeError:
         raise ValueError('Comparison operator <{}> is not defined'.format(comparison))
 
-  def collapse(self, trap_sorted_by='sep', fret_sorted_by='time'):
+  def collapse(self, trap_sorted_by='ext', fret_sorted_by='time'):
     "Collapse experiments into a single experiment with all data appended together."
     assert isinstance(trap_sorted_by, str)
     assert isinstance(fret_sorted_by, str)
-    filtered_by_trap = self.has('trap')
-    if len(filtered_by_trap) != len(self):
+    if not self._all_elements_have_attr('trap'):
       raise ExperimentError(
-        'Experiments in List must have attribute "trap"')
+        'All experiments in List must have attribute "trap"')
     filtered_by_fret = self.has('fret')
     num_with_fret = len(filtered_by_fret)
-    if num_with_fret == len(filtered_by_trap):
+    fret_data = None
+    if num_with_fret == len(self):
         fret_data = FretData.aggregate(self.get('fret'), fret_sorted_by)
-    else:
-      fret_data = None
-      if num_with_fret > 0:
-          logger.warning('Not all experiments have fret: not collapsing fret data!')
-    trap_data = TrapData.aggregate(self.get('trap'), sort_by='sep')
+    elif num_with_fret > 0:
+        logger.warning('Not all experiments have fret: not collapsing fret data!')
+    trap_data = TrapData.aggregate(self.get('trap'), sort_by=trap_sorted_by)
     fname = self[0].filename or ''
     fname += '_collapsed' if fname else 'collapsed'
     return Pulling(trap_data, fret_data, filename=fname, collapsed=True)
+
+  def _all_elements_have_attr(self, attr):
+    filtered_by_attr = self.has(attr)
+    return len(filtered_by_attr) == len(self)
+
+  def _aggregate_data(self, attr, sort_by):
+    filtered_by_attr = self.has(attr)
+    num_with_attr = len(filtered_by_attr)
+    data = None
+    if num_with_attr == len(self):
+      data = AbstractData.aggregate(self.get(attr), sort_by)
+    elif num_with_attr > 0:
+      logger.warning(
+        'Not all experiments have {atrr}: not collapsing {attr} data!'.format(attr=attr))
+    return data
 
   def plotall(self, attr=None, **options):
     "Plot all experiments overlayed onto same panel. Can plot only trap or fret."
     assert attr in set([None,'trap','fret'])
     options.setdefault('labels', self.get('filename'))
-    self._figure.show().clear()
+    self.figure.show().clear()
     if attr is None and self.has('fret'):
       options.setdefault('FEC', False)
       options.setdefault('legend', None)
@@ -184,12 +196,12 @@ class List(list):
     else:
       attr = attr or 'trap'
       fplot.plotall( self.get(attr), hold=True, **options)
-    self._figure = fplot.Figure.fromCurrent()
-    return self._figure
+    self.figure = fplot.Figure.fromCurrent()
+    return self.figure
 
   def savefig(self, filename):
     "Save figure from last plotall()"
-    self._figure.toFile(filename)
+    self.figure.toFile(filename)
 
   def plot(self, **options):
     "Create individual plots"
@@ -337,7 +349,7 @@ class Base(object):
     self.trap = trap
     self.fret = fret
     self.metadata = metadata
-    self._figure = fplot.Figure(self.filename)
+    self.figure = fplot.Figure(self.filename)
 
   @abc.abstractmethod
   def filenameMatchesType(cls, filename):
@@ -378,7 +390,7 @@ class Base(object):
     filename = strfile if strfile else fretfile
     info = fileIO.parseFilename(filename)
     if not info:
-      logger.warning('Problem parsing filename %s' % newCls.filename)
+      logger.warning('Problem parsing filename %s' % filename)
     newCls = cls(trap, fret, 
       filename=fileIO.splitext(filename)[0], 
       date=date_,
@@ -474,6 +486,7 @@ class Pulling(Base):
         return False
     return True
 
+  @property
   def isReverse(self):
     '''Return True iff experiment is a reverse pull'''
     return self.metadata.get('reverse', False)
@@ -563,8 +576,8 @@ class Pulling(Base):
     fit.ext_range = (min(pull.ext), max(pull.ext))
     fit.f_range = (min(pull.f), max(pull.f))
     self.lastFit = fit
-    if self._figure.visible:
-      self._figure.plot(fit, hold=True)
+    if self.figure.visible:
+      self.figure.plot(fit, hold=True)
     return fit
 
   def fitRegions(self, *extensions, **fitOptions):
@@ -573,9 +586,9 @@ class Pulling(Base):
     Example: 
     fit = pull.fitRegions( (840,970), (1000,1030), max_force=16)
     '''
-    self.fit_masks = [self.trap.maskFromLimits(region) for region in extensions]
-    self.lastFit = self.fit = fitWLC_masks(self.trap.ext, self.trap.f, self.fit_masks,  **fitOptions)
-    self._figure.plot(self.fit, hold=True)
+    fit_masks = [self.trap.maskFromLimits(region) for region in extensions]
+    self.lastFit = self.fit = fitWLC_masks(self.trap.ext, self.trap.f, fit_masks,  **fitOptions)
+    self.figure.plot(self.fit, hold=True)
     return self.fit
 
   @property
@@ -611,8 +624,9 @@ class Pulling(Base):
     data = self.trap.select(x=x_range, f=f_range)
     if len(data) == 0:
       raise ExperimentError(
-        '<{0}>: No data exists in f_range {1} - {2} and x_range {3} - {4}'.format(
-          self, *(f_range+x_range)))
+        '{0}: No data exists in f_range={1} and x_range={2}'.format(
+          self, f_range, x_range)
+      )
     return mean(data.ext)
 
   def adjustExtensionOffset(self, baseline, f_range=None, x_range=None):
@@ -637,43 +651,45 @@ class Pulling(Base):
     self.trap.ext = self.trap.sep - beadRadii - displacement*ratio - self._ext_offset
     return self
 
-  def plot(self, fret=True, **kwargs):
+  def plot(self, **kwargs):
     kwargs.setdefault('FEC', self.fits or not self.fret)
     kwargs.setdefault('title', self.filename or '')
     kwargs.setdefault('label', self.filename or '')
     loc_x = min(self.trap.ext)+10
     location = list(kwargs.pop('annotate', (loc_x, 15)))
     if self.fret:
-      self._figure.plot(self.fret, self.trap, **kwargs)
+      self.figure.plot(self.fret, self.trap, **kwargs)
     else:
-      self._figure.plot(self.trap, **kwargs)
+      self.figure.plot(self.trap, **kwargs)
+    # tk if reverse pull, reverse the x-axis of the FEC, which is last thing plotted
+    self.figure.xlim(reverse=self.isReverse)
     if self.lastFit:
-      self._figure.plot(self.lastFit, hold=True)
+      self.figure.plot(self.lastFit, hold=True)
     if self.handles:
-      self._figure.plot(self.handles, hold=True)
-      self._figure.annotate(unicode(self.handles), location)
+      self.figure.plot(self.handles, hold=True)
+      self.figure.annotate(unicode(self.handles), location)
       location[1] -= 1
     for fit in self.rips:
-      self._figure.plot(fit, hold=True)
+      self.figure.plot(fit, hold=True)
       text = unicode(fit)
       cutoff = 51
       if len(text) >= cutoff:
         text = text[:cutoff]+'\n'+text[cutoff:]
-      self._figure.annotate(text, location)
-    return self._figure
+      self.figure.annotate(text, location)
+    return self.figure
 
   def pickPoints(self, num=1):
-    return self._figure.pickPoints(num)
+    return self.figure.pickPoints(num)
 
   def pickRegions(self, num=1):
-    return self._figure.pickRegions(num)
+    return self.figure.pickRegions(num)
 	
   def savefig(self, filename=None, path=''):
-    if not self._figure.exists:
+    if not self.figure.exists:
       raise ExperimentError('No figure available for experiment {0}'.format(str(self)))
     else: 
       filename = filename or self.filename
-      self._figure.toFile(filename)
+      self.figure.toFile(filename)
 
   @classmethod
   def load(cls, filename):
