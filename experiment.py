@@ -86,6 +86,10 @@ class List(list):
     self.sort()
     self._figure = fplot.Figure()
 
+  @property
+  def figure(self):
+    return self._figure
+
   def filter(self, condition):
     "Returns a List with experiments matching condition"
     return List( filter(condition, self) )
