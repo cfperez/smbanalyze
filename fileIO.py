@@ -74,7 +74,17 @@ class fileIOError(Exception):
 def toSettings(comments):
   # Careful! Using literal_eval to cast so that lines can contain
   # lists e.g. stiffness = [1,1.5]
-  return parseSettingsFromLines(comments.splitlines(), ast.literal_eval)
+  return parseSettingsFromLines(comments.splitlines(), parse_config_string)
+
+def string_is_list(str_):
+  return str_.startswith('(') or str_.startswith('[')
+  
+def parse_config_string(value):
+  if string_is_list(value):
+    value_list = value.strip('()[]').split(',')
+    return map(toNum, value_list)
+  else:
+    return ast.literal_eval(value)
 
 def load(fname, comments=toSettings, header=False, **kwargs):
   if not os.path.exists(fname):
@@ -172,10 +182,10 @@ def parseLineToSetting(line):
   m = re.match(r'\[(\w+)\]',line)
   if m:
     header = m.group(1).lower()
-    return header,None,None
+    return header, None, None
   else:
     key,value = line.split('=')
-    return None,key.strip().lower().replace(' ','_'),value.strip()
+    return None, key.strip().lower().replace(' ','_'),value.strip()
 
 def strip_blank_and_comments(iter_str):
   for line in strip_blank(iter_str):
