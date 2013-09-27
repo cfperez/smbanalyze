@@ -4,7 +4,7 @@ import operator
 import os.path as path
 import os
 from mock import Mock, patch, MagicMock
-from numpy import array
+from numpy import array, ndarray
 
 from smbanalyze import experiment, fileIO, datatypes, image, fplot
 
@@ -175,10 +175,27 @@ class TestFretData(unittest.TestCase):
     self.load = self._startPatch('smbanalyze.datatypes.load')
     self.load.return_value = ({},self.data)
 
+  @raises(ValueError)
+  def test_only_2D_data(self):
+    datatypes.FretData([1,2,3,4])
+
   def testLoad(self):
     fdata = datatypes.FretData.fromFile('test_cond_s1m1')
     self.load.assert_called_with('test_cond_s1m1', comments=fileIO.toSettings)
     self.assertEqual(self.data.tolist(), fdata.data.tolist())
+
+  def test_getitem_returns_one_row_array(self):
+    fdata = datatypes.FretData(self.data)
+    for row in range(len(fdata)):
+      first_row = fdata[row]
+      self.assertIsInstance(first_row, ndarray)
+      self.assertItemsEqual(first_row, self.data[row])
+
+  def test_getitem_returns_same_type(self):
+    fdata = datatypes.FretData(self.data)
+    self.assertIsInstance(fdata[:], datatypes.FretData)
+    self.assertEqual(fdata, fdata[:], msg="Array slice doesn't match original")
+
 
 class TestLoadingExperimentsFromFile(TestCase):
 

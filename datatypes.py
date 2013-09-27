@@ -22,9 +22,9 @@ class AbstractData(object):
         data = asarray(data)
         try:
             if data is not None and data.shape[1] != len(self._fields):
-                raise ValueError('Data argument must have fields for {}'.format(self._fields))
+                raise ValueError('TrapData must have fields for {}'.format(self._fields))
         except IndexError:
-            raise ValueError('Data argument must be a two-dimensional array')
+            raise ValueError('TrapData can only be initialized with 2-D data')
         self.data = data
         self._original_data = None
         self.metadata = {}
@@ -136,6 +136,9 @@ class AbstractData(object):
         return iter(self.T)
 
     def __getitem__(self, key):
+        items = self.data[key].view()
+        if len(items.shape) == 1:
+            return items
         return type(self)(self.data[key].view(), **self.metadata)
 
     def __repr__(self):
@@ -209,12 +212,11 @@ class TrapData(AbstractData):
         self.metadata['stiffness'] = new_k
         beadRadii = self.metadata.get('bead_radii', constants.sumOfBeadRadii)
 
-        displacement = self.trap.f / min(current_k)
+        displacement = self.f / min(current_k)
         ratio = 1 + min(new_k) / max(new_k)
 
-        self.trap.f = displacement * min(new_k)
-        self.trap.ext = self.trap.sep - beadRadii - \
-            displacement * ratio - self._ext_offset
+        self.f = displacement * min(new_k)
+        self.ext = self.trap.sep - beadRadii - displacement * ratio
         return self
 
 
