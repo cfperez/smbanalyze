@@ -196,7 +196,7 @@ class List(list):
     else:
       attr = attr or 'trap'
       fplot.plotall( self.get(attr), hold=True, **options)
-    self.figure = fplot.Figure.fromCurrent()
+    self._figure = fplot.Figure.fromCurrent()
     return self.figure
 
   def savefig(self, filename):
@@ -349,7 +349,7 @@ class Base(object):
     self.trap = trap
     self.fret = fret
     self.metadata = metadata
-    self.figure = fplot.Figure(self.filename)
+    self._figure = fplot.Figure(self.filename)
 
   @abc.abstractmethod
   def filenameMatchesType(cls, filename):
