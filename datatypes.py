@@ -19,6 +19,12 @@ TrapData_fields = ('ext', 'f', 'sep')
 class AbstractData(object):
 
     def __init__(self, data, **meta):
+        data = asarray(data)
+        try:
+            if data is not None and data.shape[1] != len(self._fields):
+                raise ValueError('Data argument must have fields for {}'.format(self._fields))
+        except IndexError:
+            raise ValueError('Data argument must be a two-dimensional array')
         self.data = data
         self._original_data = None
         self.metadata = {}

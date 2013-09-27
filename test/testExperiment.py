@@ -164,16 +164,14 @@ def testListCall():
 def tearDown():
   pass
 
-class TestDatatypes(unittest.TestCase):
+class TestFretData(unittest.TestCase):
   def _startPatch(self, to_patch):
     patch_obj = patch(to_patch)
     self.addCleanup(patch_obj.stop)
     return patch_obj.start()
 
   def setUp(self):
-    self.data = array([[1,2,3],[4,5,6]])
-    def load_file_mock(filename, **kwargs):
-      return self.data
+    self.data = array([[1,2,3,4],[4,5,6,7]])
     self.load = self._startPatch('smbanalyze.datatypes.load')
     self.load.return_value = ({},self.data)
 
