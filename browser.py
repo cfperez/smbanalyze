@@ -90,8 +90,15 @@ def groupMolecules(exps):
     for info, group in group_iter:
         yield experiment.List(group)
 
+def dir_to_date(date_str):
+    try:
+        dir_list = map(int, date_str.split('.'))
+    except ValueError:
+        return None
+    dir_list[0] -= 2000
+    return tuple(dir_list)
 
-def byMolecule(directory='./', exp_type=experiment.Pulling, fromMatch=('',)):
+def byMolecule(directory='./', exp_type=experiment.Pulling, fromMatch=('',), **metadata):
     """Return a generator (iterator) which yields experiment.List for all molecules in given directory."""
     assert issubclass(exp_type, experiment.Base)
     assert isinstance(fromMatch, (tuple, list))
@@ -102,8 +109,11 @@ def byMolecule(directory='./', exp_type=experiment.Pulling, fromMatch=('',)):
     filelist = groupby(flist, lambda f: fileIO.parseFilename(f)[:4])
     for mol, group in filelist:
         with ChangeDirectory(directory):
-            yield experiment.List(map(exp_type.fromFile, group))
-
+            dirname = path.basename(directory)
+            date_ = dir_to_date(dirname)
+            metadata.setdefault('date', date_)
+            yield experiment.List(
+                map(lambda f: exp_type.fromFile(f, **metadata), group))
 
 def execute(func, filename):
     with ExperimentBrowser(filename) as exp_browser:
