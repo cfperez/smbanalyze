@@ -6,7 +6,7 @@ import os
 from mock import Mock, patch, MagicMock
 from numpy import array, ndarray
 
-from smbanalyze import experiment, fileIO, datatypes, image, fplot
+from smbanalyze import experiment, fileIO, datatypes, fplot, curvefit
 
 class TestCase(unittest.TestCase):
   def _startPatch(self, to_patch, **kwargs):
@@ -23,7 +23,7 @@ def setUp():
   global pulls, LOADED_FILES
   os.chdir('test/')
   experiment.Options['loading']['filename_matching'] = False
-  with patch('smbanalyze.fplot.Figure') as mock:
+  with patch('smbanalyze.fplot.Figure'):
     pulls = experiment.fromMatch('test')
   LOADED_FILES = map( path.normpath, 
     [r'test_cond_s1m1', r'test_cond_s1m2', r'test_cond_s1m3']
@@ -175,23 +175,27 @@ class TestFretData(unittest.TestCase):
     self.load = self._startPatch('smbanalyze.datatypes.load')
     self.load.return_value = ({},self.data)
 
-  @raises(ValueError)
-  def test_only_2D_data(self):
-    datatypes.FretData([1,2,3,4])
+  def test_1D_data_attr_access(self):
+    data = self.data[0]
+    fdata = datatypes.FretData(data)
+    self.assertEqual(fdata.shape, (4,))
+    self.assertItemsEqual(data, fdata)
+    for i,field in enumerate(fdata._fields):
+      self.assertEqual(data[i], getattr(fdata, field))
 
   def testLoad(self):
     fdata = datatypes.FretData.fromFile('test_cond_s1m1')
     self.load.assert_called_with('test_cond_s1m1', comments=fileIO.toSettings)
     self.assertEqual(self.data.tolist(), fdata.data.tolist())
 
-  def test_getitem_returns_one_row_array(self):
+  def test_getitem_returns_one_row_FretData(self):
     fdata = datatypes.FretData(self.data)
     for row in range(len(fdata)):
       first_row = fdata[row]
-      self.assertIsInstance(first_row, ndarray)
+      self.assertIsInstance(first_row, datatypes.FretData)
       self.assertItemsEqual(first_row, self.data[row])
 
-  def test_getitem_returns_same_type(self):
+  def test_getitem_slice_returns_same_type(self):
     fdata = datatypes.FretData(self.data)
     self.assertIsInstance(fdata[:], datatypes.FretData)
     self.assertEqual(fdata, fdata[:], msg="Array slice doesn't match original")
@@ -322,6 +326,22 @@ class TestExperimentFromMatch(TestCase):
         self.flist.assert_called_with('construct')
         self.pulling.assert_called_with(files[0])
 
+class TestExperimentFindRip(TestCase):
+  def setUp(self):
+    tdata = datatypes.TrapData([[1000,5,1000],[1010,1,1010], [1020,2, 1020]])
+    self.exp = experiment.Pulling(trap=tdata)
+
+  @raises(experiment.ExperimentError)
+  def test_error_on_no_trap_data(self):
+    experiment.Pulling(None, None).findRip(900)
+
+  @raises(experiment.ExperimentError)
+  def test_error_on_no_fit(self):
+    self.exp.findRip(900)
+
+  def test_returns_1D_array_of_TrapData_fields(self):
+    fit = MagicMock(autospec=curvefit.FitRegions)
+    self.exp.fit = fit
 
 class ListTest(unittest.TestCase):
 

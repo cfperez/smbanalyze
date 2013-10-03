@@ -20,15 +20,17 @@ class AbstractData(object):
 
     def __init__(self, data, **meta):
         data = asarray(data)
-        try:
-            if data is not None and data.shape[1] != len(self._fields):
-                raise ValueError('TrapData must have fields for {}'.format(self._fields))
-        except IndexError:
-            raise ValueError('TrapData can only be initialized with 2-D data')
+        if data is not None and not self._is_data_shape_ok(data.shape):
+            raise ValueError('TrapData must have fields for {}'.format(self._fields))
         self.data = data
         self._original_data = None
         self.metadata = {}
         self.metadata.update(meta)
+
+    @classmethod
+    def _is_data_shape_ok(self, shape):
+        field_size = len(self._fields)
+        return len(shape) == 1 and shape[0] == field_size or shape[1] == field_size
 
     @classmethod
     def fromObject(cls, obj):
@@ -111,8 +113,6 @@ class AbstractData(object):
             raise ValueError('Keyword argument must be a field')
 
         return self[getattr(self, field) > value][0]
-        index = search_monotonic(getattr(self, field), value)
-        return self[index]
 
     def __getattr__(self, attr):
         if attr in self._fields:
@@ -136,9 +136,11 @@ class AbstractData(object):
         return iter(self.T)
 
     def __getitem__(self, key):
-        items = self.data[key].view()
-        if len(items.shape) == 1:
-            return items
+        if len(self.data.shape) == 1:
+            return self.data[key]
+        # items = self.data[key].view()
+        # if len(items.shape) == 1:
+        #     return items
         return type(self)(self.data[key].view(), **self.metadata)
 
     def __repr__(self):
