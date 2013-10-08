@@ -262,8 +262,11 @@ class List(list):
     xoffset = to_adjust.adjustExtensionOffset(to_x, x_range=ext_x_range, f_range=ext_f_range)
     return xoffset, foffset
 
-  def saveall(self, path=''):
-    self.call('save', path=path)
+  def save(self, filename):
+    with open(filename, 'wb') as fh:
+      pickle.dump(self, fh, protocol=2)
+    return self
+
 
   def split_reverse_pull(self):
     return map(split_reverse_pull, self.is_a(Pulling))
