@@ -16,37 +16,44 @@ STD_TEMPLATE = {'lro':'KvsAmp%d.dat', 'var':'VarKvsAmp%d.dat', \
 FOCAL_SHIFT = 0.82
 
 def faxen(a, h):
-  "Calculate Faxen's correction to drag"
+  """ Calculate Faxen's correction to drag
+  a = radius in nm
+  h = height of bead center in nm
+  """
   u = float(a)/h
   return 1/(1-9./16*u + u**3/8. - 45./256*u**4 - u**5/16.)
 
 def freq_vs_height(stage, F_actual=5000., surface=10000, bead_radius=300):
   "FITFUNC: stage (nm), F_actual (Hz), surface (nm), bead_radius (nm)"
   return F_actual/faxen(bead_radius, FOCAL_SHIFT*(surface-stage)+bead_radius)
-  
-def rolloff_from_faxen(stage, freq, bead_radius):
+
+def fit_freq_vs_height(stage, freq, bead_radius, **fit_params):
   "Return rolloff frequency from Faxen vs height calibration of single bead"
-  fit = Fit(stage, freq, freq_vs_height, fixed='bead_radius', bead_radius=bead_radius)
-  return fit['F_actual']
+  fit = Fit(stage, freq, freq_vs_height,
+    fixed='bead_radius', bead_radius=bead_radius,
+    **fit_params)
+  return fit
 
 def drag(bead_radius, viscosity):
   "Drag on sphere. Bead_radius in nm, viscosity in cP"
   return 6.*pi*bead_radius*1e-9*viscosity
 
-def stiffness_from_rolloff(rolloff, bead_radius, viscosity):
-  return 2.*pi*drag(bead_radius, viscosity)*rolloff
+def stiffness_from_rolloff(rolloff_freq, bead_radius, viscosity):
+  return 2.*pi*drag(bead_radius, viscosity)*rolloff_freq
 
 class TrapCalibration(object):
-  def __init__(self, bead_radius, temp):
-    self.bead = bead_radius
+  def __init__(self, bead_diameter, temp):
+    ''' bead_diameter in nm'''
+    self.bead_radius = bead_diameter / 2.
     self.temp = temp
     self.viscosity = 1.015 # should calculate from temp
     self.stiffness = []
 
-  def fromFreqVsHeight(self, height, freq):
-    self.rolloff = rolloff_from_faxen(height, freq, self.bead)
+  def fromFreqVsHeight(self, height, freq, **fit_params):
+    self.fit = fit_freq_vs_height(height, freq, self.bead_radius, **fit_params)
+    self.rolloff = self.fit['F_actual']
     self.stiffness.append(
-        stiffness_from_rolloff(self.rolloff, self.bead, self.viscosity)
+        stiffness_from_rolloff(self.rolloff, self.bead_radius, self.viscosity)
     )
     return self.stiffness[-1]
 
