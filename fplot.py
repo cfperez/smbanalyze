@@ -48,10 +48,10 @@ class Figure(object):
   def figure(self):
     if not self.exists:
       self.new()
-    return self
+    return self._figure
 
   def pickPoints(self, num_of_pts=2):
-  	return self._figure.ginput(num_of_pts)
+  	return self.figure.ginput(num_of_pts)
 
   def pickRegions(self, num=1):
     points = sorted(x for x,f in self.pickPoints(num*2))
