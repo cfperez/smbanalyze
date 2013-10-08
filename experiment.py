@@ -25,6 +25,11 @@ logger.addHandler(constants.logHandler)
 class ExperimentError(Exception):
   pass
 
+def load(filename):
+  basename, extension = opath.splitext(filename)
+  filename = basename + (extension or '.exp')
+  return pickle.load(open(filename,'rb'))
+
 def fromData(*datalist, **kwargs):
   "List of experiments from PullData and FretData type"
   exptype = kwargs.get('type','trap')
@@ -188,28 +193,21 @@ class List(list):
         'Not all experiments have {atrr}: not collapsing {attr} data!'.format(attr=attr))
     return data
 
-  def plotall(self, attr=None, **options):
+  def plot(self, **options):
     "Plot all experiments overlayed onto same panel. Can plot only trap or fret."
-    assert attr in set([None,'trap','fret'])
     options.setdefault('labels', self.get('filename'))
     self.figure.show().clear()
-    if attr is None and self.has('fret'):
+    if self.has('fret'):
       options.setdefault('FEC', False)
       options.setdefault('legend', None)
       fplot.plotall(self.get('fret'), self.get('trap'), hold=True, **options)
     else:
-      attr = attr or 'trap'
-      fplot.plotall( self.get(attr), hold=True, **options)
-    self._figure = fplot.Figure.fromCurrent()
+      fplot.plotall( self.get('trap'), hold=True, **options)
     return self.figure
 
   def savefig(self, filename):
     "Save figure from last plotall()"
     self.figure.toFile(filename)
-
-  def plot(self, **options):
-    "Create individual plots"
-    self.call('plot', **options)
 
   def saveallfig(self, path=''):
     "Save all individual plots"
@@ -383,22 +381,23 @@ class Base(object):
     self._figure = fplot.Figure(self.filename)
 
   @classmethod
-  def fromFile(cls, strfile, fretfile):
+  def fromFile(cls, strfile, fretfile, **metadata):
     assert strfile or fretfile
     assert isinstance(strfile, str) or strfile is None
     assert isinstance(fretfile, str) or fretfile is None
 
     trap = TrapData.fromFile(strfile) if strfile else None
     fret = FretData.fromFile(fretfile) if fretfile else None
-    date_ = trap.metadata.get('date', None) if trap else None
+    metadata.setdefault('date', 
+      trap.metadata.get('date', None) if trap else None)
     filename = strfile if strfile else fretfile
-    info = fileIO.parseFilename(filename)
+    info = fileIO.parseFilename(filename)._asdict()
     if not info:
       logger.warning('Problem parsing filename %s' % filename)
-    newCls = cls(trap, fret, 
-      filename=fileIO.splitext(filename)[0], 
-      date=date_,
-      **info._asdict())
+    info.update(**metadata)
+    newCls = cls(trap, fret,
+      filename=fileIO.splitext(filename)[0],
+      **info)
     assert isinstance(newCls, cls)
     assert hasattr(newCls, 'filename')
     assert newCls.filename is not None
@@ -452,6 +451,7 @@ class Pulling(Base):
     super(Pulling, self).__init__(trap, fret, **metadata)
     self.handles = None
     self.lastFit = None
+    self.fit = None
     self.resetRips()
     self._ext_offset = 0
 
@@ -467,13 +467,13 @@ class Pulling(Base):
       self.metadata['sampling_ratio'] = int(fret_rate / trap_rate)
 
   @classmethod
-  def fromFile(cls, strfile, fretfile=None):
+  def fromFile(cls, strfile, fretfile=None, **metadata):
     'Load stretching data and corresponding fret data from files'
     basename, strfile, fretfileFromBase = fileIO.filesFromName(strfile)
     fretfile = fretfile or fretfileFromBase
     if not opath.exists(fretfile):
       fretfile = None
-    return super(Pulling, cls).fromFile(strfile, fretfile)
+    return super(Pulling, cls).fromFile(strfile, fretfile, **metadata)
 
   FILENAME_SYNTAX = ('construct', 'conditions', 'slide', 'mol', 'pull')
 
@@ -502,12 +502,11 @@ class Pulling(Base):
     except IOError:
       raise ExperimentError('IOError loading file: check image file location!')
 
-  def findRip(self, min_rip_ext=None):
-    assert self.trap is not None
-    min_rip_ext = self.handles.ext_range[1] if not min_rip_ext and self.handles \
-        else min_rip_ext or None
-    if min_rip_ext is None:
-      raise ValueError('Must specify a min_rip_ext below which no rips occur')
+  def findRip(self, min_rip_ext):
+    if not self.trap:
+      raise ExperimentError('%s: findRip() missing TrapData' % self)
+    if not self.fits:
+      raise ExperimentError('%s: findRip() must be done after fitRegions()' % self)
 
     handle_data = self.trap.select(x=(None,min_rip_ext))
 
@@ -521,7 +520,7 @@ class Pulling(Base):
     if len(rip_location)==0:
         return asarray([NAN,NAN,NAN])
     rip_location = rip_location[0]
-    return self.trap[rip_location].data
+    return self.trap[rip_location]
 
   def fitHandles(self, x=None, f=None, **fitOptions):
     'Fit a WLC model to the lower part of the FEC corresponding to the handle stretching'
@@ -590,9 +589,9 @@ class Pulling(Base):
     Example: 
     fit = pull.fitRegions( (840,970), (1000,1030), max_force=16)
     '''
-    fit_masks = [self.trap.maskFromLimits(region) for region in extensions]
+    fit_masks = map(self.trap.maskFromLimits, extensions)
     self.lastFit = self.fit = fitWLC_masks(self.trap.ext, self.trap.f, fit_masks,  **fitOptions)
-    self.figure.plot(self.fit, hold=True)
+    self.figure.visible and self.figure.plot(self.fit, hold=True)
     return self.fit
 
   @property
