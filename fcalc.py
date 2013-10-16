@@ -13,13 +13,14 @@ molID = lambda t: 's{0}m{1}'.format(t.slide,t.mol)
 molname = lambda t: 's{0}m{1}_{2}'.format(t.slide,t.mol,t.trap)
 pN = lambda f: 'f'+str(f)+'pN'
 
-BACKGROUND = 'background'
 
 def info(s):
   print s
 
 def warning(s):
   print s
+
+BACKGROUND_FILENAME_FLAG = 'background'
 
 def processMatch(*fglob, **kwargs):
   '''Process image files found using fmatch() of arguments
@@ -28,7 +29,7 @@ def processMatch(*fglob, **kwargs):
   keyword arguments. Check processFiles() docs for options.
   '''
   fglob = fglob + (fileIO.IMAGE_FILE,)
-  filelist = filter(lambda s: s.count(BACKGROUND)==0, fileIO.fmatch(*fglob))
+  filelist = filter(lambda s: s.count(BACKGROUND_FILENAME_FLAG)==0, fileIO.fmatch(*fglob))
   processFiles(filelist, **kwargs)
 
 def processFiles(flist, roi='roi.txt', background=None, 
@@ -64,7 +65,7 @@ def calcToFile(stack, filename, **kwargs):
   toFile(filename, fretdata, stack.metadata)
   return fretdata
 
-def calculate(stack, beta=constants.beta, gamma=constants.gamma, minsub=False):
+def calculate(stack, beta=0, gamma=1, minsub=False):
   """Calculates FRET from an image.Stack
 
   calculate( image.Stack, beta = constants.beta, gamma = constants.gamma)
@@ -75,6 +76,29 @@ def calculate(stack, beta=constants.beta, gamma=constants.gamma, minsub=False):
   acceptor = stack.acceptor - donor*beta
   acceptor = acceptor - (minsub and min(acceptor))
   return FretData.fromFields(stack.time, donor, acceptor, acceptor/(acceptor+gamma*donor))
+
+def subtract_min_background(exp_list):
+  ''' SIDE EFFECT: subtracts observed background (minimum+1) from FretData in exp_list
+  '''
+  if exp_list.has('fret') != exp_list:
+    raise ValueError('Argument exp_list must contain only experiments with FRET')
+  fret = exp_list.get('fret')
+  min_ = lambda attr: min(map(lambda x: min(getattr(x, attr)), fret))
+  min_d, min_a = min_('donor'), min_('acceptor')
+  for p in fret:
+    p.donor -= min_d
+    p.acceptor -= min_a
+
+def calculate_fret_bg_subtracted(exp_list, beta, gamma):
+  ''' SIDE EFFECT: changes FretData passed in to be background subtracted and beta/gamma adjusted
+  '''
+  assert operator.isNumberType(beta)
+  assert operator.isNumberType(gamma)
+  subtract_min_background(exp_list)
+  return [calculate(p.fret, beta=beta, gamma=gamma) for p in exp_list]
+
+def minimum_counts(fretdata):
+  return min(fretdata.donor), min(fretdata.acceptor)
 
 def toFile(filename, data, metadata, comments=''):
   return fileIO.savefret(filename, data, metadata, comments)
