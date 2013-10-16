@@ -6,6 +6,11 @@ from collections import OrderedDict, namedtuple
 from datatypes import TrapData,hasTrapData,hasFretData
 import constants
 
+def toFile(filename, figure_id=None, **kwargs):
+  figure = figure_id and Figure(figure_id) or Figure.fromCurrent()
+  figure.toFile(filename, **kwargs)
+
+
 class Figure(object):
   def __init__(self, fig_id=None):
     self.figure_id = fig_id
@@ -28,7 +33,8 @@ class Figure(object):
 
   def show(self):
     self.exists or self.new()
-    plt.figure(self.figure_id)
+    self.makeCurrent()
+    #plt.figure(self.figure_id)
     return self
 
   def new(self):
@@ -60,7 +66,7 @@ class Figure(object):
   def makeCurrent(self):
     if not self.exists:
       raise RuntimeError('Figure is not visible')
-    plt.figure(self._figure.number)
+    plt.figure(self.figure_id)
     return self
 
   def xlim(self, xmin=None, xmax=None, reverse=False):
@@ -75,11 +81,12 @@ class Figure(object):
     try:
       # Treat the first argument as an object that can plot itself...
       return args[0].plot(*args[1:], **kwargs)
-    except AttributeError:
+    except AttributeError,ValueError:
       # ...unless it can't
       return plot(*args, **kwargs)
 
-  def plotall(self, *args, **kwargs):   
+  def plotall(self, *args, **kwargs):
+    self.show()
     plotall(*args, **kwargs)
 
   def clear(self):
@@ -281,7 +288,8 @@ def plot(data, pull=None, style=None, **kwargs):
       plt.legend(loc=loc,ncol=2,prop={'size':'small'})
 
   first_plot = ax1 or ax2
-  first_plot.set_title(title)
+  if title:
+    first_plot.set_title(title)
 
 fret_default_style = OrderedDict(
                     [('donor', '--'), 
