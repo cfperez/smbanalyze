@@ -3,7 +3,7 @@ from mock import Mock, MagicMock, patch
 
 from smbanalyze import fileIO as fio
 
-glob_mock = Mock(spec='glob.glob')
+glob_mock = MagicMock(spec='glob.glob')
 
 @patch('glob.glob', glob_mock)
 class TestFlist(unittest.TestCase):
@@ -49,3 +49,8 @@ class TestParseFilename(unittest.TestCase):
     fail = 'SJF4_0.5nM_s1m3_2hours.fret'
     finfo = fio.parseFilename(fail)
     self.assertEquals(finfo, None)
+
+
+class TestFileIO(unittest.TestCase):
+  def test_sort_files_pulling_str(self):
+    pass
