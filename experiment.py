@@ -1,3 +1,5 @@
+__all__ = ['split_reverse_pull']
+
 import os.path as opath
 from operator import itemgetter, attrgetter, methodcaller
 import operator as op
@@ -88,8 +90,11 @@ class List(list):
   '''
   def __init__(self, iterable=[]):
     super(List, self).__init__(iterable)
-    self.sort()
     self._figure = fplot.Figure()
+    try:
+      self.sort()
+    except AttributeError:
+      pass
 
   @property
   def figure(self):
@@ -196,10 +201,10 @@ class List(list):
   def plot(self, **options):
     "Plot all experiments overlayed onto same panel. Can plot only trap or fret."
     options.setdefault('labels', self.get('filename'))
+    options.setdefault('legend', None)
     self.figure.show().clear()
     if self.has('fret'):
       options.setdefault('FEC', False)
-      options.setdefault('legend', None)
       fplot.plotall(self.get('fret'), self.get('trap'), hold=True, **options)
     else:
       fplot.plotall( self.get('trap'), hold=True, **options)
@@ -265,11 +270,10 @@ class List(list):
   def save(self, filename):
     with open(filename, 'wb') as fh:
       pickle.dump(self, fh, protocol=2)
-    return self
 
 
   def split_reverse_pull(self):
-    return map(split_reverse_pull, self.is_a(Pulling))
+    return List(map(split_reverse_pull, self.is_a(Pulling)))
 
   def __getslice__(self, i, j):
     return self.__getitem__(slice(i, j))
@@ -296,6 +300,8 @@ class List(list):
                       for i, item in enumerate(self))
     return '[' + fmt + ']'
 
+def split_reverse_from_list(exps):
+  return List(map(split_reverse_pull, exps))
 
 def split_reverse_pull(exp):
   '''
@@ -448,7 +454,7 @@ class Pulling(Base):
   extensionOffsetRange = (13,16)
   maximum_fitting_force = 25
   
-  INFO_FIELDS = ('date', 'construct', 'conditions', 'slide', 'mol', 'pull')
+  INFO_FIELDS = ('date', 'construct', 'conditions', 'slide', 'mol', 'pull', 'reverse', 'collapsed' )
 
   def __init__(self, trap, fret=None, **metadata):
     super(Pulling, self).__init__(trap, fret, **metadata)
@@ -659,6 +665,7 @@ class Pulling(Base):
 
   def plot(self, **kwargs):
     kwargs.setdefault('FEC', self.fits or not self.fret)
+    kwargs.setdefault('legend', None)
     kwargs.setdefault('title', self.filename or '')
     kwargs.setdefault('label', self.filename or '')
     loc_x = min(self.trap.ext)+10
