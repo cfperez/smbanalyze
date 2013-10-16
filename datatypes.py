@@ -41,10 +41,6 @@ class AbstractData(object):
                 'Constructor method only takes object with AbstractData interface')
 
     @classmethod
-    def name(cls):
-        return cls.__name__.lower()
-
-    @classmethod
     def fromFile(cls, filename):
         try:
             meta, data = load(filename, comments=toSettings)
@@ -107,20 +103,19 @@ class AbstractData(object):
     def at(self, **kwargs):
         if len(kwargs) > 1:
             raise ValueError('Use only one keyword representing a field')
-
         field, value = kwargs.popitem()
         if field not in self._fields:
             raise ValueError('Keyword argument must be a field')
-
-        return self[getattr(self, field) > value][0]
+        out = self[getattr(self, field) > value]
+        return out[0] if len(out)>0 else out
 
     def __getattr__(self, attr):
         if attr in self._fields:
             attr_position = self._fields.index(attr)
             if len(self.shape) == 1:
-                return self.data[attr_position]
+                return self.data[attr_position].view()
             else:
-                return self.data[:, attr_position]
+                return self.data[:, attr_position].view()
         else:
             try:
                 return getattr(super(AbstractData, self), attr)
@@ -160,9 +155,21 @@ class AbstractData(object):
             else:
                 return limits[0], min_max[1]
 
+def field_property(fields, name):
+    index = fields.index(name)
+    def fget(self):
+        return len(self.data.shape)==1 and self.data[index] or self.data[:, index]
+    def fset(self, value):
+        self.data[:, index] = value
+    return property(fget, fset)
+
 
 class TrapData(AbstractData):
     _fields = TrapData_fields
+
+    ext = field_property(_fields, 'ext')
+    f = field_property(_fields, 'f')
+    sep = field_property(_fields, 'sep')
 
     def maskFromLimits(self, x=None, f=None, limits=()):
         if x is None and f is None:
@@ -225,12 +232,16 @@ class TrapData(AbstractData):
 class FretData(AbstractData):
     _fields = FretData_fields
 
+    time = field_property(_fields, 'time')
+    donor = field_property(_fields, 'donor')
+    acceptor = field_property(_fields, 'acceptor')
+    fret = field_property(_fields, 'fret')
+
     def maskFromLimits(self, time, limits=(0, -1)):
         return
 
     def select(self, time=None):
         return self[self.maskFromLimits(time)]
-
 
 def search_monotonic(ar, value):
     shifted = ar - value
@@ -244,7 +255,6 @@ def search_monotonic(ar, value):
         if sign(current) != start_sign:
             return n if abs(current) < abs(last) else min(n - 1, 0)
     return -1
-
 
 def and_prev(iterable, default=None):
     last = default
