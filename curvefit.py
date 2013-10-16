@@ -91,6 +91,14 @@ def MS(x,Lp,Lc,F0):
   return A * (0.25/(1-x_)**2 - 0.25 +x_) - F0
 MS.default = {'Lp':20.,'Lc':1150.,'F0':0.1}
 
+# def MMS(F, Lp, Lc, F0, K):
+#     "Modified Marko-Siggia model as a function of force"
+#     F = np.array(F, ndmin=1)
+#     f = (F-float(F0)) * Lp / 4
+#     inv_roots = np.array(map(lambda f_: roots([1, f_-.75, 0, -.25]), f))
+#     good_roots = np.max(real(inv_roots[:,::2]), axis=1)
+#     return Lc * (1 - good_roots + (F-F0)/float(K))
+
 @broadcast
 def MMS(F, Lp, Lc, F0, K):
   "Modified Marko-Siggia model as a function of force"
@@ -140,7 +148,7 @@ def MMS_rip_maker(handle_limits, upper_limits, split_point=None):
   return MMS_rip_global
 
 def MMS_rip_region_maker(masks):
-  '''Creates a fitting function for an arbitrary number of fit regions in masks
+  '''Creates a fitting function for an arbitrary number of fit regions from masks
   that allows simultaneous fitting of each as MMS rips.
   '''
   assert isinstance(masks, (tuple,list))
@@ -158,19 +166,20 @@ def MMS_rip_region_maker(masks):
     rip_items = zip(rip_forces, rip_sizes)
 
     handle_ext = MMS(handle_force, Lp, Lc, F0, K)
-    rip_ext = [MMS_rip(force, Lp, Lc, F0, K, Lp1, Lc_rip, K1) 
+    rip_ext = [MMS_rip(force, Lp, Lc, F0, K, Lp1, Lc_rip, K1)
                 for force,Lc_rip in rip_items]
 
     if len(rip_ext) > 1:
       rip_ext = np.concatenate(rip_ext)
     return np.append(handle_ext, rip_ext)
-  MMS_rip_region.__reduce__ = lambda : (MMS_rip_region_maker, (masks,))
   
   addl_rips = ['Lc{}'.format(n) for n in range(2,1+len(masks))]
   MMS_rip_region.default = MMS_rip.default.copy()
   MMS_rip_region.default.update([(rip,10) for rip in addl_rips])
   MMS_rip_region.arglist = ['F', 'Lp', 'Lc', 'F0', 'K', 'Lp1', 'Lc1', 'K1'] + addl_rips
   MMS_rip_region.inverted = True
+  lowest = ['Lp', 'Lc', 'F0', 'K']
+  MMS_rip_region.args_by_region = [lowest] + [lowest+['Lp1', Lc, 'K1'] for Lc in ['Lc1']+addl_rips]
 
   return MMS_rip_region
 
@@ -193,7 +202,7 @@ class Fit(object):
     self.inverted = getattr(fitfunc, 'inverted', False)
 
     if mask is not None:
-      self.mask = np.logical_not(mask)
+      self.mask = mask
       to_masked = lambda ar: ar[mask]
     else:
       self.mask = None
@@ -280,7 +289,8 @@ class Fit(object):
     args = (self.x, self.fitOutput)
     if self.inverted:
       args = reversed(args)
-    kwargs.setdefault('marker', 'x')
+    kwargs.setdefault('marker', '.')
+    kwargs.setdefault('markersize', 3)
     kwargs.setdefault('linestyle', '')
     return subplot(*args, **kwargs)
 
@@ -336,37 +346,4 @@ class FitRegions(Fit):
     fitfunc_maker = state['fitfunc_generator']
     self.fitfunc, mask = self._make_fitfunc_from_regions(fitfunc_maker, self.regions)
 
-class FitFret(Fit):
-  fitfunc = gauss
-  sigma = 0.2
-
-  def __init__(self, x, y, numGauss):
-    self.fitfunc = funcBuilder( gauss, numGauss)
-    self.fitfunc.params = ('mu','sigma','A')*numGauss
-
-    guess = np.linspace(0.1,0.9,numGauss)
-    A = max(y)
-    self.x = np.linspace(0,1)
-
-    p0 = []
-    for mu in guess:
-      p0.extend([mu,FitFret.sigma,A])
-
-    super(FitFret,self).__init__(self.fitfunc,x,y,p0)
-
-  def plot(self,**kwargs):
-    return super(FitFret,self).plot(self.x,**kwargs)
-
-
-def funcBuilder(func,num):
-  numArgs = len(inspect.getargspec(func).args)-1
-
-  def g(*args):
-    x=args[0]
-    out = 0
-    for i in range(1,num*numArgs,numArgs):
-      out += func(x,*args[i:i+numArgs])
-    return out
-
-  return g
 
