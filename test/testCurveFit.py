@@ -1,12 +1,19 @@
 import numpy as np
 from smbanalyze import curvefit
 import unittest
+from mock import MagicMock, patch
 
 X = None
 Y = None
 params = (27, 1046, 0, 1200)
 
-class fitWLCripTest(unittest.TestCase):
+# something like this to check for masks converting ok
+# clf()
+# for mask,converted in zip(mask_limits, converted_masks):
+#     fplot.plot(p.trap[mask], hold=True, style='x', markersize=5)
+#     fplot.plot(p.trap[fit.mask][converted], hold=True, markersize=3)
+
+class MMS_rip_test(unittest.TestCase):
 
     DEFAULT_HANDLE_LIMIT = (1,10)
     DEFAULT_UPPER_LIMIT = (13,20)
@@ -14,9 +21,6 @@ class fitWLCripTest(unittest.TestCase):
     def setUp(self):
         self.handle_params = (30, 1150, 0, 1200)
         self.rip_test_ext, self.rip_test_force = self._generate_test_data()
-
-    def tearDown(self):
-        pass
 
     def rip_params(self, Lc=10):
         return self.handle_params + (1, Lc, 1600)
@@ -48,6 +52,11 @@ class fitWLCripTest(unittest.TestCase):
             *self.rip_params()
         )
 
+    def test_fitwlc_masks(self):
+        pass
+        # fit = curvefit.fitWLC_masks(self.rip_test_ext, self.rip_test_force,
+        #    self.rip_test_ext>850)
+
     def test_return_equivalent_MMS_extension(self):
         global_fit_ext = self._generate_fit_data()
         self.assertItemsEqual(self.rip_test_ext, global_fit_ext, 
@@ -64,13 +73,13 @@ class fitWLCripTest(unittest.TestCase):
         handle_f, upper_f = forces
         fit = curvefit.fitWLCrip(handle_x, handle_f, upper_x, upper_f)
         print handle_x
+        print handle_f
         print fit(handle_f)
         print handle_x - fit(handle_f)
         print fit
         self.assertItemsAlmostEqual(handle_x, fit(handle_f))
         print upper_x
         print fit(upper_f)
-        # self.assertItemsAlmostEqual(upper_x, fit(upper_f))
         print fit.parameters
         print self.rip_params()
         self.assertItemsAlmostEqual(fit.parameters.values(),
@@ -91,40 +100,17 @@ def testMSandMMSequivalent():
     mmsExt = curvefit.MMS(msForce, *fit_params)
     assert max(abs(mmsExt-X)) < 0.05
 
-def testMMSreturntype():
-    pass
-  #for x in X[0::20]:
-  #  yield checkMMSreturntype, x
 
-def checkMMSreturntype(x):
-    pass
-  #eval = curvefit.MMS(x,*params)
-  #assert isinstance(eval,type(x))
+class TestFitRegions(unittest.TestCase):
+    def setUp(self):
+        self.x = np.arange(800,1000,10)
+        self.y = np.linspace(1, 15, len(self.x))
 
-def testMMSreturnvalue():
-    pass
-  #for x,y in zip(X[::20],Y[::20]):
-  #  yield checkMMSeval,x,y
+    @patch('smbanalyze.curvefit.MMS_rip_region_maker')
+    def test_accepts_single_region(self, func):
+        return
+        region = self.x>900
+        FitRegions2(self.x, self.x, [region])
 
-def testMMSvectorinput():
-    pass
-  #for x,y in zip(X[::10],Y[::10]):
-    #yield checkMMSeval,[x,x],[y,y]
-
-def checkMMSeval(x,y):
-    pass
-  #results = curvefit.MMS(x,*params)
-  #assert np.all(abs(results-y < 10))
-
-def testMSfitHasParams():
-    pass
-  #fit = curvefit.Fit(curvefit.MS,X,Y)
-  #for p in curvefit.MS.default:
-    #assert hasattr(fit,p)
-
-def testMMSfitHasParams():
-    pass
-  #fit = curvefit.Fit(curvefit.MMS,X,Y)
-  #for p in curvefit.MMS.default:
-    #assert hasattr(fit,p)
-  
+    def test_accepts_two_regions(self):
+        pass
