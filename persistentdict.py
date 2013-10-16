@@ -25,6 +25,12 @@ class PersistentDict(dict):
                 self.load(fileobj)
         dict.__init__(self, *args, **kwds)
 
+    def reload(self):
+        'Read data from disk again, overwriting current dictionary'
+        with open(self.filename, 'rb') as fh:
+            self.load(fh)
+        return self
+
     def sync(self):
         'Write dict to disk'
         if self.flag == 'r':
@@ -40,9 +46,11 @@ class PersistentDict(dict):
         shutil.move(tempname, self.filename)    # atomic commit
         if self.mode is not None:
             os.chmod(self.filename, self.mode)
+        return self
 
     def close(self):
         self.sync()
+        return self
 
     def __enter__(self):
         return self
