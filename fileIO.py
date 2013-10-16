@@ -1,4 +1,3 @@
-from __future__ import with_statement
 import re
 import collections
 from datetime import datetime
@@ -21,6 +20,9 @@ REGISTERED_EXT = (IMAGE_FILE,CAMERA_FILE,FRET_FILE,PULL_FILE)
 
 OFC_NUM_OF_COLUMNS = 2
 
+def sort_files(files):
+  return sorted(files, key=lambda f: parseFilename(f)[:4])
+  
 def filtered_flist(*globs, **options):
   extensions = options.get('extensions', REGISTERED_EXT)
   if not globs:
