@@ -400,10 +400,13 @@ class Base(object):
     metadata.setdefault('date', 
       trap.metadata.get('date', None) if trap else None)
     filename = strfile if strfile else fretfile
-    info = fileIO.parseFilename(filename)._asdict()
+    info = fileIO.parseFilename(filename)
     if not info:
+      info = {}
       logger.warning('Problem parsing filename %s' % filename)
-    info.update(**metadata)
+    else:
+      info = info._asdict()
+      info.update(**metadata)
     newCls = cls(trap, fret,
       filename=fileIO.splitext(filename)[0],
       **info)
