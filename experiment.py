@@ -85,7 +85,7 @@ def fromFiles(*filelist):
   filelist = collapseArgList(filelist)
   return List(map(fromFile, filelist))
 
-def fromFile(filename):
+def fromFile(filename, exp_type=Pulling):
   if OpenLoop.filenameMatchesType(filename):
     return OpenLoop.fromFile(filename)
   else:
@@ -505,8 +505,7 @@ class Pulling(Base):
     'Load stretching data and corresponding fret data from files'
     basename, ext = fileIO.splitext(strfile)
     strfile, fretfileFromBase = (fileIO.add_pull_ext(basename),
-                                fileIO.add_fret_ext(basename)
-    #basename, strfile, fretfileFromBase = fileIO.filesFromName(strfile)
+                                fileIO.add_fret_ext(basename))
     fretfile = fretfile or fretfileFromBase
     if not opath.exists(fretfile):
       fretfile = None

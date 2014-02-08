@@ -1,6 +1,6 @@
 from __future__ import with_statement
 import numpy.core.records as rec
-from numpy import array, average, sort, hstack, reshape, linspace, loadtxt, savetxt, iterable, float, pi
+from numpy import array, average, sort, hstack, reshape, linspace, loadtxt, savetxt, iterable, float, pi, abs
 import scipy.interpolate as interpolate
 from pylab import plot, figure, subplot, legend, xlabel, ylabel
 from matplotlib import lines
@@ -27,6 +27,26 @@ def freq_vs_height(stage, F_actual=5000., surface=10000, bead_radius=300):
   "FITFUNC: stage (nm), F_actual (Hz), surface (nm), bead_radius (nm)"
   return F_actual/faxen(bead_radius, FOCAL_SHIFT*(surface-stage)+bead_radius)
 
+def position_to_height(position, focal_shift, offset):
+  return focal_shift*(position-offset)
+
+def freq_vs_position(position, F_at_infinity=5000, focal_shift=FOCAL_SHIFT, height_offset=150, bead_radius=300):
+  "FITFUNC: position (nm), F_actual (Hz)"
+  return F_at_infinity/faxen(bead_radius, position_to_height(position, focal_shift, height_offset))
+
+def fit_vs_height(height, Y, fitfunc, **fit_params):
+  fit = Fit(height, Y, fitfunc,
+      fixed='bead_radius',
+      **fit_params)
+  return fit
+
+def fit_freq_vs_position(position, frequency, **fit_params):
+  default_fixed = ('focal_shift', 'bead_radius')
+  fixed = fit_params.pop('fixed', default_fixed)
+  return Fit(position, frequency, freq_vs_position,
+    fixed=fixed,
+    **fit_params)
+
 def fit_freq_vs_height(stage, freq, bead_radius, **fit_params):
   "Return rolloff frequency from Faxen vs height calibration of single bead"
   fit = Fit(stage, freq, freq_vs_height,
@@ -38,19 +58,35 @@ def drag(bead_radius, viscosity):
   "Drag on sphere. Bead_radius in nm, viscosity in cP"
   return 6.*pi*bead_radius*1e-9*viscosity
 
-def stiffness_from_rolloff(rolloff_freq, bead_radius, viscosity):
-  return 2.*pi*drag(bead_radius, viscosity)*rolloff_freq
+def water_viscosity(temp):
+  return 0.89 + 0.0224*(25.-temp)
+
+def stiffness_from_rolloff(rolloff_freq, bead_radius, temperature, height=None):
+  faxen_correction = height is None and 1 or faxen(bead_radius, height)
+  return 2.*pi*drag(bead_radius, water_viscosity(temperature))*rolloff_freq*faxen_correction
 
 class TrapCalibration(object):
-  def __init__(self, bead_diameter, temp):
+  def __init__(self, bead_diameter, temp, focal_shift=FOCAL_SHIFT):
     ''' bead_diameter in nm'''
     self.bead_radius = bead_diameter / 2.
     self.temp = temp
-    self.viscosity = 1.015 # should calculate from temp
+    self.viscosity = water_viscosity(temp)
+    self.focal_shift = focal_shift
     self.stiffness = []
 
   def fromFreqVsHeight(self, height, freq, **fit_params):
     self.fit = fit_freq_vs_height(height, freq, self.bead_radius, **fit_params)
+    self.rolloff = self.fit['F_actual']
+    self.stiffness.append(
+        stiffness_from_rolloff(self.rolloff, self.bead_radius, self.viscosity)
+    )
+    return self.stiffness[-1]
+
+  def from_freq_vs_position(self, position, freq, **starting_params):
+    self.fit = fit_freq_vs_position(height, freq, 
+        bead_radius=self.bead_radius, 
+        focal_shift=self.focal_shift,
+        **starting_params)
     self.rolloff = self.fit['F_actual']
     self.stiffness.append(
         stiffness_from_rolloff(self.rolloff, self.bead_radius, self.viscosity)
