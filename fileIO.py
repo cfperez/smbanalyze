@@ -1,5 +1,5 @@
-import re
 import collections
+import re
 from datetime import datetime
 import os
 import glob
@@ -20,7 +20,20 @@ REGISTERED_EXT = (IMAGE_FILE,CAMERA_FILE,FRET_FILE,PULL_FILE)
 
 OFC_NUM_OF_COLUMNS = 2
 
+def unique(list_):
+  seen = set()
+  seen_add = seen.add
+  return [x for x in list_ if x not in seen and not seen_add(x)]
+
+def basenames(iterable):
+  return Filelist(splitext(fname)[0] for fname in iterable)
+
+def unique_basenames(filelist):
+  basenames = [splitext(fname)[0] for fname in filelist]
+  return sort_files(unique(basenames))
+
 def sort_files(files):
+  return Filelist(sorted(files, key=lambda f: f.split('_')))
   return sorted(files, key=lambda f: parseFilename(f)[:4])
   
 def filtered_flist(*globs, **options):
@@ -31,19 +44,49 @@ def filtered_flist(*globs, **options):
   return filter_extensions(files, extensions)
   
 def filter_extensions(files, extensions):
-  filtered_files = files
   def condition(s):
-    for ext in extensions:
-      if s.endswith(ext):
-        return True
-    return False
-  filtered_files = filter(condition, filtered_files)
-  return filtered_files
+    base,ext = os.path.splitext(s)
+    return ext in extensions
+  return filter(condition, files)
+  
+class Filename(object):
+  ''' Convenience class for manipulating filenames as basenames and extensions'''
+  def __init__(self, basename, extension=None):
+    if '.' in basename:
+      raise ValueError('Basename argument "%s" cannot contain an extension' % basename)
+    self.basename = basename
+    if extension[0] != '.':
+      extension = '.' + extension
+    self.extension = extension or ''
+
+  @property
+  def has_extension(self):
+    return not self.extension in ('', None)
+
+  @classmethod
+  def split_ext(cls, filename):
+    basename, ext = splitext(filename)
+    return cls(basename, ext)
+
+  def __str__(self):
+    return self.basename + self.extension
+
+  def __repr__(self):
+    return self.basename + " (ext = '%s')" % self.extension
+
+class Filelist(list):
+  @classmethod
+  def sorted(cls, iterable):
+    return cls(sort_files(iterable))
+
+  def with_extensions(self, *extensions):
+    return Filelist(filter_extensions(self, extensions))
 
 def flist(*globs):
   assert(len(globs)>0)
-  return sorted(glob.glob(makeMatchStrFromArgs(*globs, re_match=False)),
-    key=lambda x: x.split('.')[0].split('_'))
+  return Filelist.sorted(glob.glob(makeMatchStrFromArgs(*globs, re_match=False)))
+  #return sorted(glob.glob(makeMatchStrFromArgs(*globs, re_match=False)),
+    #key=lambda x: x.split('.')[0].split('_'))
 fmatch = flist
 
 def makeMatchStrFromArgs(*globs, **options):
@@ -351,6 +394,41 @@ bgPattern = re.compile(r'_background')
 
 COMMENT_LINE = ('#','/*')
 
+MOL_FILENAME_INFO = ('construct', 'conditions', 'slide', 'mol')
+MOL_FILENAME_NUM_FIELDS = 3
+
+def split_on_token(string, token='_', default_not_found=None, maxsplit=None):
+  split_args = (token, maxsplit) if maxsplit else (token,)
+  split = string.split(*split_args) if token in string else (string, default_not_found)
+  if not maxsplit:
+    return split
+  return split + [default_not_found] * (1+maxsplit-len(split))
+
+def make_info_dict(values):
+  assert len(MOL_FILENAME_INFO) == len(values)
+  return dict(zip(MOL_FILENAME_INFO, values))
+
+mol_info_match = re.compile(r'(?P<info>.*s\d+m\d+)_?(?P<details>.*?)(?:\.\w+|$)').match
+
+def parse_mol_info2(filename):
+  fields = split_on_token(filename, maxsplit=MOL_FILENAME_NUM_FIELDS)
+  construct, condition, slidemol, the_rest = fields
+  slide, mol = map(int, (slidemol[1], slidemol[3]))
+  return make_info_dict((construct, condition, slide, mol)), the_rest
+
+def parse_slide_mol_str_to_ints(slide_mol):
+  return map(int, slide_mol.lower()[1:].split('m'))
+
+def split_outside_in(string_, delimiter='_'):
+  '''a_b_d_e_f => (a, [b,d,e], f)'''
+  string_split = string_.split(delimiter)
+  return string_split[0], string_split[1:-1], string_split[-1]
+
+def parse_mol_info(filename):
+  mol_info_str, the_rest = mol_info_match(filename).groups()
+  construct, conditions, slidemol = split_outside_in(mol_info_str)
+  slide, mol = parse_slide_mol_str_to_ints(slidemol)
+  return make_info_dict((construct, conditions, slide, mol)), the_rest
 
 def parseFilename(filename):
   if not filename:

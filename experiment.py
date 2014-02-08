@@ -24,6 +24,12 @@ logger = logging.getLogger(__name__)
 logger.setLevel(constants.logLevel)
 logger.addHandler(constants.logHandler)
 
+PULL_FILENAME_INFO = fileIO.MOL_FILENAME_INFO + ('pull',)
+
+def mol_info_dict(*args):
+  assert len(args) == len(PULL_FILENAME_INFO)
+  return dict(zip(PULL_FILENAME_INFO, args))
+
 class ExperimentError(Exception):
   pass
 
@@ -31,6 +37,7 @@ def load(filename):
   basename, extension = opath.splitext(filename)
   filename = basename + (extension or '.exp')
   return pickle.load(open(filename,'rb'))
+
 
 def fromData(*datalist, **kwargs):
   "List of experiments from PullData and FretData type"
@@ -42,7 +49,16 @@ def fromData(*datalist, **kwargs):
     return output if len(output)>1 else output[-1]
 
 def fromMatch(*globs):
-  return Pulling.fromMatch(*globs)
+  flist = filelist(*globs)
+  cls = Pulling
+  matched = filter(lambda fname: cls.filenameMatchesType(fname), flist)
+  files_not_loading = set(flist)-set(matched)
+  if Options.loading.filename_matching and files_not_loading:
+    msg = "Files matching pattern were skipped because of option 'filename_matching' is ON:\n{}"
+    logger.warning(msg.format('\n'.join(files_not_loading)))
+    return List(map(cls.fromFile, matched))
+  else:
+    return List(map(cls.fromFile, flist))
 
 def fromMatchAll(*fglob):
   'Load Pulling experiments with filenames that contain all of the strings listed in the arguments'
@@ -122,7 +138,7 @@ class List(list):
       raise ExperimentError('Missing attribute {0} in a List element'.format(name))
 
   def has(self, *attributes):
-    "Returns List of experiments which have all given attributes not None"
+    "Returns List of experiments which have all given attributes != None"
     condition = lambda p: all(map(lambda name: getattr(p, name, None) is not None,
                           attributes))
     return self.filter(condition)
@@ -400,10 +416,7 @@ class Base(object):
     metadata.setdefault('date', 
       trap.metadata.get('date', None) if trap else None)
     filename = strfile if strfile else fretfile
-    info = fileIO.parseFilename(filename)._asdict()
-    if not info:
-      logger.warning('Problem parsing filename %s' % filename)
-    info.update(**metadata)
+    info = metadata
     newCls = cls(trap, fret,
       filename=fileIO.splitext(filename)[0],
       **info)
@@ -476,9 +489,24 @@ class Pulling(Base):
       self.metadata['sampling_ratio'] = int(fret_rate / trap_rate)
 
   @classmethod
+  def parse_filename(self, basename):
+    info, the_rest = fileIO.parse_mol_info(basename)
+    pull = 1
+    if the_rest:
+      try:
+          pull = int(the_rest)
+      except:
+        raise ValueError("Basename '%s' has incorrect format" % basename)
+    info.update(pull=pull)
+    return info
+
+  @classmethod
   def fromFile(cls, strfile, fretfile=None, **metadata):
     'Load stretching data and corresponding fret data from files'
-    basename, strfile, fretfileFromBase = fileIO.filesFromName(strfile)
+    basename, ext = fileIO.splitext(strfile)
+    strfile, fretfileFromBase = (fileIO.add_pull_ext(basename),
+                                fileIO.add_fret_ext(basename)
+    #basename, strfile, fretfileFromBase = fileIO.filesFromName(strfile)
     fretfile = fretfile or fretfileFromBase
     if not opath.exists(fretfile):
       fretfile = None
