@@ -24,6 +24,7 @@ def unique(list_):
   seen = set()
   seen_add = seen.add
   return [x for x in list_ if x not in seen and not seen_add(x)]
+uniquify=unique
 
 def basenames(iterable):
   return Filelist(splitext(fname)[0] for fname in iterable)
@@ -33,8 +34,25 @@ def unique_basenames(filelist):
   return sort_files(unique(basenames))
 
 def sort_files(files):
-  return Filelist(sorted(files, key=lambda f: f.split('_')))
-  return sorted(files, key=lambda f: parseFilename(f)[:4])
+  return sorted(files, key=lambda f: f.split('_'))
+
+def files_matching(globs, extensions=(), basenames=False, unique=False):
+  assert(len(globs)>0)
+  if not globs:
+    globs = ['']
+  files = flist(*globs)
+  if extensions:
+    files = filter_extensions(files, extensions)
+  if basenames:
+    files = [splitext(name)[0] for name in files]
+  if unique or basenames:
+    files = uniquify(files)
+  return files
+
+def flist(*globs):
+  assert(len(globs)>0)
+  return sort_files(glob.glob(makeMatchStrFromArgs(*globs, re_match=False)))
+filelist = flist
   
 def filtered_flist(*globs, **options):
   extensions = options.get('extensions', REGISTERED_EXT)
@@ -82,14 +100,8 @@ class Filelist(list):
   def with_extensions(self, *extensions):
     return Filelist(filter_extensions(self, extensions))
 
-def flist(*globs):
-  assert(len(globs)>0)
-  return Filelist.sorted(glob.glob(makeMatchStrFromArgs(*globs, re_match=False)))
-  #return sorted(glob.glob(makeMatchStrFromArgs(*globs, re_match=False)),
-    #key=lambda x: x.split('.')[0].split('_'))
-fmatch = flist
-
 def makeMatchStrFromArgs(*globs, **options):
+  reg_exp = options.get('re_match', True) or options.get('reg_exp', True)
   globs = list(globs)
   last = globs[-1]
   if isInt(last):
@@ -408,7 +420,7 @@ def make_info_dict(values):
   assert len(MOL_FILENAME_INFO) == len(values)
   return dict(zip(MOL_FILENAME_INFO, values))
 
-mol_info_match = re.compile(r'(?P<info>.*s\d+m\d+)_?(?P<details>.*?)(?:\.\w+|$)').match
+mol_info_match = re.compile(r'(?P<info>.*s\d+m\d+)_?(?P<details>.*)').match
 
 def parse_mol_info2(filename):
   fields = split_on_token(filename, maxsplit=MOL_FILENAME_NUM_FIELDS)
@@ -427,7 +439,7 @@ def split_outside_in(string_, delimiter='_'):
 def parse_mol_info(filename):
   mol_info_str, the_rest = mol_info_match(filename).groups()
   construct, conditions, slidemol = split_outside_in(mol_info_str)
-  slide, mol = parse_slide_mol_str_to_ints(slidemol)
+  slide, mol = map(int, slidemol.lower()[1:].split('m')) #parse_slide_mol_str_to_ints(slidemol)
   return make_info_dict((construct, conditions, slide, mol)), the_rest
 
 def parseFilename(filename):

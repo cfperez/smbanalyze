@@ -71,24 +71,17 @@ def fromMatchAll(*fglob):
   
 def filelist(*fglob):
   'Return list of unique filenames (without extension) of pulling and fret file types'
-  files = fileIO.filtered_flist(*fglob, extensions=(fileIO.PULL_FILE, fileIO.FRET_FILE))
-  files = map(lambda s: fileIO.splitext(s)[0], files)
-  return unique(files)
-
-def unique(list_):
-  seen = set()
-  seen_add = seen.add
-  return [x for x in list_ if x not in seen and not seen_add(x)]
+  return fileIO.files_matching(fglob, extensions=(fileIO.PULL_FILE, fileIO.FRET_FILE),
+    basenames=True)
 
 def fromFiles(*filelist):
   'Load experiments from a list of files or an argument list'
   filelist = collapseArgList(filelist)
   return List(map(fromFile, filelist))
 
-def fromFile(filename, exp_type=Pulling):
-  if OpenLoop.filenameMatchesType(filename):
-    return OpenLoop.fromFile(filename)
-  else:
+def fromFile(filename):
+  basename, ext = fileIO.splitext(filename)
+  if Pulling.EXTENSION == ext:
     return Pulling.fromFile(filename)
 
 def collapseArgList(arglist):
@@ -467,6 +460,7 @@ class Pulling(Base):
   extensionOffsetRange = (13,16)
   maximum_fitting_force = 25
   
+  EXTENSION = fileIO.PULL_FILE
   INFO_FIELDS = ('date', 'construct', 'conditions', 'slide', 'mol', 'pull', 'reverse', 'collapsed' )
 
   def __init__(self, trap, fret=None, **metadata):
