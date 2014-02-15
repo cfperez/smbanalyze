@@ -29,7 +29,7 @@ def processMatch(*fglob, **kwargs):
   keyword arguments. Check processFiles() docs for options.
   '''
   fglob = fglob + (fileIO.IMAGE_FILE,)
-  filelist = filter(lambda s: s.count(BACKGROUND_FILENAME_FLAG)==0, fileIO.fmatch(*fglob))
+  filelist = filter(lambda s: s.count(BACKGROUND_FILENAME_FLAG)==0, fileIO.flist(*fglob))
   processFiles(filelist, **kwargs)
 
 def processFiles(flist, roi='roi.txt', background=None, 
@@ -65,7 +65,7 @@ def calcToFile(stack, filename, **kwargs):
   toFile(filename, fretdata, stack.metadata)
   return fretdata
 
-def calculate(stack, beta=0, gamma=1, minsub=False):
+def calculate(stack, beta=0.0, gamma=1.0, minsub=False):
   """Calculates FRET from an image.Stack
 
   calculate( image.Stack, beta = constants.beta, gamma = constants.gamma)
