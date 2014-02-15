@@ -26,16 +26,20 @@ def unique(list_):
   return [x for x in list_ if x not in seen and not seen_add(x)]
 uniquify=unique
 
-def basenames(iterable):
-  return Filelist(splitext(fname)[0] for fname in iterable)
-
-def unique_basenames(filelist):
-  basenames = [splitext(fname)[0] for fname in filelist]
-  return sort_files(unique(basenames))
-
 def sort_files(files):
   return sorted(files, key=lambda f: f.split('_'))
 
+def flist(*globs):
+  assert(len(globs)>0)
+  return sort_files(glob.glob(makeMatchStrFromArgs(*globs, reg_exp=False)))
+filelist = flist
+
+def filter_extensions(files, extensions):
+  def condition(s):
+    base,ext = os.path.splitext(s)
+    return ext in extensions
+  return filter(condition, files)
+  
 def files_matching(globs, extensions=(), basenames=False, unique=False):
   assert(len(globs)>0)
   if not globs:
@@ -48,24 +52,6 @@ def files_matching(globs, extensions=(), basenames=False, unique=False):
   if unique or basenames:
     files = uniquify(files)
   return files
-
-def flist(*globs):
-  assert(len(globs)>0)
-  return sort_files(glob.glob(makeMatchStrFromArgs(*globs, re_match=False)))
-filelist = flist
-  
-def filtered_flist(*globs, **options):
-  extensions = options.get('extensions', REGISTERED_EXT)
-  if not globs:
-    globs = ['']
-  files = flist(*globs)
-  return filter_extensions(files, extensions)
-  
-def filter_extensions(files, extensions):
-  def condition(s):
-    base,ext = os.path.splitext(s)
-    return ext in extensions
-  return filter(condition, files)
   
 class Filename(object):
   ''' Convenience class for manipulating filenames as basenames and extensions'''
@@ -219,7 +205,7 @@ def savefret(filename, data, metadata=None, comments=''):
 def loadsettings(filename, **kwargs):
   "Return dictionary of key/value pairs from LabView-style configuration file"
   cast = kwargs.get('cast') or str
-  with open(filename) as f:
+  with open(filename, 'rU') as f:
     return parseSettingsFromLines(f,cast)
 
 def parseSettingsFromLines(lines, cast):
@@ -294,16 +280,16 @@ def loadcam(filename):
   # once the old-style .cam setting is supplanted
 
   settings = {}
-  with open(filename, 'r') as f:
+  with open(filename, 'rU') as f:
     for line in f.readlines():
       key,value = line.strip().split('\t')
       m = re.match('^\d+/', key)
-      if key != 'DateTime' and not m:
+      if key.lower() != 'datetime' and not m:
         value = int(value)
       else:
         if m: # Handle old style cam files which don't have a DateTime key
           value = key + '\t' + value
-          key = 'DateTime'
+          key = 'datetime'
         value = datetime.strptime(value,'%m/%d/%Y %I:%M %p')
 
       settings[key.lower()] = value
