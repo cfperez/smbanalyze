@@ -1,7 +1,9 @@
 from numpy import loadtxt, array, mean, pi, cos, sin, sqrt, exp, split
 from functools import wraps
 from scipy.optimize import curve_fit
+from smbanalyze import curvefit
 
+FOCAL_SHIFT=0.7
 
 def load_spectra(filename):
   '''Returns dictionary with all spectra info
@@ -24,15 +26,15 @@ freq powX powY fitX fitY
       'f_y', 'amp_y', 'df_y', 'damp_y')
 
   with open(filename) as fh:
-      num_pts = int(fh.readline())
-      fit_data = []
-      for line in fh:
-          if line != '' and line.count(' ') > 1:
-              break
-          fit_data += map(float, line.strip().split())
-      return dict(zip(fit_data_fields, fit_data), 
-          num_pts=num_pts,
-          spectra=loadtxt(fh))
+    num_pts = int(fh.readline())
+    fit_data = []
+    for line in fh:
+      if line != '' and line.count(' ') > 1:
+        break
+      fit_data += map(float, line.strip().split())
+    return dict(zip(fit_data_fields, fit_data), 
+      num_pts=num_pts,
+      spectra=loadtxt(fh))
 
 def faxen(a, h):
   """Calculate Faxen's correction to drag
@@ -42,12 +44,16 @@ def faxen(a, h):
   u = float(a)/h
   return 1/(1-9./16*u + u**3/8. - 45./256*u**4 - u**5/16.)
 
+def stokes_drag(bead_radius, viscosity):
+  """Drag on sphere in SI units. Bead_radius in m, viscosity in cP"""
+  return 6.*pi*bead_radius*viscosity*1e-3
+
+def water_viscosity(temp):
+  '''Viscosity of water at temp in centiPoise (*1e-3 to get Pa*s)'''
+  return 0.89e-3 + 2.24e-5*(25.-temp)
+
 def position_to_height(position, focal_shift, offset):
   return focal_shift*(position-offset)
-
-def stokes_drag(bead_radius, viscosity):
-  "Drag on sphere in SI units. Bead_radius in m, viscosity in cP"
-  return 6.*pi*bead_radius*viscosity*1e-3
 
 def stiffness_from_rolloff(rolloff_freq, bead_radius, temperature, height=None):
   '''Returns stiffness in pN/nm calculated from rolloff measurements using faxen's correction at height if given
@@ -55,12 +61,18 @@ def stiffness_from_rolloff(rolloff_freq, bead_radius, temperature, height=None):
   bead_radius and height must be in meters
   '''
   faxen_correction = height is None and 1 or faxen(bead_radius, height)
-  return 2.*pi*stokes_drag(bead_radius, water_viscosity(temperature))*rolloff_freq*faxen_correction*1e3
+  return 2.*pi*stokes_drag(bead_radius, water_viscosity(temperature))*rolloff_freq*faxen_correction*1e6
 
-def water_viscosity(temp):
-  '''Viscosity of water at temp in centiPoise (*1e-3 to get Pa*s)
-  '''
-  return 0.89e-3 + 2.24e-5*(25.-temp)
+def freq_vs_position(position, F_at_infinity=5000, focal_shift=FOCAL_SHIFT, height_offset=150, bead_radius=300):
+  "FITFUNC: position (nm), F_actual (Hz)"
+  return F_at_infinity/faxen(bead_radius, position_to_height(position, focal_shift, height_offset))
+
+def fit_freq_vs_position(position, frequency, **fit_params):
+  default_fixed = ('focal_shift', 'bead_radius')
+  fixed = fit_params.pop('fixed', default_fixed)
+  return curvefit.Fit(position, frequency, freq_vs_position,
+    fixed=fixed,
+    **fit_params)
 
 def calc_trap_temps(rolloff_strong_on, rolloff_strong_off, 
     power_ratio,
