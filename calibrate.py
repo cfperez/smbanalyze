@@ -103,6 +103,23 @@ def calc_trap_temps(rolloff_strong_on, rolloff_strong_off,
     weak_T = strong_T * power_ratio
     return strong_T+weak_T+room_temp, strong_T, weak_T
 
+def freq_vs_position(position, F_at_infinity=5000, focal_shift=FOCAL_SHIFT, height_offset=150, bead_radius=300):
+  "FITFUNC: position (nm), F_actual (Hz)"
+  return F_at_infinity/faxen(bead_radius, position_to_height(position, focal_shift, height_offset))
+
+def fit_vs_height(height, Y, fitfunc, **fit_params):
+  fit = Fit(height, Y, fitfunc,
+      fixed='bead_radius',
+      **fit_params)
+  return fit
+
+def fit_freq_vs_position(position, frequency, **fit_params):
+  default_fixed = ('focal_shift', 'bead_radius')
+  fixed = fit_params.pop('fixed', default_fixed)
+  return Fit(position, frequency, freq_vs_position,
+    fixed=fixed,
+    **fit_params)
+  
 def flatten_once(l):
     return list(level_2 for level_1 in l for level_2 in level_1)
 
