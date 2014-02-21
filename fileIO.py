@@ -87,12 +87,12 @@ class Filelist(list):
     return Filelist(filter_extensions(self, extensions))
 
 def makeMatchStrFromArgs(*globs, **options):
-  reg_exp = options.get('re_match', True) or options.get('reg_exp', True)
+  reg_exp = options.get('re_match', options.get('reg_exp', True))
   globs = list(globs)
   last = globs[-1]
   if isInt(last):
     globs[-1] = '_'+last
-  if options.get('re_match', True):
+  if reg_exp:
     anychar = '.*'
     endmatch = r'(_|$)'
   else:
