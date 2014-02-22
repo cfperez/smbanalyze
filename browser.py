@@ -41,7 +41,6 @@ class ExperimentBrowser(object):
                                   ExperimentBrowser.DATA_DIR)
         self.analysis_dir = path.join(project_dir,
                                       ExperimentBrowser.ANALYSIS_DIR)
-        # self.molecules = {}
         if filename:
             with open(filename) as fh:
                 self._info = [line.strip().split() for line in fh.readlines()]

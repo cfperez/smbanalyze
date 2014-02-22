@@ -26,6 +26,14 @@ logger.addHandler(constants.logHandler)
 
 PULL_FILENAME_INFO = fileIO.MOL_FILENAME_INFO + ('pull',)
 
+###############
+
+def aggregate(*data):
+  return ''
+
+###############
+
+
 def mol_info_dict(*args):
   assert len(args) == len(PULL_FILENAME_INFO)
   return dict(zip(PULL_FILENAME_INFO, args))
@@ -411,7 +419,6 @@ class Base(object):
     info = fileIO.parseFilename(filename)
     if not info:
       info = {}
-      logger.warning('Problem parsing filename %s' % filename)
     else:
       info = info._asdict()
       info.update(**metadata)
@@ -748,7 +755,6 @@ class OpenLoop(Base):
     assert isinstance(filename, str)
     finfo = fileIO.parseFilename(filename)
     if not finfo:
-      logger.warning('Problem parsing filename "{}"'.format(filename))
       return False
     for attr in OpenLoop.FILENAME_SYNTAX:
       if getattr(finfo, attr) is not None:

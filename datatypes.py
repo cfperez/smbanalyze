@@ -1,5 +1,5 @@
 import logging
-from numpy import all, asarray, sign, vstack
+from numpy import all, asarray, sign, vstack, ndarray
 from operator import isSequenceType, attrgetter
 from collections import Iterable
 from fileIO import load, toSettings, fileIOError
@@ -15,6 +15,16 @@ TYPE_CHECKING = 'STRICT'
 FretData_fields = ('time', 'donor', 'acceptor', 'fret')
 TrapData_fields = ('ext', 'f', 'sep')
 
+class Mask(ndarray):
+    '''Not used! Here as an example of subclassing ndarray'''
+    
+    def __new__(cls, bool_array, *args):
+        assert isinstance(bool_array, ndarray)
+        obj = asarray(bool_array, dtype='bool').view(cls)
+        return obj
+
+    def above(self, above_func):
+        pass
 
 class AbstractData(object):
 
@@ -173,7 +183,7 @@ class TrapData(AbstractData):
 
     def maskFromLimits(self, x=None, f=None, limits=()):
         if x is None and f is None:
-            raise ValueError('Must specific either x limits of f limits')
+            raise ValueError('Must specify either x limits or f limits')
         if limits:
             start, stop = limits
             ext_fit, f_fit = self.ext[start:stop], self.f[start:stop]
@@ -194,6 +204,18 @@ class TrapData(AbstractData):
 
         between = lambda s, a, b: (s >= a) & (s <= b)
         return between(ext_fit, min_ext, max_ext) & between(f_fit, min_f, max_f)
+
+    def mask_from_interval(self, ext, f=None):
+        return self.maskFromLimits(ext, f)
+
+    def mask_above(self, above):
+        '''Return 2 masks: True if above above(ext)'''
+        assert callable(above)
+        above = self.f > above(self.ext)
+        return above
+
+    def make_masks(self, intervals):
+        return map(self.mask_from_interval, intervals)
 
     def select(self, x=None, f=None, limits=(0, -1)):
         return self[self.maskFromLimits(x, f, limits)]
