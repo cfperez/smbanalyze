@@ -53,46 +53,13 @@ def files_matching(globs, extensions=(), basenames=False, unique=False):
     files = uniquify(files)
   return files
   
-class Filename(object):
-  ''' Convenience class for manipulating filenames as basenames and extensions'''
-  def __init__(self, basename, extension=None):
-    if '.' in basename:
-      raise ValueError('Basename argument "%s" cannot contain an extension' % basename)
-    self.basename = basename
-    if extension[0] != '.':
-      extension = '.' + extension
-    self.extension = extension or ''
-
-  @property
-  def has_extension(self):
-    return not self.extension in ('', None)
-
-  @classmethod
-  def split_ext(cls, filename):
-    basename, ext = splitext(filename)
-    return cls(basename, ext)
-
-  def __str__(self):
-    return self.basename + self.extension
-
-  def __repr__(self):
-    return self.basename + " (ext = '%s')" % self.extension
-
-class Filelist(list):
-  @classmethod
-  def sorted(cls, iterable):
-    return cls(sort_files(iterable))
-
-  def with_extensions(self, *extensions):
-    return Filelist(filter_extensions(self, extensions))
-
 def makeMatchStrFromArgs(*globs, **options):
-  reg_exp = options.get('re_match', True) or options.get('reg_exp', True)
+  reg_exp = options.get('re_match', options.get('reg_exp', True))
   globs = list(globs)
   last = globs[-1]
   if isInt(last):
     globs[-1] = '_'+last
-  if options.get('re_match', True):
+  if reg_exp:
     anychar = '.*'
     endmatch = r'(_|$)'
   else:
@@ -123,11 +90,15 @@ def string_is_list(str_):
   return str_.startswith('(') or str_.startswith('[')
   
 def parse_config_string(value):
+  if not isinstance(value, str):
+    return value
   if string_is_list(value):
     value_list = value.strip('()[]').split(',')
     return map(toNum, value_list)
-  else:
+  elif value:
     return ast.literal_eval(value)
+  else:
+    return value
 
 def load(fname, comments=toSettings, header=False, **kwargs):
   if not os.path.exists(fname):
@@ -226,9 +197,11 @@ def parseLineToSetting(line):
   if m:
     header = m.group(1).lower()
     return header, None, None
-  else:
+  elif '=' in line:
     key,value = line.split('=')
     return None, key.strip().lower().replace(' ','_'),value.strip()
+  else:
+    return None, line, None
 
 def strip_blank_and_comments(iter_str):
   for line in strip_blank(iter_str):

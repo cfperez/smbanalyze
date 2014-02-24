@@ -26,6 +26,14 @@ logger.addHandler(constants.logHandler)
 
 PULL_FILENAME_INFO = fileIO.MOL_FILENAME_INFO + ('pull',)
 
+###############
+
+def aggregate(*data):
+  return ''
+
+###############
+
+
 def mol_info_dict(*args):
   assert len(args) == len(PULL_FILENAME_INFO)
   return dict(zip(PULL_FILENAME_INFO, args))
@@ -38,7 +46,6 @@ def load(filename):
   filename = basename + (extension or '.exp')
   return pickle.load(open(filename,'rb'))
 
-
 def fromData(*datalist, **kwargs):
   "List of experiments from PullData and FretData type"
   exptype = kwargs.get('type','trap')
@@ -49,7 +56,7 @@ def fromData(*datalist, **kwargs):
     return output if len(output)>1 else output[-1]
 
 def fromMatch(*globs):
-  flist = filelist(*globs)
+  flist = exp_files(*globs)
   cls = Pulling
   matched = filter(lambda fname: cls.filenameMatchesType(fname), flist)
   files_not_loading = set(flist)-set(matched)
@@ -63,13 +70,13 @@ def fromMatch(*globs):
 def fromMatchAll(*fglob):
   'Load Pulling experiments with filenames that contain all of the strings listed in the arguments'
   fglob = list(fglob)
-  files = filelist(*fglob)
+  files = exp_files(*fglob)
   fglob[0] = opath.basename(fglob[0])
   if not files:
     raise ExperimentError("No files found matching glob '{0}'".format(fglob))
   return fromFiles(files)
   
-def filelist(*fglob):
+def exp_files(*fglob):
   'Return list of unique filenames (without extension) of pulling and fret file types'
   return fileIO.files_matching(fglob, extensions=(fileIO.PULL_FILE, fileIO.FRET_FILE),
     basenames=True)
@@ -81,7 +88,7 @@ def fromFiles(*filelist):
 
 def fromFile(filename):
   basename, ext = fileIO.splitext(filename)
-  if Pulling.EXTENSION == ext:
+  if not ext or Pulling.EXTENSION == ext:
     return Pulling.fromFile(filename)
 
 def collapseArgList(arglist):
@@ -412,7 +419,6 @@ class Base(object):
     info = fileIO.parseFilename(filename)
     if not info:
       info = {}
-      logger.warning('Problem parsing filename %s' % filename)
     else:
       info = info._asdict()
       info.update(**metadata)
@@ -518,7 +524,6 @@ class Pulling(Base):
     assert isinstance(filename, str)
     finfo = fileIO.parseFilename(filename)
     if not finfo:
-      logger.warning('Problem parsing filename "{}"'.format(filename))
       return False
     for attr in finfo._fields:
       val = getattr(finfo, attr)
@@ -750,7 +755,6 @@ class OpenLoop(Base):
     assert isinstance(filename, str)
     finfo = fileIO.parseFilename(filename)
     if not finfo:
-      logger.warning('Problem parsing filename "{}"'.format(filename))
       return False
     for attr in OpenLoop.FILENAME_SYNTAX:
       if getattr(finfo, attr) is not None:
@@ -808,7 +812,7 @@ class OptionDict(dict):
 
 Options = OptionDict({
   'loading': {
-    'filename_matching': True},
+    'filename_matching': False},
   'filtering': {
     'auto_filter': True, # apply these options automagically where needed
     'required_pulling_force': Pulling.extensionOffsetRange[1]}
