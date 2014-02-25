@@ -714,13 +714,13 @@ class Pulling(Base):
       self.figure.plot(self.handles, hold=True)
       self.figure.annotate(unicode(self.handles), location)
       location[1] -= 1
-    for fit in self.rips:
-      self.figure.plot(fit, hold=True)
-      text = unicode(fit)
-      cutoff = 51
-      if len(text) >= cutoff:
-        text = text[:cutoff]+'\n'+text[cutoff:]
-      self.figure.annotate(text, location)
+    # for fit in self.rips:
+    #   self.figure.plot(fit, hold=True)
+    #   text = unicode(fit)
+    #   cutoff = 51
+    #   if len(text) >= cutoff:
+    #     text = text[:cutoff]+'\n'+text[cutoff:]
+    #   self.figure.annotate(text, location)
     return self.figure
 
   def pickPoints(self, num=1):
