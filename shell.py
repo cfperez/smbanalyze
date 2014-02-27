@@ -13,7 +13,7 @@ experiment_names = ["Pulling", "experiment", "fplot", "Figure"]
 fec_names = ['fec', 'nm_to_nt', 'Rips']
 __all__ = experiment_names + fec_names + [ "os",
     "fig", "pretty_rip_sizes", "split_pulls_at_point",
-    "pick_line", "pick_intervals", "Interval"]
+    "pick_pts", "pick_line", "pick_intervals", "Interval"]
 
 def fig(title_):
     fig_ = fplot.Figure(title_).new()
@@ -22,6 +22,9 @@ def fig(title_):
 
 Interval = namedtuple('Interval', 'start end')
 
+def pick_pts(num=1):
+    return Figure.fromCurrent().pickPoints(num)
+    
 def pick_intervals(num=1):
     '''
     Return list of Intervals picked from current plot

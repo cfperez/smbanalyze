@@ -105,8 +105,9 @@ def analyze_rips(trap, intervals, stems_lost,
   if na_type not in HELIX_SIZE:
     raise ValueError('na_type must be one of: {}'.format(HELIX_SIZE.keys()))
   masks = trap.make_masks(intervals)
-  above = trap.mask_above(handle_above)
-  masks[0] = masks[0] & above
+  if handle_above:
+    above = trap.mask_above(handle_above)
+    masks[0] = masks[0] & above
   fit = fit_rips(trap, masks, **fitOptions)
   return Rips.from_fit(fit, stems_lost, na_type), fit
 
