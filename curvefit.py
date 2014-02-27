@@ -2,6 +2,7 @@ import inspect
 
 from numpy import roots, real
 import numpy as np 
+from functools import wraps
 
 try:
   from scipy.optimize import curve_fit
@@ -183,6 +184,7 @@ def MMS_rip_region_maker(masks):
 
   return MMS_rip_region
 
+from progressbar import with_progress, AutoProgressBar, with_pbar
 
 class Fit(object):
   @classmethod
@@ -249,7 +251,10 @@ class Fit(object):
       x,y = y,x
     self.x = x
 
-    param_best_fit, self.covariance = curve_fit(fitfunc, x, y, starting_p, sigma=weights)
+    maxfeval = int(np.sqrt(len(x)/3)+50)
+    with AutoProgressBar(maxfeval, status='Fitting:') as pbar:
+      param_best_fit, self.covariance = curve_fit(
+        with_pbar(fitfunc, pbar), x, y, starting_p, sigma=weights, maxfev=maxfeval)
     self.fitOutput = fitfunc(x, *param_best_fit)
     self.residual = self.fitOutput-y
 

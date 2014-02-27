@@ -2,18 +2,18 @@ from matplotlib.cbook import flatten
 import matplotlib.pyplot as plt
 from numpy import linspace, append, diff
 from collections import namedtuple
-from smbanalyze import fplot, experiment, curvefit
-
+from smbanalyze import fplot, experiment, curvefit, fec
+import os
 
 from smbanalyze.experiment import Pulling
 from smbanalyze.fplot import Figure
 from smbanalyze.fec import nm_to_nt, Rips
 
-experiment_names = ["Pulling"]
-fec_names = ['nm_to_nt', 'Rips']
-__all__ = experiment_names + [
-    "fig", "nm_to_nt", "pretty_rip_sizes", "split_pulls_at_point",
-    "pick_line", "pick_interval", "Interval"]
+experiment_names = ["Pulling", "experiment", "fplot", "Figure"]
+fec_names = ['fec', 'nm_to_nt', 'Rips']
+__all__ = experiment_names + fec_names + [ "os",
+    "fig", "pretty_rip_sizes", "split_pulls_at_point",
+    "pick_pts", "pick_line", "pick_intervals", "Interval"]
 
 def fig(title_):
     fig_ = fplot.Figure(title_).new()
@@ -22,6 +22,9 @@ def fig(title_):
 
 Interval = namedtuple('Interval', 'start end')
 
+def pick_pts(num=1):
+    return Figure.fromCurrent().pickPoints(num)
+    
 def pick_intervals(num=1):
     '''
     Return list of Intervals picked from current plot
@@ -42,7 +45,7 @@ def region_to_str(regions):
         )
 
 def split_pulls_at_point(exps, point):
-    '''Return tuple of (low,high) of experiments "exps" split at point (ext,force)''' 
+    '''Return tuple (below,above) distinguished by their relative position above/below "point"''' 
     ext_cutoff, force_cutoff = point
     high, low = experiment.List(), experiment.List()
     for p in exps:
@@ -69,64 +72,8 @@ def pretty_rip_sizes(rip_sizes, helices):
     return "In nm: " + ', '.join(truncate_floats(rip_sizes)) + "\n" + \
          "In nt: " + ', '.join(truncate_floats(map(nm_to_nt, rip_sizes, helices)))
 
-def plot_fit_attr_all(all_mol, attr, bins=10):
-    attr_out = [get_fit_attr_from_mol(mol, attr) for mol in all_mol]
-    # attr_all = list(flatten(attr_out))
-    plt.figure(attr)
-    # clf()
-    # hist(attr_all, bins=bins, range=(15,50))
-    return attr_out
-
-def get_fit_attr_from_mol(mol, attr, bins=10):
-    return [p.rips[0][attr] for p in mol]
-
 def flatten_(arr):
     return list(flatten(arr))
-
-def lower_limit_tester(handle_limits, upper_limit):
-    def tester(pull, **fitOptions):
-        output = []
-        for handle in handle_limits:
-            pull.fitHandles(handle)
-            output.append(pull.fitRip(*upper_limit, **fitOptions))
-        return output
-    return tester
-
-def region_tester(handle_limits, upper_limit, **fitOptions):
-    def tester(pull, **fitOptions):
-        output = []
-        for handle in handle_limits:
-            trap = pull.trap
-            handle_mask = trap.maskFromLimits(handle, None)
-            upper_mask = trap.maskFromLimits(*upper_limit)
-            output.append(
-                curvefit.fitWLC_masks(trap.ext, trap.f, [handle_mask, upper_mask], **fitOptions)
-            )
-        return output
-    return tester
-
-def handle_limits(lower_range, upper):
-    return [ (lower, upper) for lower in range(*lower_range)]
-
-def fitBoth(pull, hlimit, ulimit):
-    pull.fitHandles(hlimit)
-    old_fit = pull.fitRip(*ulimit)
-    trap = pull.trap
-    handles = trap.select(hlimit)
-    upper = trap.select(*ulimit)
-    new_fit = curvefit.fitWLCrip(handles.ext, handles.f, upper.ext, upper.f, Lp1=1.2)
-    return old_fit, new_fit
-
-
-def fitMultipleLimits(pull, handle_limits, upper_limits):
-    for handle, upper in zip(handle_limits, upper_limits):
-        old, new = fitBoth(pull, handle, upper)
-        yield old, new
-
-def fitCheck(pull, lower_handle_range, upper_handle):
-    hlimits = [(lower, upper_handle) for lower in lower_handle_range]
-    ulimits = [(1000,15)]*len(hlimits)
-    return [[old,new] for old, new in fitMultipleLimits(pull, hlimits, ulimits)]
 
 def line_from_two_xy_pts(pts):
     assert len(pts) == 2
@@ -142,13 +89,16 @@ def linear_fit_from_two_xy_pts(pts):
     b = y0 - m*x0
     return m,b
     
-def linspace_from_two_xy_pts(pts):
+def linspace_pts(pts):
     assert len(pts) == 2
     pts = sorted(pts)
     x0,x1 = pts[0][0], pts[1][0]
     return linspace(x0, x1)
 
-def pick_line():
+def pick_line(plot=True):
     pts = plt.ginput(2)
     ll = line_from_two_xy_pts(pts)
+    if plot:
+        X = linspace_pts(pts)
+        plt.plot(X, ll(X))
     return ll

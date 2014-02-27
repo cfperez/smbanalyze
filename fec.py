@@ -3,7 +3,7 @@
 
 import numpy as np
 from collections import Iterable
-from smbanalyze.curvefit import FitRegions
+from smbanalyze.curvefit import Fit,FitRegions
 from useful import broadcast
 from constants import kT, parameters
 
@@ -13,12 +13,20 @@ def make_masks(trap, intervals):
   return map(trap.mask_from_interval, intervals)
 
 def rip_sizes(fit):
-  lc = [fit[param] 
+  assert isinstance(fit, Fit)
+  lc = [fit[param]
     for param in fit if param.startswith(RIP_NAME_PREFIX)]
   # Replace first 'Lc' (handle contour) with 0 for
   # pairwise subtraction below
   lc[0] = 0
   return [lc[n]-lc[n-1] for n in range(1,len(lc))]
+
+def rip_errors(fit):
+  assert isinstance(fit, Fit)
+  lc_err = [val for p,val in fit.error.items()
+    if p.startswith(RIP_NAME_PREFIX)][1:]
+  return lc_err[:1] + [np.sqrt(lc_err[n]**2+lc_err[n+1]**2)
+    for n in range(len(lc_err)-1)]
 
 DEFAULT_NA_TYPE = 'RNA'
 RISE_PER_BASE = {'RNA': 0.59, 'DNA': 0.34}
@@ -33,24 +41,25 @@ def nm_to_nt(nm, stems_lost=1, helix_size=2.2, na_type='RNA'):
 class Rips(object):
   DEFAULT_HELIX_SIZE = 2.2
 
-  def __init__(self, rips, stems_lost, na_type):
+  def __init__(self, rips, stems_lost, na_type, error=[]):
     assert isinstance(na_type, str) and na_type in HELIX_SIZE
     assert isinstance(rips, Iterable)
     self._in_nm = rips
     self.na_type = na_type
     self.helix_size = HELIX_SIZE[na_type]
     self.stems_lost = stems_lost
+    self._error = error
 
   @classmethod
   def from_fit(cls, fit, stems_lost, na_type):
-    return cls(rip_sizes(fit), stems_lost, na_type)
+    return cls(rip_sizes(fit), stems_lost, na_type, rip_errors(fit))
 
   @property
-  def in_nm(self):
+  def size_nm(self):
     return self._in_nm
 
   @property
-  def in_nt(self):
+  def size_nt(self):
     return map(
       lambda rip,stems_lost: nm_to_nt(rip, stems_lost, 
       helix_size=self.helix_size, na_type=self.na_type),
@@ -58,16 +67,58 @@ class Rips(object):
       self.stems_lost
       )
 
+  @property
+  def error_nm(self):
+    return self._error
+
+  @property
+  def error_nt(self):
+    return map(
+      lambda error: nm_to_nt(error, 0,
+        helix_size=self.helix_size, na_type=self.na_type),
+      self._error)
+
+  def __repr__(self):
+    return "Rips(rips={}, stems_lost={}, na_type={}, error={}".format(
+      self.size_nm, self.stems_lost, self.na_type, self._error)
+
+  def __unicode__(self):
+    if self._error:
+      rip_size_fmt =  u'{:.1f}\u00B1{:.1f} nt ({:.2f} nm)'
+      rips_str = "Rips: " + " | ".join(rip_size_fmt.format(nt,err,nm)
+        for nt,err,nm in zip(self.size_nt,self.error_nt,self.size_nm))
+      total_str = "Total: "+rip_size_fmt.format(
+        sum(self.size_nt),self.error_nt[-1],sum(self.size_nm))
+    else:
+      rip_size_fmt = u'{:.1f} nt ({:.2f} nm)'
+      rips_str = "Rips: " + " | ".join(rip_size_fmt.format(nt,nm)
+        for nt,nm in zip(self.size_nt,self.size_nm))
+      total_str = "Total: "+rip_size_fmt.format(sum(self.size_nt),sum(self.size_nm))
+    return rips_str+'\n'+total_str
+
+  def __str__(self):
+    return unicode(self).encode('utf-8')
+
 def analyze_rips(trap, intervals, stems_lost, 
   handle_above=None, na_type=None, **fitOptions):
   na_type = na_type or DEFAULT_NA_TYPE
   if na_type not in HELIX_SIZE:
     raise ValueError('na_type must be one of: {}'.format(HELIX_SIZE.keys()))
   masks = trap.make_masks(intervals)
-  above = trap.mask_above(handle_above)
-  masks[0] = masks[0] & above
+  if handle_above:
+    above = trap.mask_above(handle_above)
+    masks[0] = masks[0] & above
   fit = fit_rips(trap, masks, **fitOptions)
   return Rips.from_fit(fit, stems_lost, na_type), fit
+
+def analyze(exp, intervals, stems_lost,
+  handle_above=None, na_type=None, **fitOptions):
+  rips,fit = analyze_rips(exp.trap, intervals,
+       stems_lost, handle_above, na_type, **fitOptions)
+  exp.rips = rips
+  exp.fit = fit
+  fit.plot()
+  return rips
 
 def fit_rips(trap, masks, **fitOptions):
   return fit_masks(trap.ext, trap.f, masks, **fitOptions)
