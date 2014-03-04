@@ -1,2 +1,2 @@
-__all__ = ["image", "fileIO", "fcalc", "experiment", "fplot", "browser"]
+__all__ = ["image", "fileIO", "fcalc", "experiment", "fplot"]
 

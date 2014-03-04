@@ -2,7 +2,7 @@ from matplotlib.cbook import flatten
 import matplotlib.pyplot as plt
 from numpy import linspace, append, diff
 from collections import namedtuple
-from smbanalyze import fplot, experiment, curvefit, fec
+from smbanalyze import fplot, experiment, curvefit, fec, fcalc
 import os
 
 from smbanalyze.experiment import Pulling
@@ -11,7 +11,7 @@ from smbanalyze.fec import nm_to_nt, Rips
 
 experiment_names = ["Pulling", "experiment", "fplot", "Figure"]
 fec_names = ['fec', 'nm_to_nt', 'Rips']
-__all__ = experiment_names + fec_names + [ "os",
+__all__ = experiment_names + fec_names + [ "os", "fcalc",
     "fig", "pretty_rip_sizes", "split_pulls_at_point",
     "pick_pts", "pick_line", "pick_intervals", "Interval"]
 
