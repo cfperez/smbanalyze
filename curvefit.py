@@ -9,6 +9,8 @@ try:
 except ImportError:
   from curve_fit import curve_fit
 
+import progressbar as pbar #import AutoProgressBar, progress_on_call
+
 from constants import parameters,kT
 from fplot import subplot
 from useful import fix_args, broadcast
@@ -184,7 +186,6 @@ def MMS_rip_region_maker(masks):
 
   return MMS_rip_region
 
-from progressbar import with_progress, AutoProgressBar, with_pbar
 
 class Fit(object):
   @classmethod
@@ -252,9 +253,9 @@ class Fit(object):
     self.x = x
 
     maxfeval = int(np.sqrt(len(x)/3)+50)
-    with AutoProgressBar(maxfeval, status='Fitting:') as pbar:
+    with pbar.done_on_complete(maxfeval, status='Fitting:') as auto_pbar:
       param_best_fit, self.covariance = curve_fit(
-        with_pbar(fitfunc, pbar), x, y, starting_p, sigma=weights, maxfev=maxfeval)
+        pbar.progress_on_call(fitfunc, auto_pbar), x, y, starting_p, sigma=weights, maxfev=maxfeval)
     self.fitOutput = fitfunc(x, *param_best_fit)
     self.residual = self.fitOutput-y
 

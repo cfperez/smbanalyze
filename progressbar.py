@@ -7,7 +7,7 @@ Created 2/25/14
 
 import sys
 from functools import wraps
-from itertools import count
+from contextlib import contextmanager
 
 DEFAULT_SIZE = 80
 
@@ -24,18 +24,28 @@ def make(status='', size=DEFAULT_SIZE, char='='):
     progress_bar.done = False
     return progress_bar
 
-def auto_update(N, size=DEFAULT_SIZE, status=''):
-    pbar = make_pbar(status, size=size)
+def on_next(N, size=DEFAULT_SIZE, status=''):
+    pbar = make(status, size=size)
     N = float(N)
-    for n in count():
-        yield pbar(min(n+1,N)/N)
+    n = 1
+    while True:
+        update = (yield pbar(min(n,N)/N))
+        n = update*N if update else n+1
 
-def with_progress(iterable, N=None):
+def over(iterable, N=None):
     N = N or len(iterable)
-    pb=progressbar.AutoProgressBar(N)
+    pb = on_next(N) #AutoProgressBar(N)
     for x in iterable:
        next(pb)
        yield x
+
+@contextmanager
+def done_on_complete(N, size=DEFAULT_SIZE, status=''):
+    pb = on_next(N, size=size, status=status)
+    try:
+        yield pb
+    finally:
+        pb.send(True)
 
 def progress_on_call(func, pbar):
     @wraps(func)
@@ -44,6 +54,9 @@ def progress_on_call(func, pbar):
         return func(*args, **kwargs)
     return f_
 
+#############################
+# OOP version of above... 
+# Bloated, still useful?
 class ProgressBar(object):
     def __init__(self, status='', size=DEFAULT_SIZE, char='='):
         self.status = status
@@ -102,3 +115,4 @@ class AutoProgressBar(ProgressBar):
         for x in iterable:
             self.update()
             yield x
+        self.done()
