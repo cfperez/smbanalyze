@@ -2,12 +2,29 @@
 '''
 
 import numpy as np
+from numpy import NAN
 from collections import Iterable
 from smbanalyze.curvefit import Fit,FitRegions
 from useful import broadcast
 from constants import kT, parameters
 
 RIP_NAME_PREFIX = 'Lc'
+
+def findRip(trap, min_rip_ext):
+    handle_data = trap.select(x=(None,min_rip_ext))
+
+    # the difference derivative of the force below min_rip_ext is
+    # used as the baseline/expected derivative for WLC curve
+    handle_deriv = np.diff(handle_data.f)
+    
+    # where the derivative first exceeds the minimum derivative found in
+    # the handle region, call that the rip
+    rip_location = np.find(np.diff(trap.f) < min(handle_deriv))
+    if len(rip_location)==0:
+        return np.asarray([NAN,NAN,NAN])
+    rip_location = rip_location[0]
+    return trap[rip_location]
+
 
 def make_masks(trap, intervals):
   return map(trap.mask_from_interval, intervals)

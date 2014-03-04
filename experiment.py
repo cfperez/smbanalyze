@@ -78,8 +78,8 @@ def fromMatchAll(*fglob):
   
 def exp_files(*fglob):
   'Return list of unique filenames (without extension) of pulling and fret file types'
-  return fileIO.files_matching(fglob, extensions=(fileIO.PULL_FILE, fileIO.FRET_FILE),
-    basenames=True)
+  return fileIO.files_matching(fglob, with_ext=(fileIO.PULL_FILE, fileIO.FRET_FILE),
+    keep_ext=True)
 
 def fromFiles(*filelist):
   'Load experiments from a list of files or an argument list'
@@ -239,9 +239,6 @@ class List(list):
 
   def findRip(self, min_rip_ext=None):
       return asarray(self.call('findRip', min_rip_ext))
-  
-  def fitRip(self, *args, **kwargs):
-    return self.call('fitRip', *args, **kwargs)
 
   def adjustForceOffset(self, baseline=0.0, offset=None, x_range=None):
     return self.call('adjustForceOffset', baseline, offset, x_range)
@@ -388,6 +385,7 @@ class Base(object):
 
   @property
   def info(self):
+    return self.metadata.get('filename', '').split('_')
     return tuple(self.metadata.get(key, None) for key in self.INFO_FIELDS)
 
   def __lt__(self, other):
@@ -480,7 +478,6 @@ class Pulling(Base):
     self.handles = None
     self.lastFit = None
     self.fit = None
-    self.resetRips()
     self._ext_offset = 0
 
     if fret:
@@ -543,105 +540,6 @@ class Pulling(Base):
     except IOError:
       raise ExperimentError('IOError loading file: check image file location!')
 
-  def findRip(self, min_rip_ext):
-    if not self.trap:
-      raise ExperimentError('%s: findRip() missing TrapData' % self)
-    if not self.fits:
-      raise ExperimentError('%s: findRip() must be done after fitRegions()' % self)
-
-    handle_data = self.trap.select(x=(None,min_rip_ext))
-
-    # the difference derivative of the force below min_rip_ext is
-    # used as the baseline/expected derivative for WLC curve
-    handle_deriv = diff(handle_data.f)
-    
-    # where the derivative first exceeds the minimum derivative found in
-    # the handle region, call that the rip
-    rip_location = find(diff(self.trap.f) < min(handle_deriv))
-    if len(rip_location)==0:
-        return asarray([NAN,NAN,NAN])
-    rip_location = rip_location[0]
-    return self.trap[rip_location]
-
-  def fitHandles(self, x=None, f=None, **fitOptions):
-    'Fit a WLC model to the lower part of the FEC corresponding to the handle stretching'
-    fitOptions.setdefault('fitfunc','MMS')
-    self.handles = self.fitForceExtension(x, f, **fitOptions)
-    return self.handles
-
-  def fitRip(self, x=None, f=None, guess=10, **fitOptions):
-    'Fit a WLC model to the upper part of the FEC after the rip'
-    if not self.handles:
-      raise ExperimentError("Must fitHandles() before fitting rip!")
-    parameters = self.handles.parameters.copy()
-    fitOptions.setdefault('fitfunc', 'MMS_rip')
-    parameters.update(fitOptions)
-    parameters.setdefault('Lc1', guess)
-    MMS_fixed = ('K','Lc','Lp','F0')
-    if parameters.has_key('fixed'):
-      parameters['fixed'] += MMS_fixed
-    else:
-      parameters['fixed'] = MMS_fixed + ('K1','Lp1')
-    rip = self.fitForceExtension(x, f, **parameters)
-    self.addRip(rip)
-    return rip
-    
-  def addRip(self, newFit):
-    if self._appendNewRip:
-      self.rips += [newFit]
-      self._appendNewRip = False
-    else:
-      self.rips[-1] = newFit
-
-  def nextRip(self):
-    self._appendNewRip = True
-
-  def resetRips(self):
-    self.rips = []
-    self._appendNewRip = True
-
-  @property
-  def ripSizes(self):
-    rips = asarray(map(itemgetter('Lc1'), self.rips))
-    if len(rips) == 1:
-      return rips
-    else:
-      rips = insert(rips, 0, 0)
-      return diff(rips)
-
-  def fitForceExtension(self, x=None, f=None, start=0, stop=-1, **fitOptions):
-    "Fit WLC to Pulling curve and plot"
-    pull = self.trap.select(x, f, (start,stop))
-    if len(pull)==0:
-      raise ValueError(
-        'No trap data in interval defined by arguments x={} and f={}'.format(
-          x,f))
-    fit = fitWLC(pull.ext, pull.f, **fitOptions)
-    fit.ext_range = (min(pull.ext), max(pull.ext))
-    fit.f_range = (min(pull.f), max(pull.f))
-    self.lastFit = fit
-    if self.figure.visible:
-      self.figure.plot(fit, hold=True)
-    return fit
-
-  def fitRegions(self, *extensions, **fitOptions):
-    '''
-    Return MMS_rip_region fit using specied (min,max) regions in *extensions
-    Example: 
-    fit = pull.fitRegions( (840,970), (1000,1030), max_force=16)
-    '''
-    fit_masks = map(self.trap.maskFromLimits, extensions)
-    self.lastFit = self.fit = fitWLC_masks(self.trap.ext, self.trap.f, fit_masks,  **fitOptions)
-    self.figure.visible and self.figure.plot(self.fit, hold=True)
-    return self.fit
-
-  @property
-  def fits(self):
-    if self.handles:
-      return [self.handles]+self.rips
-    else:
-      return [self.lastFit] if self.lastFit else []
-
   def forceOffset(self, x_range=None):
     x_range = x_range or Pulling.forceOffsetRange
     data = self.trap.select(x=x_range)
@@ -680,6 +578,7 @@ class Pulling(Base):
     self._ext_offset = offset
     return offset
 
+  # TODO: Move to TrapData, change name, and add docstring
   def recalculate(self, stiffness=None):
     if stiffness and len(stiffness) != 2:
       raise ValueError('Stiffness must be 2-tuple')
@@ -696,7 +595,7 @@ class Pulling(Base):
     return self
 
   def plot(self, **kwargs):
-    kwargs.setdefault('FEC', self.fits or not self.fret)
+    kwargs.setdefault('FEC', hasattr(self, 'fit') or not self.fret)
     kwargs.setdefault('legend', None)
     kwargs.setdefault('title', self.filename or '')
     kwargs.setdefault('label', self.filename or '')
@@ -708,19 +607,6 @@ class Pulling(Base):
       self.figure.plot(self.trap, **kwargs)
     # tk if reverse pull, reverse the x-axis of the FEC, which is last thing plotted
     self.figure.xlim(reverse=self.isReverse)
-    if self.lastFit:
-      self.figure.plot(self.lastFit, hold=True)
-    if self.handles:
-      self.figure.plot(self.handles, hold=True)
-      self.figure.annotate(unicode(self.handles), location)
-      location[1] -= 1
-    # for fit in self.rips:
-    #   self.figure.plot(fit, hold=True)
-    #   text = unicode(fit)
-    #   cutoff = 51
-    #   if len(text) >= cutoff:
-    #     text = text[:cutoff]+'\n'+text[cutoff:]
-    #   self.figure.annotate(text, location)
     return self.figure
 
   def pickPoints(self, num=1):
