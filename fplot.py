@@ -35,7 +35,7 @@ class Figure(object):
     self.exists or self.new()
     self.makeCurrent()
     #plt.figure(self.figure_id)
-    return self
+    return self.figure
 
   def new(self):
     self._figure = plt.figure(self.figure_id)
