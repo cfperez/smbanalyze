@@ -40,16 +40,16 @@ def filter_extensions(files, extensions):
     return ext in extensions
   return filter(condition, files)
   
-def files_matching(globs, extensions=(), basenames=False, unique=False):
+def files_matching(globs, with_ext=(), keep_ext=False, unique=False):
   assert(len(globs)>0)
   if not globs:
     globs = ['']
   files = flist(*globs)
-  if extensions:
-    files = filter_extensions(files, extensions)
-  if basenames:
+  if with_ext:
+    files = filter_extensions(files, with_ext)
+  if keep_ext:
     files = [splitext(name)[0] for name in files]
-  if unique or basenames:
+  if unique or keep_ext:
     files = uniquify(files)
   return files
   
