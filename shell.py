@@ -5,7 +5,7 @@ from collections import namedtuple
 from smbanalyze import fplot, experiment, curvefit, fec, fcalc
 import os
 
-from smbanalyze.experiment import Pulling, on_metadata, group_on
+from smbanalyze.experiment import Pulling, on_metadata, group_dict
 from smbanalyze.fplot import Figure
 from smbanalyze.fec import nm_to_nt, Rips
 
@@ -14,7 +14,7 @@ fec_names = ['fec', 'nm_to_nt', 'Rips']
 __all__ = experiment_names + fec_names + [ "os", "fcalc",
     "fig", "pretty_rip_sizes", "split_pulls_at_point",
     "pick_pts", "pick_line", "pick_intervals", "Interval",
-    "group_on"]
+    "group_dict"]
 
 def fig(title_):
     fig_ = fplot.Figure(title_).new()
