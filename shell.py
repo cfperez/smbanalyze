@@ -5,7 +5,7 @@ from collections import namedtuple
 from smbanalyze import fplot, experiment, curvefit, fec, fcalc
 import os
 
-from smbanalyze.experiment import Pulling
+from smbanalyze.experiment import Pulling, on_metadata, group_on
 from smbanalyze.fplot import Figure
 from smbanalyze.fec import nm_to_nt, Rips
 
@@ -13,7 +13,8 @@ experiment_names = ["Pulling", "experiment", "fplot", "Figure"]
 fec_names = ['fec', 'nm_to_nt', 'Rips']
 __all__ = experiment_names + fec_names + [ "os", "fcalc",
     "fig", "pretty_rip_sizes", "split_pulls_at_point",
-    "pick_pts", "pick_line", "pick_intervals", "Interval"]
+    "pick_pts", "pick_line", "pick_intervals", "Interval",
+    "group_on"]
 
 def fig(title_):
     fig_ = fplot.Figure(title_).new()
@@ -31,13 +32,9 @@ def pick_intervals(num=1):
     '''
     return map(Interval._make, Figure.fromCurrent().pickRegions(num))
 
-def lc_from_region_fit(fit):
-    return [fit[param] for param in fit if param.startswith('Lc')]
+def to_date(date_string):
+    return datetime.date(*map(int, date_string.split('.')))
 
-def rip_sizes_from_region_fit(fit):
-    rips = lc_from_region_fit(fit)[1:]
-    return append(rips[0], diff(rips))
-    
 def region_to_str(regions):
     return '\n'.join(
         'Region {n}: ({:0.1f}, {:0.1f})'.format(
@@ -69,9 +66,6 @@ def pretty_rip_sizes(rip_sizes, helices):
     return ', '.join('{} nt ({} nm)'.format(in_nt, in_nm) 
                     for in_nt,in_nm in zip(rips_nt, rips_nm))
     
-    return "In nm: " + ', '.join(truncate_floats(rip_sizes)) + "\n" + \
-         "In nt: " + ', '.join(truncate_floats(map(nm_to_nt, rip_sizes, helices)))
-
 def flatten_(arr):
     return list(flatten(arr))
 
