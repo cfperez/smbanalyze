@@ -236,7 +236,7 @@ def plot(data, pull=None, style=None, **kwargs):
   loc = kwargs.pop('legend', 'best')
   title = kwargs.pop('title','')
   label = kwargs.pop('label', '')
-  displayFRET = kwargs.pop('show_fret', hasattr(data,'fret'))
+  displayFRET = kwargs.pop('show_fret', True) and hasattr(data,'fret')
   kwargs.setdefault('markersize', 2)
 
   hold=kwargs.pop('hold', None)
@@ -259,7 +259,7 @@ def plot(data, pull=None, style=None, **kwargs):
     raise ValueError("Don't know how to plot arguments: need TrapData or FretData")
 
   if data is None and pull is not None:
-    layout = iter([(3,1,3)])
+    layout = iter([(num,1,num)])
   else:
     layout = iter((num,1,x) for x in range(1,num+1))
 
