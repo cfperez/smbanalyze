@@ -8,6 +8,7 @@ import cPickle as pickle
 import re
 import abc
 from functools import total_ordering
+from itertools import groupby
 
 from matplotlib.mlab import find
 from numpy import min, max, asarray, insert, sum, mean, all, any, diff, NAN, where
@@ -284,7 +285,6 @@ class List(list):
     with open(filename, 'wb') as fh:
       pickle.dump(self, fh, protocol=2)
 
-
   def split_reverse_pull(self):
     return List(map(split_reverse_pull, self.is_a(Pulling)))
 
@@ -354,6 +354,12 @@ def find_reverse_splitpoint(trap):
   else:
     return i[0]
 
+def group_dict(iterable, keyfunc):
+    return {key: List(p) for key,p in groupby(iterable, keyfunc)}
+
+def on_metadata(key):
+  return lambda p: p.metadata.get(key, None)
+
 @total_ordering
 class Base(object):
   ".fret .f .ext and other meta-data (sample rate, trap speeds, )"
@@ -373,6 +379,10 @@ class Base(object):
     self.trap = trap
     self.fret = fret
     self.metadata = metadata
+    if trap:
+      self.metadata.update({'trap.'+k: v for k,v in trap.metadata.items()})
+    if fret:
+      self.metadata.update({'fret.'+k: v for k,v in fret.metadata.items()})
     self._figure = fplot.Figure(self.filename)
 
   @abc.abstractmethod
