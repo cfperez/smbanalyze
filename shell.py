@@ -2,7 +2,7 @@ from matplotlib.cbook import flatten
 import matplotlib.pyplot as plt
 from numpy import linspace, append, diff
 from collections import namedtuple
-from smbanalyze import fplot, experiment, curvefit, fec, fcalc
+from smbanalyze import fplot, experiment, curvefit, fec, fcalc, db
 import os
 import datetime
 
@@ -10,19 +10,70 @@ from smbanalyze.experiment import Pulling, on_metadata, group_dict
 from smbanalyze.fplot import Figure
 from smbanalyze.fec import nm_to_nt, Rips
 
-experiment_names = ["Pulling", "experiment", "fplot", "Figure"]
+_modules_ = ["fplot", "fileIO", "experiment", "curvefit", "fec", "fcalc", "db"]
+_experiment_names_ = ["Pulling", "Figure"]
 fec_names = ['fec', 'nm_to_nt', 'Rips']
-__all__ = experiment_names + fec_names + [ "os", "fcalc",
-    "fig", "pretty_rip_sizes", "split_pulls_at_point",
-    "pick_pts", "pick_line", "pick_intervals", "Interval",
-    "group_dict", "to_date"]
+__all__ = _modules_ + _experiment_names_ + fec_names \
+    + [ "os", "fcalc", "fig", "pretty_rip_sizes", 
+    "split_pulls_at_point", "pick_pts", "pick_line",
+    "pick_intervals", "Interval", "group_dict", "to_date",
+    "savefig", "plot_segmented", "reload_all", "today"]
+
+Interval = namedtuple('Interval', 'start end')
+
+def today():
+    return datetime.datetime.today()
+
+def reload_all():
+    reload(fplot)
+    reload(fileIO)
+    reload(experiment)
+    reload(fec)
+    reload(db)
+    reload(shell)
+
+def savefig(fname=None, **kwargs):
+    fname = fname or plt.gca().get_title()
+    plt.savefig(fname, transparent=True, **kwargs)
 
 def fig(title_):
     fig_ = fplot.Figure(title_).new()
     fig_.clear()
     plt.title(title_)
+    return fig_
 
-Interval = namedtuple('Interval', 'start end')
+def hspan(start, stop, color=None, alpha=.2):
+    color = color or next(fplot.COLOR)
+    plt.axhspan(start, stop, facecolor=color, alpha=alpha)
+
+def plot_segmented(p, title='', exp=[]):
+    trap,fret = p.trap,p.fret
+    ratio = p.metadata['sampling_ratio']
+    exp_time = (p.metadata['fret.exposurems']/1000.)
+    hold(True)
+    subplot(211)
+    plt.title(title)
+    plot(fret.time, fret.fret, 'k:')
+    subplot(212)
+    for _ in exp:
+        plot(_.trap.ext, _.trap.f, 'k:', linewidth=1)
+    for start_n in range(len(fret)):
+        subplot(211)
+        time,donor,acc,E = fret[start_n:start_n+2]
+        plot(time,E,'o',markersize=8)
+        #plt.autoscale(tight=True)
+        subplot(212)
+        x,f,sep = trap[start_n*ratio:(start_n+1)*ratio+1].T
+        plot(x,f,'-', linewidth=3)
+    subplot(211)
+    xlim(0,time+exp_time)
+    ylim(-0.05,1.1)
+    xlabel('Time (s)')
+    ylabel('FRET')
+    subplot(212)
+    xlabel('Extension (nm)')
+    ylabel('Force (pN)')
+    plt.autoscale(tight=True)
 
 def pick_pts(num=1):
     return Figure.fromCurrent().pickPoints(num)
@@ -41,6 +92,9 @@ def region_to_str(regions):
         'Region {n}: ({:0.1f}, {:0.1f})'.format(
             n=n, *region) for n,region in enumerate(regions)
         )
+
+def transposed(iterable):
+    return [[y[n] for y in iterable] for n in range(len(iterable[0]))]
 
 def split_pulls_at_point(exps, point):
     '''Return tuple (below,above) distinguished by their relative position above/below "point"''' 
