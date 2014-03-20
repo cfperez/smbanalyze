@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import fileIO
+from fplot import Figure
 import useful
 import constants
 
@@ -50,11 +51,18 @@ def fromFile(filename, **kwargs):
     raise IOError("File %s can't be found/loaded" % filename)
 
   if bg is True:
-    return img.toBackground(**kwargs)
+    return fromBackground(filename, **kwargs)
   elif isinstance(bg,str):
     bg = Stack(bg)
-    bg.toBackground(**kwargs)
-    img -= bg
+    bg.toBackground()
+    if bg.metadata['exposurems'] != img.metadata['exposurems']:
+      raise StackError(
+        '''Trying to subtract background with exposure time {} 
+        from image with exposure time {}'''.format(
+          bg.metadata['exposurems'],
+          img.metadata['exposurems'])
+        )
+  img -= bg
 
   if roi is not None:
     rois = ROI.fromFile(roi)
@@ -278,6 +286,7 @@ class Stack:
       raise ValueError, "Only filetype 'img' is supported!"
 
     self._showROI = False
+    self._figure = Figure()
 
     #################################################
     ## Load data from file called filename if string
@@ -417,6 +426,8 @@ class Stack:
       self._roi[roi].draw()
 
   def show(self, frame=0, **kwargs):
+    self._figure.show()
+    self._figure.makeCurrent()
     return self[frame].show(**kwargs)
  
   def setDonorROI(self, roi_name):
@@ -437,6 +448,7 @@ class Stack:
     if roi:
       if self._roi.has_key(str(roi)):
         roi = self._roi[roi]
+      roi = roi.toRelative(self.origin)
       return self[:,roi.bottom:roi.top,roi.left:roi.right].counts()
     else:
       return np.sum( np.sum(self._img,axis=1), axis=1 )
