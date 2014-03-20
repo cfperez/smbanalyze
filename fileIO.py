@@ -100,6 +100,11 @@ def parse_config_string(value):
   else:
     return value
 
+def _to_datetime(date_list):
+  if date_list[0] < 2000:
+    date_list[0] += 2000
+  return datetime(*date_list)
+
 def load(fname, comments=toSettings, header=False, **kwargs):
   if not os.path.exists(fname):
     raise IOError('No file named "{}" found'.format(fname))
@@ -117,6 +122,11 @@ def load(fname, comments=toSettings, header=False, **kwargs):
     if header:
       output.insert(0,loadHeader)
     if comments:
+      try:
+        if 'date' in loadComments:
+          loadComments['date'] = _to_datetime(loadComments['date'])
+      except e:
+        print "WARNING parsing comments: %s" % e
       output.insert(0,loadComments)
     return tuple(output) if len(output)>1 else output[0]
   else:
@@ -127,6 +137,7 @@ def loadstr(fname, **loadOptions):
   filecomments,fileheader,data = loaddat(fname, **loadOptions)
   if fileheader != ['extension','force','trapdistance']:
     raise fileIOError("Stretch file must contain extension, force, and separation")
+
   return filecomments, fileheader, data
 loadstr.extension=PULL_FILE
 
@@ -160,18 +171,15 @@ def loadfret(filename, **kwargs):
   return comments, header, data
 loadfret.extension=FRET_FILE
 
-def savefret(filename, data, metadata=None, comments=''):
+def savefret(filename, time, donor, acceptor, fret, metadata=None, comments=''):
   if comments:
     comments += '\n'
   if metadata:
     comments += fromSettings(metadata)
-  try:
-    savedat(filename, (data.time,data.donor,data.acceptor,data.fret),
-      header='time donor acceptor FRET', 
-      fmt=('%.3f','%u','%u','%.5f'),
-      comments=comments)
-  except AttributeError:
-    raise ValueError('Expects data with time, donor, acceptor, and fret attributes')
+  savedat(filename, (time,donor,acceptor,fret),
+    header='time donor acceptor FRET', 
+    fmt=('%.3f','%u','%u','%.5f'),
+    comments=comments)
 
 def loadsettings(filename, **kwargs):
   "Return dictionary of key/value pairs from LabView-style configuration file"
@@ -217,7 +225,7 @@ def savedat(filename, data, header='', comments='', fmt='%.9e', delimiter='\t'):
   newline = '\n' if comments else ''
   header = ''.join(map(lambda line: COMMENT_LINE[0]+' '+line, comments.splitlines(True))) \
       + newline + header.replace(' ',delimiter)
-  if type(data) == tuple:
+  if isinstance(data, tuple):
     data = np.array(data).T
 
   with open(filename, 'w') as fh:
