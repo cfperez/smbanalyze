@@ -609,7 +609,7 @@ class Pulling(Base):
 
   def plot(self, **kwargs):
     FEC = kwargs.setdefault('FEC', hasattr(self, 'fit') or not self.fret)
-    kwargs.setdefault('style', '-' if FEC else )
+    kwargs.setdefault('style', '-' if FEC else '.')
     kwargs.setdefault('legend', None)
     kwargs.setdefault('title', self.filename or '')
     kwargs.setdefault('label', self.filename or '')
