@@ -22,6 +22,12 @@ def warning(s):
 
 BACKGROUND_FILENAME_FLAG = 'background'
 
+def forster(x,R):
+    return 1/(1+(float(x)/R)**6)
+
+def distance(e,R):
+    return R*(1/float(e)-1)**(1./6)
+
 def processMatch(*fglob, **kwargs):
   '''Process image files found using fmatch() of arguments
 
@@ -51,31 +57,27 @@ def processFiles(flist, roi='roi.txt', background=None,
       if verbose: info('Opening %s...' % fname)
       img = image.fromFile(fname) - BG
       img.addROI(*roi)
-      output = calculate(img, **calcOptions)
+      donor,acc,fret = calculate(img.donor, img.acceptor, **calcOptions)
       if verbose: info('Saving .fret data to file...')
-      toFile(fileIO.change_extension(fname,ext), output, img.metadata)
+      toFile(fileIO.change_extension(fname,ext), 
+        img.time, donor, acc, fret, 
+        img.metadata)
     except IOError as e:
       warning("Error processing file {0}: {1}".format(
-        fname, e.strerror)
-      )
+        fname, e.strerror))
+    except image.StackError as e:
+      warning("\n** Error processing file {}:\n\t{!s}**\n".format(fname, e))
 
-def calcToFile(stack, filename, **kwargs):
-  "Calculates and saves saves donor, acceptor, calculated FRET values to 3 column text file"
-  fretdata = calculate(stack, **kwargs)
-  toFile(filename, fretdata, stack.metadata)
-  return fretdata
+def counts_from_image(img, roi, bg_pixel):
+  return img.counts(roi) - bg_pixel*roi.size
 
-def calculate(stack, beta=0.0, gamma=1.0, minsub=False):
-  """Calculates FRET from an image.Stack
-
-  calculate( image.Stack, beta = constants.beta, gamma = constants.gamma)
-
-  RETURNS array of calculated FRET for each frame
+def calculate(donor, acceptor, beta=0.0, gamma=1.0):
+  """Returns (donor,acceptor,fret) adjusted for crosstalk beta, gamma
   """
-  donor = stack.donor - (minsub and min(stack.donor))
-  acceptor = stack.acceptor - donor*beta
-  acceptor = acceptor - (minsub and min(acceptor))
-  return FretData.fromFields(stack.time, donor, acceptor, acceptor/(acceptor+gamma*donor))
+  beta,gamma = float(beta),float(gamma)
+  acceptor_ = acceptor - donor*beta
+  donor_ = donor + (1+beta/gamma)
+  return donor_, acceptor_, acceptor_/(acceptor_+gamma*donor_)
 
 def subtract_min_background(exp_list):
   ''' SIDE EFFECT: subtracts observed background (minimum+1) from FretData in exp_list
@@ -100,8 +102,8 @@ def calculate_fret_bg_subtracted(exp_list, beta, gamma):
 def minimum_counts(fretdata):
   return min(fretdata.donor), min(fretdata.acceptor)
 
-def toFile(filename, data, metadata, comments=''):
-  return fileIO.savefret(filename, data, metadata, comments)
+def toFile(filename, time, donor, acceptor, fret, metadata, comments=''):
+  return fileIO.savefret(filename, time, donor, acceptor, fret, metadata, comments)
 
 def fromFile(filename, **kwargs):
   return FretData.fromFile(filename)
