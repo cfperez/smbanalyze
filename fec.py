@@ -10,7 +10,7 @@ from constants import kT, parameters
 
 RIP_NAME_PREFIX = 'Lc'
 
-def findRip(trap, min_rip_ext):
+def findrips(trap, min_rip_ext):
     handle_data = trap.select(x=(None,min_rip_ext))
 
     # the difference derivative of the force below min_rip_ext is
@@ -25,7 +25,7 @@ def findRip(trap, min_rip_ext):
     rip_location = rip_location[0]
     return trap[rip_location]
 
-
+# TODO: Currently redundant with TrapData.make_masks, which to use??
 def make_masks(trap, intervals):
   return map(trap.mask_from_interval, intervals)
 
@@ -41,7 +41,7 @@ def rip_sizes(fit):
 def rip_errors(fit):
   assert isinstance(fit, Fit)
   lc_err = [val for p,val in fit.error.items()
-    if p.startswith(RIP_NAME_PREFIX)][1:]
+    if p.startswith(RIP_NAME_PREFIX) and p!=RIP_NAME_PREFIX]
   return lc_err[:1] + [np.sqrt(lc_err[n]**2+lc_err[n+1]**2)
     for n in range(len(lc_err)-1)]
 
@@ -61,6 +61,10 @@ class Rips(object):
   def __init__(self, rips, stems_lost, na_type, error=[]):
     assert isinstance(na_type, str) and na_type in HELIX_SIZE
     assert isinstance(rips, Iterable)
+    if len(rips) != len(self.stems_lost):
+      raise ValueError(
+        "Number of stems_lost ({}) must equal number of rips ({})".format(
+          stems_lost, rips))
     self._in_nm = rips
     self.na_type = na_type
     self.helix_size = HELIX_SIZE[na_type]
@@ -96,7 +100,7 @@ class Rips(object):
       self._error)
 
   def __repr__(self):
-    return "Rips(rips={}, stems_lost={}, na_type={}, error={}".format(
+    return "Rips(rips={}, stems_lost={}, na_type='{}', error={})".format(
       self.size_nm, self.stems_lost, self.na_type, self._error)
 
   def __unicode__(self):
@@ -118,6 +122,8 @@ class Rips(object):
 
 def analyze_rips(trap, intervals, stems_lost, 
   handle_above=None, na_type=None, **fitOptions):
+  assert isinstance(stems_lost, (list, tuple))
+  assert isinstance(intervals, (list, tuple))
   na_type = na_type or DEFAULT_NA_TYPE
   if na_type not in HELIX_SIZE:
     raise ValueError('na_type must be one of: {}'.format(HELIX_SIZE.keys()))
@@ -126,6 +132,7 @@ def analyze_rips(trap, intervals, stems_lost,
     above = trap.mask_above(handle_above)
     masks[0] = masks[0] & above
   fit = fit_rips(trap, masks, **fitOptions)
+  fit.plot()
   return Rips.from_fit(fit, stems_lost, na_type), fit
 
 def analyze(exp, intervals, stems_lost,
@@ -134,7 +141,6 @@ def analyze(exp, intervals, stems_lost,
        stems_lost, handle_above, na_type, **fitOptions)
   exp.rips = rips
   exp.fit = fit
-  fit.plot()
   return rips
 
 def fit_rips(trap, masks, **fitOptions):
@@ -171,6 +177,10 @@ def MMS(F, Lp, Lc, F0, K):
 MMS.default = {'Lp':30., 'Lc':1150., 'F0':0.1, 'K': 1200.}
 MMS.inverted = True
 
+def moroz_nelson(F, Lp, Lc, F0, K):
+  F_ = np.asarray(F)-F0
+  return Lc * (1 - 0.5*pow(F_*Lp/kT(parameters['T'])-1/32.,-.5) + F_/K)
+
 def MMS_rip(F, Lp, Lc, F0, K, Lp1, Lc1, K1):
   return MMS(F, Lp, Lc, F0, K) + MMS(F, Lp1, Lc1, F0, K1)
 MMS_rip.default = dict(MMS.default, Lp1=1.0, Lc1=0., K1=1600.)
@@ -193,7 +203,12 @@ def MMS_rip_region_maker(masks):
     rip_forces = [F[mask] for mask in masks]
     rip_sizes = map(lambda r: rips[r], sorted(rips))
     rip_items = zip(rip_forces, rip_sizes)
-    handle_ext = MMS(handle_force, Lp, Lc, F0, K)
+    handle_ext = moroz_nelson(handle_force, Lp, Lc, F0, K)
+    # Try to use moroz_nelson fitting function here...
+    # Make into more modular form to allow comparisons
+    # by passing in a fitfun= param?
+    # rip_ext = [moroz_nelson(force,Lp,Lc,F0,K)+moroz_nelson(force,Lp1,Lc_rip,F0,K1)
+    #             for force,Lc_rip in rip_items]
     rip_ext = [MMS_rip(force, Lp, Lc, F0, K, Lp1, Lc_rip, K1)
                 for force,Lc_rip in rip_items]
     if len(rip_ext) > 1:
