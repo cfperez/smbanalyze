@@ -9,6 +9,8 @@ import re
 import abc
 from functools import total_ordering
 from itertools import groupby
+from datetime import datetime
+
 
 from matplotlib.mlab import find
 from numpy import min, max, asarray, insert, sum, mean, all, any, diff, NAN, where
@@ -68,15 +70,6 @@ def fromMatch(*globs):
   else:
     return List(map(cls.fromFile, flist))
 
-def fromMatchAll(*fglob):
-  'Load Pulling experiments with filenames that contain all of the strings listed in the arguments'
-  fglob = list(fglob)
-  files = exp_files(*fglob)
-  fglob[0] = opath.basename(fglob[0])
-  if not files:
-    raise ExperimentError("No files found matching glob '{0}'".format(fglob))
-  return fromFiles(files)
-  
 def exp_files(*fglob):
   'Return list of unique filenames (without extension) of pulling and fret file types'
   return fileIO.files_matching(fglob, with_ext=(fileIO.PULL_FILE, fileIO.FRET_FILE),
@@ -136,6 +129,8 @@ class List(list):
     try:
       return map(attrgetter(name, *more), self)
     except AttributeError:
+      return map(itemgetter(name, *more), self)
+    else:
       raise ExperimentError('Missing attribute {0} in a List element'.format(name))
 
   def has(self, *attributes):
@@ -161,7 +156,7 @@ class List(list):
       raise ExperimentError('Missing method {0} in a List element'.format(action))
 
   HAS_VALUE_COMPARE = {'greaterthan': op.gt, 'atleast': op.ge, 
-                      'lessthan': op.lt, 'atmost': op.le,
+                      'lessthan': op.lt, 'atmost': lambda x,y: not any(x>y),
                       'equals': op.eq}
 
   def has_value(self, **kwargs):
@@ -175,10 +170,10 @@ class List(list):
     for key, value in kwargs.items():
       attr, comparison = key.rsplit('_', 1)
       attr = attr.replace('_','.')
-      try:
-        comparator = List.HAS_VALUE_COMPARE[comparison]
+      comparator = List.HAS_VALUE_COMPARE.get(comparison, None)
+      if comparator:
         return self.filter( lambda x: any(comparator(attrgetter(attr)(x), value)) )
-      except AttributeError:
+      else:
         raise ValueError('Comparison operator <{}> is not defined'.format(comparison))
 
   def collapse(self, trap_sorted_by='ext', fret_sorted_by='time'):
@@ -217,14 +212,13 @@ class List(list):
 
   def plot(self, **options):
     "Plot all experiments overlayed onto same panel. Can plot only trap or fret."
-    options.setdefault('labels', self.get('filename'))
     options.setdefault('legend', None)
     self.figure.show().clear()
-    if self.has('fret'):
-      options.setdefault('FEC', False)
-      fplot.plotall(self.get('fret'), self.get('trap'), hold=True, **options)
-    else:
-      fplot.plotall( self.get('trap'), hold=True, **options)
+    for p in self:
+      fplot.plot(p.fret, p.trap, 
+        hold=True, 
+        label=p.metadata.get('filename', ''),
+        **options)
     return self.figure
 
   def savefig(self, filename):
@@ -354,7 +348,7 @@ def find_reverse_splitpoint(trap):
   else:
     return i[0]
 
-def group_dict(iterable, keyfunc):
+def group_by(iterable, keyfunc):
     return {key: List(p) for key,p in groupby(iterable, keyfunc)}
 
 def on_metadata(key):
@@ -378,11 +372,15 @@ class Base(object):
           "__init__ argument 'fret' <{}> does not have fret data".format(fret))
     self.trap = trap
     self.fret = fret
-    self.metadata = metadata
     if trap:
-      self.metadata.update({'trap.'+k: v for k,v in trap.metadata.items()})
+      metadata.update(
+        {('trap.' if not k.startswith('fret.') else '')+k: v 
+        for k,v in trap.metadata.items() })
     if fret:
-      self.metadata.update({'fret.'+k: v for k,v in fret.metadata.items()})
+      metadata.update(
+        {('fret.' if not k.startswith('trap.') else '')+k: v
+        for k,v in fret.metadata.items() })
+    self.metadata = metadata
     self._figure = fplot.Figure(self.filename)
 
   @abc.abstractmethod
@@ -405,6 +403,9 @@ class Base(object):
   def __eq__(self, other):
     return self.info == other.info
 
+  def __getitem__(self, key):
+    return self.metadata[key]
+
   @property
   def figure(self):
     return self._figure
@@ -421,18 +422,21 @@ class Base(object):
 
     trap = TrapData.fromFile(strfile) if strfile else None
     fret = FretData.fromFile(fretfile) if fretfile else None
+    filename = strfile if strfile else fretfile
+    if trap:
+      today = datetime.today()
+      trap.metadata.setdefault('date', (today.year-2000,today.month,today.day))
+      metadata.update({'trap.'+k: v for k,v in trap.metadata.items()
+        if not k.startswith('fret.')})
     metadata.setdefault('date', 
       trap.metadata.get('date', None) if trap else None)
-    filename = strfile if strfile else fretfile
-    info = fileIO.parseFilename(filename)
-    if not info:
-      info = {}
-    else:
-      info = info._asdict()
-      info.update(**metadata)
+    if fret:
+      metadata.update({'fret.'+k: v for k,v in fret.metadata.items()
+        if not k.startswith('trap.')})
+
     newCls = cls(trap, fret,
-      filename=fileIO.splitext(filename)[0],
-      **info)
+      filename=fileIO.splitext(filename)[0], 
+      **metadata)
     assert isinstance(newCls, cls)
     assert hasattr(newCls, 'filename')
     assert newCls.filename is not None
@@ -490,6 +494,9 @@ class Pulling(Base):
     self.fit = None
     self._ext_offset = 0
 
+    if 'trap.sampling_time' in self.metadata and 'trap.step_size' in self.metadata:
+      t,s = self.metadata['trap.sampling_time'], self.metadata['trap.step_size']
+      self.metadata.setdefault('trap.pulling_rate', s/t)
     if fret:
       trap_rate = trap.metadata.get('sampling_time',
         constants.default_pulling_sampling_time) * 1000
@@ -559,15 +566,11 @@ class Pulling(Base):
           str(self), *x_range))
     return mean(data.f)
 
-  def meanStiffness(self, stiffness=None):
-    inverseAverage = lambda args: 1/sum(map(lambda x: 1./x, args))
-    return inverseAverage(self.trap.metadata.get('stiffness', constants.stiffness))
-
   def adjustForceOffset(self, baseline=0.0, offset=None, offset_range=None):
     offset = offset or -self.forceOffset(offset_range)
     offset += baseline
     self.trap.f += offset
-    self.trap.ext -= offset/self.meanStiffness()
+    self.trap.ext -= offset/self.trap.meanStiffness()
     return offset
 
   def extensionOffset(self, f_range=None, x_range=None):
@@ -605,7 +608,8 @@ class Pulling(Base):
     return self
 
   def plot(self, **kwargs):
-    kwargs.setdefault('FEC', hasattr(self, 'fit') or not self.fret)
+    FEC = kwargs.setdefault('FEC', hasattr(self, 'fit') or not self.fret)
+    kwargs.setdefault('style', '-' if FEC else )
     kwargs.setdefault('legend', None)
     kwargs.setdefault('title', self.filename or '')
     kwargs.setdefault('label', self.filename or '')
