@@ -1,5 +1,5 @@
 import logging
-from numpy import all, asarray, sign, vstack, ndarray
+from numpy import all, asarray, sign, vstack, ndarray, arange
 from operator import isSequenceType, attrgetter
 from collections import Iterable
 from fileIO import load, toSettings, fileIOError
@@ -181,6 +181,12 @@ class TrapData(AbstractData):
     f = field_property(_fields, 'f')
     sep = field_property(_fields, 'sep')
 
+    def time(self):
+        if 'sampling_time' not in self.metadata:
+            raise AttributeError(
+                'sampling_time must be set in metadata to calculate time')
+        return arange(1,len(self))*self.metadata['sampling_time']
+        
     def maskFromLimits(self, x=None, f=None, limits=()):
         if x is None and f is None:
             raise ValueError('Must specify either x limits or f limits')
