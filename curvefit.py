@@ -291,7 +291,7 @@ class Fit(object):
       x,y = y,x
     return (x,y), kwargs
 
-  def plot(self, **kwargs):
+  def plot(self, style='-', **kwargs):
     args = (self.x, self.fitOutput)
     if self.inverted:
       args = reversed(args)
