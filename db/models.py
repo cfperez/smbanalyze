@@ -70,7 +70,7 @@ class Refold(DataMixIn, Base):
         self.molecule.construct, self.refold_time, self.pull)
 
 
-def save_refold(exps, conn=session):
+def save_refold(exps, conn):
     '''Save experiments to database'''
     mol_db = db.Molecule(construct=construct, mol_id=mol_id, 
         slide_id=slide_id, date=date_)

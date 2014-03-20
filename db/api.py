@@ -6,7 +6,8 @@ from smbanalyze.experiment import List, Pulling
 from bson.binary import Binary
 from cPickle import dumps, loads
 
-__all__ = ['lessthan', 'lessorequal']
+__all__ = ['lessthan', 'lessorequal', 'get_exp',
+ 'connect', 'select', 'find', 'save_exp', 'save_all']
 
 
 def to_binary(nparray, subtype=128):
@@ -51,6 +52,9 @@ class FindResults(object):
     def __init__(self, cursor):
         self._list = list(cursor)
 
+    def count(self):
+        return len(self._list)
+
     def all(self):
         return self._list
 
@@ -63,7 +67,7 @@ def select(cursor, *fields):
     return (itemgetter(*fields)(p) for p in cursor)
 
 def find(db, **search):
-    return db.find({key:val for key,val in search.iteritems()})
+    return FindResults( db.find({key:val for key,val in search.iteritems()}) )
 
 def get_exp(db, **search):
     return List(p['experiment'] for p in find(db, **search))
@@ -79,10 +83,13 @@ def save_exp(db, exp, extra={}, **extra_):
     to_insert.update(extra_)
     db.save(to_insert)
     
-def save_all(db, exps):
+def save_all(db, exps, extra={}, **extra_):
     for p in exps:
-        save_exp(db, p)
+        save_exp(db, p, extra, **extra_)
         
+def in_(vals):
+    return {'$in': vals}
+    
 def lessthan(val):
     return {'$lt': val}
 def lessorequal(val):
