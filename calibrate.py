@@ -116,7 +116,7 @@ def fit_vs_height(height, Y, fitfunc, **fit_params):
 def fit_freq_vs_position(position, frequency, **fit_params):
   default_fixed = ('focal_shift', 'bead_radius')
   fixed = fit_params.pop('fixed', default_fixed)
-  return Fit(position, frequency, freq_vs_position,
+  return curvefit.Fit(position, frequency, freq_vs_position,
     fixed=fixed,
     **fit_params)
   
@@ -178,7 +178,8 @@ def P_lorentz(f, fc, D):
 
 def fit_power_spectra(frequency, power_, constants, guess=(6000, 1e7)):
     constants = P_hydro_params(constants)
-    return curve_fit(P_hydro_fit(**constants), frequency, power_, p0=guess)
+    fitfunc = P_hydro_fit(**constants)
+    return (fitfunc,) + curve_fit(fitfunc, frequency, power_, p0=guess)
 
 def calculate_temperatures_lsq(rolloff_ratio, laser_power_ratio, viscosity=water_viscosity, room_temp=18.33):
     from scipy.optimize import leastsq
