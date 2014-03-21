@@ -46,13 +46,15 @@ def rip_errors(fit):
     for n in range(len(lc_err)-1)]
 
 DEFAULT_NA_TYPE = 'RNA'
-RISE_PER_BASE = {'RNA': 0.59, 'DNA': 0.34}
+RISE_PER_BASE = {'RNA': 0.59, 'DNA': 0.58}
 HELIX_SIZE = {'RNA': 2.2, 'DNA': 2.0}
+PERSISTENCE_LENGTH = dict(RNA=1.0, DNA=1.2)
 
-def nm_to_nt(nm, stems_lost=1, helix_size=2.2, na_type='RNA'):
+def nm_to_nt(nm, stems_lost=1, helix_size=None, na_type='RNA'):
     '''Return basepairs from contour length change in nm assuming RNA
     stems_lost = # of helix stems lost during rip. <0 more helix stems exposed.
     '''
+    helix_size = helix_size or HELIX_SIZE[na_type]
     return (nm+helix_size*stems_lost)/RISE_PER_BASE[na_type]
 
 class Rips(object):
@@ -61,7 +63,7 @@ class Rips(object):
   def __init__(self, rips, stems_lost, na_type, error=[]):
     assert isinstance(na_type, str) and na_type in HELIX_SIZE
     assert isinstance(rips, Iterable)
-    if len(rips) != len(self.stems_lost):
+    if len(rips) != len(stems_lost):
       raise ValueError(
         "Number of stems_lost ({}) must equal number of rips ({})".format(
           stems_lost, rips))
@@ -131,6 +133,7 @@ def analyze_rips(trap, intervals, stems_lost,
   if handle_above:
     above = trap.mask_above(handle_above)
     masks[0] = masks[0] & above
+  fitOptions.setdefault('Lp1', PERSISTENCE_LENGTH[na_type])
   fit = fit_rips(trap, masks, **fitOptions)
   fit.plot()
   return Rips.from_fit(fit, stems_lost, na_type), fit
