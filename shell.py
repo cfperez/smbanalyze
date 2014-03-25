@@ -30,6 +30,12 @@ def date(y,m,d):
         y += 2000
     return datetime.datetime(y,m,d,23,59)
 
+def to_date(date_string):
+    date_num = map(int, date_string.split('.'))
+    if date_num[0] < 2000:
+        date_num[0] += 2000
+    return datetime.date(*date_num)
+    
 def reload_all():
     reload(fplot)
     reload(fileIO)
@@ -92,11 +98,6 @@ def pick_intervals(num=1):
     '''
     return map(Interval._make, Figure.fromCurrent().pickRegions(num))
 
-def to_date(date_string):
-    date_num = map(int, date_string.split('.'))
-    if date_num[0] < 2000:
-        date_num[0] += 2000
-    return datetime.date(*date_num)
 
 def region_to_str(regions):
     return '\n'.join(
