@@ -2,6 +2,7 @@ import experiment
 from shell import split_pulls_at_point, transposed
 from scipy.stats import norm, beta
 from numpy import sqrt, mean, where
+from matplotlib.pyplot import figure,errorbar,ylim,xlim
 
 FILENAME_TOKEN = 'refold'
 REFOLD_FILENAME_INFO = ('refold_time', 'series')
@@ -10,7 +11,6 @@ def by_time(exps):
     return experiment.group_by(exps, 
         experiment.on_metadata('trap.refolding_time'))
 
-# TODO Pretty print of refolding dict
 def pretty_str(time_dict):
     outstr = ''
     for key,val in time_dict.iteritems():
@@ -35,7 +35,8 @@ def count_bound(by_times, split_pt):
 
 def wilson_score_z(z=None, confidence=0.683):
     z = z or norm.ppf(0.5+confidence/2)
-    def wilson_score(p, n):
+    def wilson_score(k, n):
+        p = float(k)/n
         '''Returns binomial error estimate (lower, upper) given fraction p and samples n'''
         score = lambda sigma: 1/(1 + z**2/n) * (p + z**2/(2*n) + sigma)
         sigma = z*sqrt( p*(1-p)/n + z**2/4/n**2)
@@ -43,9 +44,10 @@ def wilson_score_z(z=None, confidence=0.683):
     return wilson_score
 
 def binomial_error(k, n, confidence=0.683):
-    return 1-beta.isf(confidence/2,n-k,k+1), 1-beta.isf(1-confidence/2,n-k+1,k)
+    alpha = 1-confidence
+    return 1-beta.isf(alpha/2.,n-k,k+1), 1-beta.isf(1-alpha/2.,n-k+1,k)
 
-# Using default at 1 standard deviation
+# Using default of 1 standard deviation
 wilson_score = wilson_score_z()
 
 def calc_bound_prob(num_bound):
@@ -53,14 +55,13 @@ def calc_bound_prob(num_bound):
     for rtime,(unbound,bound) in num_bound.items():
         total = float(unbound+bound)
         frac = bound/float(total)
-        l,u = binomial_error(frac,total)
+        l,u = wilson_score(bound,total)
         rtimes.append(rtime)
         prob.append(frac)
         errors.append(map(abs, [frac-l, u-frac]))
     return rtimes, prob, errors
 
 def plot(rtimes, prob, errors):
-    fig('refolding wtUM')
+    errorbar(rtimes, prob, ecolor='b', fmt='o', yerr=transposed(errors))
     ylim(-.05,1.05)
     xlim(0.1,40)
-    errorbar(rtimes, prob, ecolor='b', fmt='o', yerr=transposed(errors))
