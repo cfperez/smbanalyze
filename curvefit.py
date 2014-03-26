@@ -196,7 +196,8 @@ class Fit(object):
     newfit = cls(x, y, fitfunc, fixed, mask, **params)
     return newfit
     
-  def __init__(self, x, y, fitfunc, fixed=(), mask=None, weights=None, **user_parameters):
+  def __init__(self, x, y, fitfunc, fixed=(), mask=None, weights=None, maxfev=None,
+    **user_parameters):
     "Initialize to a specific fitting function, optionally fitting to data specified"
 
     if isinstance(fitfunc,str):
@@ -252,7 +253,7 @@ class Fit(object):
       x,y = y,x
     self.x = x
 
-    maxfeval = int(np.sqrt(len(x)/3)+50)
+    maxfeval = maxfev or int(np.sqrt(len(x)/3)+50)
     with pbar.done_on_complete(maxfeval, status='Fitting:') as auto_pbar:
       param_best_fit, self.covariance = curve_fit(
         pbar.progress_on_call(fitfunc, auto_pbar), x, y, starting_p, sigma=weights, maxfev=maxfeval)
