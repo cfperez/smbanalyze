@@ -223,7 +223,8 @@ class TrapData(AbstractData):
     def make_masks(self, intervals):
         return map(self.mask_from_interval, intervals)
 
-    def select(self, x=None, f=None, limits=(0, -1)):
+    def select(self, x=None, f=None, ext=None, limits=(0, -1)):
+        x = x or ext
         return self[self.maskFromLimits(x, f, limits)]
 
     @property
