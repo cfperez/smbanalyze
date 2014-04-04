@@ -47,9 +47,9 @@ def files_matching(globs, with_ext=(), keep_ext=False, unique=False):
   files = flist(*globs)
   if with_ext:
     files = filter_extensions(files, with_ext)
-  if keep_ext:
+  if not keep_ext:
     files = [splitext(name)[0] for name in files]
-  if unique or keep_ext:
+  if unique or not keep_ext:
     files = uniquify(files)
   return files
   
@@ -137,7 +137,6 @@ def loadstr(fname, **loadOptions):
   filecomments,fileheader,data = loaddat(fname, **loadOptions)
   if fileheader != ['extension','force','trapdistance']:
     raise fileIOError("Stretch file must contain extension, force, and separation")
-
   return filecomments, fileheader, data
 loadstr.extension=PULL_FILE
 
