@@ -36,10 +36,11 @@ class nesteddict(dict):
     dict_ = dict(*args, **kwargs)
     new_dict = cls()
     for key,val in dict_.iteritems():
-      if isinstance(val, dict):
-        new_dict[key] = cls.from_dict(val)
-      else:
-        new_dict[key] = val
+      k,_,more = key.partition('.')
+      context = new_dict.setdefault(k, cls()) if more else new_dict
+      if more:
+        k = more
+      context[k] = cls.from_dict(val) if isinstance(val, dict) else val
     return new_dict
 
   def __getitem__(self, key):
