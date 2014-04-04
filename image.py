@@ -281,10 +281,11 @@ class Stack:
   defaultDonorROI = 'donor'
   defaultAcceptorROI = 'acceptor'
 
-  def __init__(self, filename, filetype="img", camFile='', deepcopy=False):
+  def __init__(self, filename, filetype="img", camFile='', bg_pixel=0, deepcopy=False):
     if filetype != 'img':
       raise ValueError, "Only filetype 'img' is supported!"
 
+    self.bg_pixel = bg_pixel
     self._showROI = False
     self._figure = Figure()
 
@@ -444,14 +445,15 @@ class Stack:
     self._acceptorROIName = roi_name
     return self
     
-  def counts(self, roi=None):
+  def counts(self, roi=None, bg_pixel=0):
     if roi:
       if self._roi.has_key(str(roi)):
         roi = self._roi[roi]
       roi = roi.toRelative(self.origin)
       return self[:,roi.bottom:roi.top,roi.left:roi.right].counts()
     else:
-      return np.sum( np.sum(self._img,axis=1), axis=1 )
+      bg_ = bg_pixel or self.bg_pixel
+      return np.sum( np.sum(self._img-bg_,axis=1), axis=1 )
 
   def attime(self,time):
       if isinstance(time,slice):
@@ -529,7 +531,7 @@ class Frame:
   def width(self):
     return self._img.shape[1]
 
-  def counts(self,roi):
+  def counts(self, roi):
     return np.sum( self[roi] )
 
   def show(self, **kwargs):
