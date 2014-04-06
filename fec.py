@@ -156,8 +156,8 @@ def fit_masks(x, f, masks, **fitOptions):
     1) the handle (1st element)
     2) the rips (following elements)
   '''
-  assert isinstance(x, Iterable)
-  assert isinstance(f, Iterable)
+  assert isinstance(x, Iterable) and len(x)>0
+  assert isinstance(f, Iterable) and len(f)==len(x)
   assert map(lambda m: isinstance(m, np.ndarray), masks)
   assert map(lambda m: m.dtype is np.dtype('bool'), masks)
 
@@ -167,6 +167,18 @@ def fit_masks(x, f, masks, **fitOptions):
   fit = FitRegions(x, f, fitfunc=MMS_rip_region_maker,
     regions=masks,
     **fitOptions)
+  return fit
+
+def fit_wlc(trap, mask=None, fitfunc='MMS', **fitOptions):
+  "Fit stretching data to WLC model with MMS default fitfunc"
+  assert mask is None or len(mask) == len(trap)
+  fitOptions.setdefault('Lc', max(trap.ext)*1.05)
+  if isinstance(fitfunc, str):
+    fitfunc = eval(fitfunc)
+    fixed = getattr(fitfunc, 'fixed', None)
+    if fixed:
+      fitOptions.setdefault('fixed', fixed)
+  fit = Fit(trap.ext, trap.f, mask=mask, fitfunc=fitfunc, **fitOptions)
   return fit
 
 @broadcast
@@ -179,10 +191,14 @@ def MMS(F, Lp, Lc, F0, K):
   return Lc * (1 - root_of_inverted_MS + (F-F0)/float(K))
 MMS.default = {'Lp':30., 'Lc':1150., 'F0':0.1, 'K': 1200.}
 MMS.inverted = True
+MMS.fixed = 'K'
 
 def moroz_nelson(F, Lp, Lc, F0, K):
   F_ = np.asarray(F)-F0
   return Lc * (1 - 0.5*pow(F_*Lp/kT(parameters['T'])-1/32.,-.5) + F_/K)
+moroz_nelson.default = {'Lp':30., 'Lc':1150., 'F0':0.1, 'K': 1200.}
+moroz_nelson.inverted = True
+moroz_nelson.fixed = 'K'
 
 def MMS_rip(F, Lp, Lc, F0, K, Lp1, Lc1, K1):
   return MMS(F, Lp, Lc, F0, K) + MMS(F, Lp1, Lc1, F0, K1)
