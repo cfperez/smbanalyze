@@ -13,6 +13,8 @@ molID = lambda t: 's{0}m{1}'.format(t.slide,t.mol)
 molname = lambda t: 's{0}m{1}_{2}'.format(t.slide,t.mol,t.trap)
 pN = lambda f: 'f'+str(f)+'pN'
 
+BETA = 0.0
+GAMMA = 1.0
 
 def info(s):
   print s
@@ -58,20 +60,24 @@ def processFiles(flist, roi='roi.txt', background=None,
       img = image.fromFile(fname) - BG
       img.addROI(*roi)
       donor,acc,fret = calculate(img.donor, img.acceptor, **calcOptions)
-      if verbose: info('Saving .fret data to file...')
+      
+      if verbose: 
+        info('Saving .fret data to file...')
+      meta = img.metadata.copy()
+      meta.update(beta=BETA, gamma=GAMMA)
       toFile(fileIO.change_extension(fname,ext), 
         img.time, donor, acc, fret, 
-        img.metadata)
+        meta)
     except IOError as e:
       warning("Error processing file {0}: {1}".format(
         fname, e.strerror))
     except image.StackError as e:
       warning("\n** Error processing file {}:\n\t{!s}**\n".format(fname, e))
 
-def counts_from_image(img, roi, bg_pixel):
+def counts_from_image(img, roi, bg_pixel=0):
   return img.counts(roi) - bg_pixel*roi.size
 
-def calculate(donor, acceptor, beta=0.0, gamma=1.0):
+def calculate(donor, acceptor, beta=BETA, gamma=GAMMA):
   """Returns (donor,acceptor,fret) adjusted for crosstalk beta, gamma
   """
   beta,gamma = float(beta),float(gamma)
