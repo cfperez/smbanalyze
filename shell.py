@@ -6,14 +6,18 @@ from smbanalyze import fplot, experiment, curvefit, fec, fcalc, db, fileIO
 import os
 import datetime
 
-from smbanalyze.experiment import Pulling, on_metadata, group_by
+from smbanalyze.experiment import Pulling, on_metadata
 from smbanalyze.fplot import Figure
 from smbanalyze.fec import nm_to_nt, Rips
+from smbanalyze.date import today, date, to_date
 
 _modules_ = ["fplot", "fileIO", "experiment", "curvefit", "fec", "fcalc", "db"]
 _experiment_names_ = ["Pulling", "Figure"]
+_date_ = ['today', 'date', 'to_date']
+
 fec_names = ['fec', 'nm_to_nt', 'Rips']
-__all__ = _modules_ + _experiment_names_ + fec_names \
+
+__all__ = _modules_ + _experiment_names_ + fec_names + _date_ \
     + [ "os", "fcalc", "fig", "pretty_rip_sizes", 
     "split_pulls_at_point", "pick_pts", "pick_pt", "pick_line",
     "pick_intervals", "Interval", "group_by", "to_date", "transposed",
@@ -21,27 +25,15 @@ __all__ = _modules_ + _experiment_names_ + fec_names \
 
 Interval = namedtuple('Interval', 'start end')
 
-def today():
-    d = datetime.date.today()
-    return date(d.year,d.month,d.day)
-
-def date(y,m,d):
-    if y < 2000:
-        y += 2000
-    return datetime.datetime(y,m,d,23,59)
-
-def to_date(date_string):
-    date_num = map(int, date_string.split('.'))
-    if date_num[0] < 2000:
-        date_num[0] += 2000
-    return datetime.date(*date_num)
-    
 def reload_all():
     reload(fplot)
     reload(fileIO)
     reload(experiment)
     reload(fec)
     reload(db)
+
+def group_by(iterable, keyfunc):
+    return {key: List(p) for key,p in groupby(iterable, keyfunc)}
 
 def savefig(fname=None, **kwargs):
     fname = fname or plt.gca().get_title()
@@ -59,23 +51,22 @@ def hspan(start, stop, color=None, alpha=.2):
 
 def plot_segmented(p, title='', exp=[]):
     trap,fret = p.trap,p.fret
-    ratio = p.metadata['sampling_ratio']
-    exp_time = (p.metadata['fret.exposurems']/1000.)
+    ratio = p['sampling_ratio']
+    exp_time = p['fret.exposurems']/1000.
     plt.hold(True)
     plt.subplot(211)
     plt.title(title)
-    plt.plot(fret.time, fret.fret, 'k:')
+    plt.plot(fret.time, fret.fret, 'k:', linewidth=1)
     plt.subplot(212)
     for _ in exp:
         plt.plot(_.trap.ext, _.trap.f, 'k:', linewidth=1)
     for start_n in range(len(fret)):
         plt.subplot(211)
         time,donor,acc,E = fret[start_n:start_n+2]
-        plt.plot(time,E,'o',markersize=8)
-        #plt.autoscale(tight=True)
+        plt.plot(time, E, 'o', markersize=8)
         plt.subplot(212)
         x,f,sep = trap[start_n*ratio:(start_n+1)*ratio+1].T
-        plt.plot(x,f,'-', linewidth=3)
+        plt.plot(x, f, '-', linewidth=3)
     plt.subplot(211)
     plt.xlim(0,time+exp_time)
     plt.ylim(-0.05,1.1)
@@ -97,7 +88,6 @@ def pick_intervals(num=1):
     Return list of Intervals picked from current plot
     '''
     return map(Interval._make, Figure.fromCurrent().pickRegions(num))
-
 
 def region_to_str(regions):
     return '\n'.join(
