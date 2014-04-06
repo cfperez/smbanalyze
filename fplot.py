@@ -1,5 +1,5 @@
 import os.path as path
-from itertools import cycle
+from itertools import cycle,izip
 import matplotlib.pyplot as plt
 from collections import OrderedDict, namedtuple
 
@@ -10,6 +10,22 @@ def toFile(filename, figure_id=None, **kwargs):
   figure = figure_id and Figure(figure_id) or Figure.fromCurrent()
   figure.toFile(filename, **kwargs)
 
+def plot_counts(time, donor, acceptor, fret):
+  plt.hold(True)
+  plt.subplot(211)
+  plt.plot(time, donor, 'b', label='Donor')
+  plt.plot(time, acceptor, 'r', label='Acceptor')
+  plt.plot(time, acceptor+donor, 'g--', label='Total')
+  plt.ylabel("Counts")
+  plt.ylim(-100, max(acceptor+donor+100))
+  plt.xlim(xmax=time[-1])
+  # plt.legend(loc='upper left')
+  plt.subplot(212)
+  plt.ylabel('FRET')
+  plt.plot(time, fret, 'k')
+  plt.xlabel('Time')
+  plt.xlim(xmax=time[-1])
+  plt.ylim(-0.05,1.05)
 
 class Figure(object):
   def __init__(self, fig_id=None):
@@ -59,10 +75,6 @@ class Figure(object):
   def pickPoints(self, num_of_pts=2):
   	return self.figure.ginput(num_of_pts)
 
-  def pickRegions(self, num=1):
-    points = sorted(x for x,f in self.pickPoints(num*2))
-    return [(points[i],points[i+1]) for i in range(0,len(points),2)]
-	
   def makeCurrent(self):
     if not self.exists:
       raise RuntimeError('Figure is not visible')
@@ -98,7 +110,7 @@ class Figure(object):
       
   def close(self):
     if self.exists:
-      plt.close(self._figure)
+      plt.close(self.figure_id)
     return self
 
   def annotate(self, text, location):
@@ -122,34 +134,17 @@ class Figure(object):
     self._figure.set_size_inches(*size)
     self._figure.savefig(filename, bbox_inches='tight', pad_inches=0.1)
 
-Region = namedtuple('Region', 'start end')
-
-class Regions(list):
-  def __init__(self, iterable):
-      items = map(Region._make, iterable)
-      if not self._valid_regions(items):
-        raise ValueError('Regions must be non-overlapping: {}'.format(items))
-      super(Regions, self).__init__(items)
-      
-  def _valid_regions(self, regions):
-    last = 0
-    for start,end in regions:
-      if start < last:
-        return False
-    return True
-
-  def __str__(self):
-      return '\n'.join(
-    'Region {n}: ({start:0.1f}, {end:0.1f})'.format(
-      n=n, start=region.start, end=region.end) for n,region in enumerate(self)
-    )
-
-  def __add__(self, other):
-      return Regions(Region(x+other, y+other) for x,y in self)
-  
-  def __setitem__(self, index, val):
-      super(Regions, self).__setitem__(index, Region._make(val))
-
+def fplotall(trap=None, fret=None, style=None, **options):
+  if fret is None:
+    fret = [None]*len(trap)
+  elif trap is None:
+    trap = [None]*len(fret)
+  if hasattr(trap, 'get'):
+    trap = trap.get('trap')
+  if hasattr(fret, 'get'):
+    fret = fret.get('fret')
+  for t,f in izip(trap,fret):
+    fplot(t, f, hold=True, style=style, **options)
 
 def plotall(fret, pull=None,  **kwargs):
   assert isinstance(fret, (list, tuple, type(None)))
@@ -223,6 +218,11 @@ COLOR_CYCLE = plt.rcParams['axes.color_cycle']
 COLOR = (color for color in cycle(COLOR_CYCLE))
 next_color_in_cycle = lambda : next(COLOR)
 
+def fplot(trap=None, fret=None, style=None, **kwargs):
+  if not fret and not trap:
+    raise ValueError()
+  plot(fret, pull=trap, style=style, **kwargs)
+
 def plot(data, pull=None, style=None, **kwargs):
   """Plot FretData and/or TrapData as stacked subplots of counts, FRET, and FEC/FDC
   @data: datatypes.AbstractData
@@ -247,8 +247,10 @@ def plot(data, pull=None, style=None, **kwargs):
     pull = TrapData.fromObject(data)
 
   num = 0
-  if displayFRET and hasattr(data, 'donor'): num += 1
-  if displayFRET and hasFretData(data): num += 1
+  # if displayFRET and hasattr(data, 'donor'): num += 1
+  # if displayFRET and hasFretData(data): num += 1
+  if displayFRET:
+    num += 2
   if pull:
     num += 1
     FEC = kwargs.pop('FEC', num==1)
@@ -265,7 +267,7 @@ def plot(data, pull=None, style=None, **kwargs):
 
   ax1 = None
   donor, acceptor = 'donor', 'acceptor'
-  if hasFretData(data) and displayFRET:
+  if displayFRET:
     plt.subplot(*next(layout))
     not hold and plt.cla()
     plt.hold(True)
