@@ -541,7 +541,7 @@ class Frame:
     plt.cla()
     p = plt.imshow(self._img, cmap=cmap)
     p.get_axes().invert_yaxis()
-    if self._roi is not None:
+    if self._roi is not None and kwargs.get('roi', True):
       for roi in self._roi.itervalues():
         roi.draw()
     plt.draw()
