@@ -210,8 +210,9 @@ Convert between 'absolute' and 'relative' coordinates:
         self.lines=[]
 
   def toDict(self):
-    return {'Left': self.left, 'Right': self.right, 
-        'Bottom': self.bottom, 'Top': self.top }
+    return {'left': self.left, 'right': self.right, 
+        'bottom': self.bottom, 'top': self.top,
+        'name': self.name, 'origin': self.origin }
 
   def toFile(self, filename=None, mode='w'):
     self.filename = filename or self.filename
