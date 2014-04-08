@@ -3,7 +3,7 @@ from matplotlib.mlab import find
 from operator import isCallable
 from datatypes import FretData
 from collections import namedtuple
-from smbanalyze.dotdict import dotdict
+from fancydict import dotdict
 
 ON_STATE = 1
 OFF_STATE = 0
