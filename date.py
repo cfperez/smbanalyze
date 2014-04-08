@@ -21,6 +21,10 @@ def date(y,m,d,h=0,mn=0,s=0):
 
 def to_date(date_time):
   return date(date_time.year, date_time.month, date_time.day)
+
+def date_tuple(date_time):
+  return (date_time.year, date_time.month, date_time.day,
+   date_time.hour, date_time.minute)
   
 def str_to_date(date_string):
   date_num = map(int, date_string.split('.'))
