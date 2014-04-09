@@ -79,6 +79,10 @@ class Figure(object):
   def pickPoints(self, num_of_pts=2):
   	return self.figure.ginput(num_of_pts)
 
+  def pickRegions(self, num=1):
+    points = sorted(x for x,f in self.pickPoints(num*2))
+    return [(points[i],points[i+1]) for i in range(0,len(points),2)]   
+    
   def makeCurrent(self):
     if not self.exists:
       raise RuntimeError('Figure is not visible')
