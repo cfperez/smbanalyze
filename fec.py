@@ -7,8 +7,40 @@ from collections import Iterable
 from smbanalyze.curvefit import Fit,FitRegions
 from useful import broadcast
 from constants import kT, parameters
+from experiment import List
 
 RIP_NAME_PREFIX = 'Lc'
+
+def _isabove_old(trap, point):
+  X,F = point
+  ext,force = trap.fec
+  f_at = trap.at(ext=X).f
+  return not f_at or f_at>F
+  for n,x in enumerate(ext):
+    if x<X and ext[n+1]>X and F<force[n+1]:
+      return True
+  return False
+
+def isabove(trap, point):
+  '''Return True iff trap data goes above point as an FEC
+  '''
+  x_pt,f_pt = point
+  ext,force = trap.fec
+  for n,x_ in enumerate(ext[:-1]):
+      x1,x2,f1,f2 = ext[n], ext[n+1], force[n], force[n+1]
+      if (x_<x_pt<x2):
+        return (f2-f1)/abs(x2-x1)*(x_pt-x1)+f1 > f_pt
+  return True
+
+def split(exps, *points):
+    '''Return tuple of Lists (below,above) split at point'''
+    high, low = List(), List()
+    for p in exps:
+      if any(map(lambda pt: isabove(p.trap, pt), points)):
+        high.append(p)
+      else:
+        low.append(p)
+    return low,high
 
 def findrips(trap, min_rip_ext):
     handle_data = trap.select(x=(None,min_rip_ext))
