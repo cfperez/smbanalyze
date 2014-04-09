@@ -189,7 +189,7 @@ class List(list):
     trap_data = TrapData.aggregate(self.get('trap'), sort_by=trap_sorted_by)
     fname = self[0].filename or ''
     fname += '_collapsed' if fname else 'collapsed'
-    return Pulling(trap_data, fret_data, filename=fname, collapsed=True)
+    return Pulling(trap_data, fret_data, dict(filename=fname, collapsed=True))
 
   def _all_elements_have_attr(self, attr):
     filtered_by_attr = self.has(attr)
