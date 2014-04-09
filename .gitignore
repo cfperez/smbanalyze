@@ -2,3 +2,5 @@
 *.pyc
 *.ipf
 *.sublime*
+.project
+.pydevproject
