@@ -2,26 +2,33 @@ from matplotlib.cbook import flatten
 import matplotlib.pyplot as plt
 from numpy import linspace, append, diff
 from collections import namedtuple
-from smbanalyze import fplot, experiment, curvefit, fec, fcalc, db, fileIO
+import fplot, experiment, curvefit, fec, fcalc, db, fileIO
 import os
 import datetime
 
-from smbanalyze.experiment import Pulling, on_metadata
-from smbanalyze.fplot import Figure
-from smbanalyze.fec import nm_to_nt, Rips
-from smbanalyze.date import today, date, to_date
+_modules_ = ["fplot", "fileIO", "experiment", "curvefit",
+         "fec", "fcalc", "db", "os"]
+# from importlib import import_module
+# _imported_ = map(import_module, _modules_)
 
-_modules_ = ["fplot", "fileIO", "experiment", "curvefit", "fec", "fcalc", "db"]
-_experiment_names_ = ["Pulling", "Figure"]
+# for modname in _modules_:
+    # mod = import_module(modname)
+    # _all_ = mod.__all__
+from fplot import Figure
+from experiment import *
+from fec import nm_to_nt, Rips
+from date import today, date, to_date
+
+_names_ = experiment.__all__
+
 _date_ = ['today', 'date', 'to_date']
 
 fec_names = ['fec', 'nm_to_nt', 'Rips']
 
-__all__ = _modules_ + _experiment_names_ + fec_names + _date_ \
-    + [ "os", "fcalc", "fig", "pretty_rip_sizes", 
-    "split_pulls_at_point", "pick_pts", "pick_pt", "pick_line",
+__all__ = _modules_ + _names_ + fec_names + _date_ \
+    + [ "fig", "pretty_rip_sizes", "pick_pts", "pick_pt", "pick_line",
     "pick_intervals", "Interval", "group_by", "to_date", "transposed",
-    "savefig", "plot_segmented", "reload_all", "today", "date"]
+    "savefig", "plot_segmented", "reload_all"]
 
 Interval = namedtuple('Interval', 'start end')
 
@@ -56,7 +63,7 @@ def plot_segmented(p, title='', exp=[]):
     plt.hold(True)
     plt.subplot(211)
     plt.title(title)
-    plt.plot(fret.time, fret.fret, 'k:', linewidth=1)
+    plt.plot(fret.time, fret.fret, 'k:')
     plt.subplot(212)
     for _ in exp:
         plt.plot(_.trap.ext, _.trap.f, 'k:', linewidth=1)
@@ -97,18 +104,6 @@ def region_to_str(regions):
 
 def transposed(iterable):
     return [[y[n] for y in iterable] for n in range(len(iterable[0]))]
-
-def split_pulls_at_point(exps, point):
-    '''Return tuple (below,above) distinguished by their relative position above/below "point"''' 
-    ext_cutoff, force_cutoff = point
-    high, low = experiment.List(), experiment.List()
-    for p in exps:
-        f_at_ext = p.trap.at(ext=ext_cutoff).f
-        if not f_at_ext or f_at_ext > force_cutoff:
-            high += [p]
-        else:
-            low += [p]
-    return low, high
 
 def truncate_floats(iterable, places=2):
     fmt_str = '{{:.{}f}}'.format(places)

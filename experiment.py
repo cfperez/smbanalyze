@@ -1,4 +1,4 @@
-__all__ = ['split_reverse_pull', 'Pulling']
+__all__ = ['split_reverse_pull', 'split_pulls_at_point', 'Pulling']
 
 import os.path as opath
 from operator import itemgetter, attrgetter, methodcaller
@@ -76,6 +76,18 @@ def collapseArgList(arglist):
     return arglist[0]
   else:
     return arglist
+
+def split_pulls_at_point(exps, point):
+  '''Return tuple (below,above) distinguished by their relative position above/below "point"''' 
+  ext_cutoff, force_cutoff = point
+  high, low = experiment.List(), experiment.List()
+  for p in exps:
+    f_at_ext = p.trap.at(ext=ext_cutoff).f
+    if not f_at_ext or f_at_ext > force_cutoff:
+      high += [p]
+    else:
+      low += [p]
+  return low, high
 
 
 class List(list):
