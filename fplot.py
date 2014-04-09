@@ -1,9 +1,13 @@
+
+
+__all__ = ['Figure', 'fplot', 'fplotall', 'plot_counts']
+
 import os.path as path
 from itertools import cycle,izip
 import matplotlib.pyplot as plt
-from collections import OrderedDict, namedtuple
+from collections import OrderedDict
 
-from datatypes import TrapData,hasTrapData,hasFretData
+from datatypes import TrapData,hasTrapData
 import constants
 
 def toFile(filename, figure_id=None, **kwargs):
