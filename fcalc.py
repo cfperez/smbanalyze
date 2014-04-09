@@ -43,6 +43,12 @@ def processMatch(*fglob, **kwargs):
 def processFiles(flist, roi='roi.txt', background=None, 
 	verbose=True, ext=fileIO.FRET_FILE, **calcOptions):
   "Calculate donor, acceptor, and FRET values for files in flist argument."
+  if isinstance(roi,str):
+    roi = image.ROI.fromFile(roi)
+
+  if len(roi) < 2:
+    raise ValueError('Need 2 ROIs; given %s' % repr(roi))
+  don_roi,acc_roi = roi
 
   if isinstance(background, str):
     BG = image.fromFile(background, background=True)
@@ -51,23 +57,25 @@ def processFiles(flist, roi='roi.txt', background=None,
   else:
     BG = constants.default_background_subtract
 
-  if isinstance(roi,str):
-    roi = image.ROI.fromFile(roi)
+  bg_pixel = calcOptions.pop('bg_pixel', 0)
 
   for fname in flist:
     try:
       if verbose: info('Opening %s...' % fname)
       img = image.fromFile(fname) - BG
-      img.addROI(*roi)
-      donor,acc,fret = calculate(img.donor, img.acceptor, **calcOptions)
+      donor_ = img.counts(don_roi, bg_pixel)
+      acceptor_ = img.counts(acc_roi, bg_pixel)
+      donor,acc,fret = calculate(donor_, acceptor_, **calcOptions)
       
       if verbose: 
         info('Saving .fret data to file...')
       meta = img.metadata.copy()
-      meta.update(beta=BETA, gamma=GAMMA)
+      meta.update(beta=calcOptions.get('beta',BETA), 
+        gamma=calcOptions.get('gamma',GAMMA),
+        bg_pixel=bg_pixel,
+        roi_donor=don_roi.toDict(), roi_acceptor=acc_roi.toDict())
       toFile(fileIO.change_extension(fname,ext), 
-        img.time, donor, acc, fret, 
-        meta)
+        img.time, donor, acc, fret, meta)
     except IOError as e:
       warning("Error processing file {0}: {1}".format(
         fname, e.strerror))
