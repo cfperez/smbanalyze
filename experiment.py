@@ -594,7 +594,7 @@ class Pulling(Base):
 
   def plot(self, style=None, **kwargs):
     FEC = kwargs.setdefault('FEC', 
-      not self.fret and not kwargs.get('show_fret',False))
+      not self.fret or not kwargs.get('show_fret',False))
     if FEC:
       style = style or {'trap': '-'}
     kwargs.setdefault('legend', None)
