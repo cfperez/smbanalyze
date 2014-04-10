@@ -2,11 +2,11 @@ from matplotlib.cbook import flatten
 import matplotlib.pyplot as plt
 from numpy import linspace, append, diff
 from collections import namedtuple
-import fplot, experiment, curvefit, fec, fcalc, db, fileIO
+import fplot, experiment, curvefit, fec, fcalc, db, fileIO, refolding
 import os
 import datetime
 
-_modules_ = ["fplot", "fileIO", "experiment", "curvefit",
+_modules_ = ["fplot", "fileIO", "experiment", "curvefit", "refolding",
          "fec", "fcalc", "db", "os"]
 # from importlib import import_module
 # _imported_ = map(import_module, _modules_)
