@@ -6,9 +6,10 @@ from smbanalyze.experiment import List, Pulling
 from smbanalyze.datatypes import TrapData, FretData
 from bson.binary import Binary
 from cPickle import dumps, loads
+from smbanalyze import date
 
 __all__ = ['_id', 'set_', 'lessthan', 'lessorequal', 'get_exp',
- 'connect', 'select', 'find', 'save_exp', 'save_all', 'copy']
+ 'connect', 'select', 'find', 'save_exp', 'save_all', 'copy', 'update']
 
 CLIENT = None
 def connect(database='data'):
@@ -117,9 +118,8 @@ class FindResults(object):
 
     def select(self, *fields):
         def getter(p):
-            return [p.get(field,None) for field in fields]
+            return tuple(p.get(field,None) for field in fields)
         return FindResults(map(getter,self._list))
-        return FindResults(itemgetter(*fields)(p) for p in self._list)
 
     def __iter__(self):
         return iter(self._list)
@@ -128,6 +128,9 @@ def select(cursor, *fields):
     return (itemgetter(*fields)(p) for p in cursor)
 
 def find(db, **search):
+    date_ = search.get('date', None)
+    if date_ and isinstance(date_, tuple):
+        search['date'] = date.date(*date_)
     return FindResults( db.find(search) )
 
 def find_one(db, **search):
