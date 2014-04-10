@@ -1,6 +1,6 @@
 import experiment
-from explist import List
-from shell import split_pulls_at_point, transposed
+#from explist import List
+from shell import transposed
 from scipy.stats import norm, beta
 from numpy import sqrt, mean, where, isnan
 from matplotlib.pyplot import figure,errorbar,ylim,xlim,gca
@@ -8,11 +8,8 @@ from matplotlib.pyplot import figure,errorbar,ylim,xlim,gca
 FILENAME_TOKEN = 'refold'
 REFOLD_FILENAME_INFO = ('refold_time', 'series')
 
-def group_by(iterable, keyfunc):
-    return {key: List(p) for key,p in groupby(iterable, keyfunc)}
-
 def by_time(exps):
-    return group_by(exps, 
+    return experiment.group_by(exps, 
         experiment.on_metadata('trap.refolding_time'))
 
 def prettyprint(time_dict):
@@ -35,7 +32,7 @@ def adjust_refold_time(by_times, until_force):
     return {t+avg_time_until_f(exps, until_force):exps for t,exps in by_times.items()}
 
 def count_bound(by_times, split_pt):
-    return {t:map(len, split_pulls_at_point(exps,split_pt)) for t,exps in by_times.items()}
+    return {t:map(len, experiment.split_pulls_at_point(exps,split_pt)) for t,exps in by_times.items()}
 
 def wilson_score_z(z=0, confidence=0.683):
     z = float(z) or norm.ppf(0.5+confidence/2)
