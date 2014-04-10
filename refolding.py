@@ -1,6 +1,5 @@
 import experiment
 #from explist import List
-from shell import transposed
 from scipy.stats import norm, beta
 from numpy import sqrt, mean, where, isnan
 from matplotlib.pyplot import figure,errorbar,ylim,xlim,gca
@@ -68,6 +67,9 @@ def calc_bound_prob(num_bound, confidence=.683, error_func=binomial_error):
         prob.append(frac)
         errors.append(map(abs, [frac-l, u-frac]))
     return rtimes, prob, errors
+
+def transposed(iterable):
+    return [[y[n] for y in iterable] for n in range(len(iterable[0]))]
 
 def plot(rtimes, prob, errors):
     errorbar(rtimes, prob, ecolor='b', fmt='o', yerr=transposed(errors))
