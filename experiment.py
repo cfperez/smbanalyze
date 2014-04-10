@@ -1,4 +1,4 @@
-__all__ = ['split_reverse_pull']
+__all__ = ['split_reverse_pull', 'split_pulls_at_point', 'Pulling']
 
 import os.path as opath
 from operator import itemgetter, attrgetter, methodcaller
@@ -8,8 +8,8 @@ import cPickle as pickle
 import re
 import abc
 from functools import total_ordering
-from itertools import groupby
-from datetime import datetime
+from itertools import groupby, ifilter
+from smbanalyze.date import today, date, to_date
 
 
 from matplotlib.mlab import find
@@ -22,20 +22,13 @@ import fplot
 import constants
 import image
 from datatypes import TrapData, FretData, hasTrapData, hasFretData, AbstractData
+from fancydict import nesteddict
 
 logger = logging.getLogger(__name__)
 logger.setLevel(constants.logLevel)
 logger.addHandler(constants.logHandler)
 
 PULL_FILENAME_INFO = fileIO.MOL_FILENAME_INFO + ('pull',)
-
-###############
-
-def aggregate(*data):
-  return ''
-
-###############
-
 
 def mol_info_dict(*args):
   assert len(args) == len(PULL_FILENAME_INFO)
@@ -48,15 +41,6 @@ def load(filename):
   basename, extension = opath.splitext(filename)
   filename = basename + (extension or '.exp')
   return pickle.load(open(filename,'rb'))
-
-def fromData(*datalist, **kwargs):
-  "List of experiments from PullData and FretData type"
-  exptype = kwargs.get('type','trap')
-  if exptype=='trap':
-    output = []
-    for pull,fret in groupat(hasTrapData, datalist, size=2):
-      output += [Pulling(pull,fret)]
-    return output if len(output)>1 else output[-1]
 
 def fromMatch(*globs):
   flist = exp_files(*globs)
@@ -73,7 +57,7 @@ def fromMatch(*globs):
 def exp_files(*fglob):
   'Return list of unique filenames (without extension) of pulling and fret file types'
   return fileIO.files_matching(fglob, with_ext=(fileIO.PULL_FILE, fileIO.FRET_FILE),
-    keep_ext=True)
+    keep_ext=False)
 
 def fromFiles(*filelist):
   'Load experiments from a list of files or an argument list'
@@ -92,6 +76,18 @@ def collapseArgList(arglist):
     return arglist[0]
   else:
     return arglist
+
+def split_pulls_at_point(exps, point):
+  '''Return tuple (below,above) distinguished by their relative position above/below "point"''' 
+  ext_cutoff, force_cutoff = point
+  high, low = experiment.List(), experiment.List()
+  for p in exps:
+    f_at_ext = p.trap.at(ext=ext_cutoff).f
+    if not f_at_ext or f_at_ext > force_cutoff:
+      high += [p]
+    else:
+      low += [p]
+  return low, high
 
 
 class List(list):
@@ -193,7 +189,7 @@ class List(list):
     trap_data = TrapData.aggregate(self.get('trap'), sort_by=trap_sorted_by)
     fname = self[0].filename or ''
     fname += '_collapsed' if fname else 'collapsed'
-    return Pulling(trap_data, fret_data, filename=fname, collapsed=True)
+    return Pulling(trap_data, fret_data, dict(filename=fname, collapsed=True))
 
   def _all_elements_have_attr(self, attr):
     filtered_by_attr = self.has(attr)
@@ -210,12 +206,12 @@ class List(list):
         'Not all experiments have {atrr}: not collapsing {attr} data!'.format(attr=attr))
     return data
 
-  def plot(self, **options):
+  def plot(self, style=None, **options):
     "Plot all experiments overlayed onto same panel. Can plot only trap or fret."
     options.setdefault('legend', None)
     self.figure.show().clear()
     for p in self:
-      fplot.plot(p.fret, p.trap, 
+      fplot.plot(p.fret, p.trap, style=style,
         hold=True, 
         label=p.metadata.get('filename', ''),
         **options)
@@ -352,18 +348,16 @@ def group_by(iterable, keyfunc):
     return {key: List(p) for key,p in groupby(iterable, keyfunc)}
 
 def on_metadata(key):
-  return lambda p: p.metadata.get(key, None)
+  return lambda p: p[key]
 
 @total_ordering
 class Base(object):
   ".fret .f .ext and other meta-data (sample rate, trap speeds, )"
-  # also classmethods which change experimental constants like bead radii,
-  # trap stiffnesses, etc.
   __metaclass__ = abc.ABCMeta
 
   INFO_FIELDS = ()
 
-  def __init__(self, trap, fret, **metadata):
+  def __init__(self, trap, fret, metadata):
     if trap and not hasTrapData(trap):
       raise ExperimentError(
           "__init__ argument 'trap' <{}> does not have trap data".format(trap))
@@ -372,15 +366,9 @@ class Base(object):
           "__init__ argument 'fret' <{}> does not have fret data".format(fret))
     self.trap = trap
     self.fret = fret
-    if trap:
-      metadata.update(
-        {('trap.' if not k.startswith('fret.') else '')+k: v 
-        for k,v in trap.metadata.items() })
-    if fret:
-      metadata.update(
-        {('fret.' if not k.startswith('trap.') else '')+k: v
-        for k,v in fret.metadata.items() })
-    self.metadata = metadata
+    self.metadata = nesteddict.from_dict(metadata)#metadata.copy()
+    self.metadata['trap'] = getattr(trap, 'metadata', {})
+    self.metadata['fret'] = getattr(fret, 'metadata', {})
     self._figure = fplot.Figure(self.filename)
 
   @abc.abstractmethod
@@ -389,12 +377,12 @@ class Base(object):
 
   @property
   def filename(self):
-    return self.metadata.get('filename', None)
+    return self.metadata.get('filename', '')
 
   @property
   def info(self):
-    return self.metadata.get('filename', '').split('_')
-    return tuple(self.metadata.get(key, None) for key in self.INFO_FIELDS)
+    datesort = self.metadata.get('datetime', self.metadata.get('date', None))
+    return (datesort,) + tuple(self['filename'].split('_'))
 
   def __lt__(self, other):
     this, that = self.info, other.info
@@ -406,6 +394,9 @@ class Base(object):
   def __getitem__(self, key):
     return self.metadata[key]
 
+  def __setitem__(self, key, val):
+    self.metadata[key] = val
+
   @property
   def figure(self):
     return self._figure
@@ -415,31 +406,22 @@ class Base(object):
     self._figure = fplot.Figure(self.filename)
 
   @classmethod
-  def fromFile(cls, strfile, fretfile, **metadata):
+  def fromFile(cls, strfile, fretfile, metadata):
     assert strfile or fretfile
-    assert isinstance(strfile, str) or strfile is None
-    assert isinstance(fretfile, str) or fretfile is None
+    assert isinstance(strfile, str)
+    assert isinstance(fretfile, (str,type(None)))
+    metadata = metadata.copy()
 
-    trap = TrapData.fromFile(strfile) if strfile else None
+    trap = TrapData.fromFile(strfile)
     fret = FretData.fromFile(fretfile) if fretfile else None
-    filename = strfile if strfile else fretfile
-    if trap:
-      today = datetime.today()
-      trap.metadata.setdefault('date', (today.year-2000,today.month,today.day))
-      metadata.update({'trap.'+k: v for k,v in trap.metadata.items()
-        if not k.startswith('fret.')})
-    metadata.setdefault('date', 
-      trap.metadata.get('date', None) if trap else None)
-    if fret:
-      metadata.update({'fret.'+k: v for k,v in fret.metadata.items()
-        if not k.startswith('trap.')})
-
-    newCls = cls(trap, fret,
-      filename=fileIO.splitext(filename)[0], 
-      **metadata)
+    trap.metadata.setdefault('date', today())
+    trap_datetime = trap.metadata['date']
+    metadata.setdefault('date', to_date(trap_datetime))
+    metadata.setdefault('datetime', trap_datetime)
+    metadata['filename'] = fileIO.splitext(strfile)[0]
+    newCls = cls(trap, fret, metadata)
     assert isinstance(newCls, cls)
-    assert hasattr(newCls, 'filename')
-    assert newCls.filename is not None
+    assert getattr(newCls, 'filename', None) is not None
     return newCls
 
   def save(self, filename=None, path=''):
@@ -465,7 +447,7 @@ class Base(object):
       return List(map(cls.fromFile, flist))
 
   def __repr__(self):
-    if getattr(self, 'filename', None):
+    if hasattr(self, 'filename'):
       return "<Experiment.%s from '%s'>" % (self.__class__.__name__, self.filename)
     else:
       return super(Base,self).__repr__()
@@ -477,37 +459,40 @@ class Base(object):
   def plot(self):
     pass
 
+
 class Pulling(Base):
   "stretching curves of single molecule .str camera .cam image .img"
 
   forceOffsetRange = (740,770)
   extensionOffsetRange = (13,16)
-  maximum_fitting_force = 25
   
   EXTENSION = fileIO.PULL_FILE
-  INFO_FIELDS = ('date', 'construct', 'conditions', 'slide', 'mol', 'pull', 'reverse', 'collapsed' )
+  INFO_FIELDS = ('date', 'construct', 'conditions', 
+    'slide', 'mol', 'pull', 'reverse', 'collapsed' )
 
-  def __init__(self, trap, fret=None, **metadata):
-    super(Pulling, self).__init__(trap, fret, **metadata)
-    self.handles = None
-    self.lastFit = None
-    self.fit = None
+  def __init__(self, trap, fret=None, metadata={}):
+    super(Pulling, self).__init__(trap, fret, metadata)
     self._ext_offset = 0
 
-    if 'trap.sampling_time' in self.metadata and 'trap.step_size' in self.metadata:
-      t,s = self.metadata['trap.sampling_time'], self.metadata['trap.step_size']
-      self.metadata.setdefault('trap.pulling_rate', s/t)
-    if fret:
-      trap_rate = trap.metadata.get('sampling_time',
-        constants.default_pulling_sampling_time) * 1000
-      fret_rate = fret.metadata.get('exposurems',
-        constants.default_fret_exposure_time_ms)
-      if fret_rate % trap_rate != 0:
-        raise ExperimentError(
-          'Trap and FRET collection rates are not even multiples! {} (trap) vs {} (fret)'.format(
-              trap_rate, fret_rate))
-      self.metadata['sampling_ratio'] = int(fret_rate / trap_rate)
+    for k in ifilter(lambda s: s.startswith('fret.'), trap.metadata.copy()):
+      self.metadata['fret'][k[5:]] = trap.metadata.pop(k)
 
+    sampling_time = self['trap'].get('sampling_time', 
+      constants.default_pulling_sampling_time)
+    step_size = self['trap'].get('step_size', None)
+    if sampling_time and step_size:
+      self['trap'].setdefault('pulling_rate', step_size/sampling_time)
+    if fret:
+      fret_rate = fret.metadata.pop('exposurems',
+        constants.default_fret_exposure_time_ms)
+      if (fret_rate / (sampling_time*1000)).is_integer():
+        print 'Trap and FRET collection rates are not even multiples! {} (trap) vs {} (fret)'.format(
+              sampling_time, fret_rate)
+      self.metadata['fret.exposure_time'] = fret_rate/1000.
+      self.metadata['fret.exposurems'] = fret_rate
+      self.metadata['sampling_ratio'] = int(fret_rate / sampling_time /1000.)
+
+  # TODO Delete this 
   @classmethod
   def parse_filename(self, basename):
     info, the_rest = fileIO.parse_mol_info(basename)
@@ -521,7 +506,7 @@ class Pulling(Base):
     return info
 
   @classmethod
-  def fromFile(cls, strfile, fretfile=None, **metadata):
+  def fromFile(cls, strfile, fretfile=None, metadata={}):
     'Load stretching data and corresponding fret data from files'
     basename, ext = fileIO.splitext(strfile)
     strfile, fretfileFromBase = (fileIO.add_pull_ext(basename),
@@ -529,7 +514,7 @@ class Pulling(Base):
     fretfile = fretfile or fretfileFromBase
     if not opath.exists(fretfile):
       fretfile = None
-    return super(Pulling, cls).fromFile(strfile, fretfile, **metadata)
+    return super(Pulling, cls).fromFile(strfile, fretfile, metadata)
 
   FILENAME_SYNTAX = ('construct', 'conditions', 'slide', 'mol', 'pull')
 
@@ -607,30 +592,24 @@ class Pulling(Base):
     self.trap.ext = self.trap.sep - beadRadii - displacement*ratio - self._ext_offset
     return self
 
-  def plot(self, **kwargs):
-    FEC = kwargs.setdefault('FEC', hasattr(self, 'fit') or not self.fret)
+  def plot(self, style=None, **kwargs):
+    FEC = kwargs.setdefault('FEC', 
+      not self.fret or not kwargs.get('show_fret',False))
     if FEC:
-      kwargs.setdefault('style', {'trap': '-'})
-    #kwargs.setdefault('style', '-' if FEC else '.')
+      style = style or {'trap': '-'}
     kwargs.setdefault('legend', None)
     kwargs.setdefault('title', self.filename or '')
     kwargs.setdefault('label', self.filename or '')
     loc_x = min(self.trap.ext)+10
     location = list(kwargs.pop('annotate', (loc_x, 15)))
     if self.fret:
-      self.figure.plot(self.fret, self.trap, **kwargs)
+      self.figure.plot(self.fret, self.trap, style=style, **kwargs)
     else:
-      self.figure.plot(self.trap, **kwargs)
+      self.figure.plot(self.trap, style=style, **kwargs)
     # tk if reverse pull, reverse the x-axis of the FEC, which is last thing plotted
     self.figure.xlim(reverse=self.isReverse)
     return self.figure
 
-  def pickPoints(self, num=1):
-    return self.figure.pickPoints(num)
-
-  def pickRegions(self, num=1):
-    return self.figure.pickRegions(num)
-	
   def savefig(self, filename=None, path=''):
     if not self.figure.exists:
       raise ExperimentError('No figure available for experiment {0}'.format(str(self)))
@@ -647,8 +626,8 @@ class Pulling(Base):
 
 class OpenLoop(Base):
   "Object for manipulating FretData (and optional TrapData) for open loop measurements"
-  def __init__(self, trap, fret, **metadata):
-    super(OpenLoop, self).__init__(trap, fret, **metadata)
+  def __init__(self, trap, fret, metadata):
+    super(OpenLoop, self).__init__(trap, fret, metadata)
 
   FILENAME_SYNTAX = ('min', 'sec', 'force')
 

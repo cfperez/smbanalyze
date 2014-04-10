@@ -1,121 +1,105 @@
 # smbanalyze
 
-Load the package:
-
-    from matplotlib.pyplot import *
-    from smbanalyze import *
-
-## New Features
-
-Save or load an experiment:
+Load the package for interactive use:
 ```python
-pull = experiment.Pulling.load('filename.exp')
-pull.save('filename2.exp')
+    from matplotlib.pyplot import *
+    from smbanalyze.shell import *
+```
+Gives you immediate access to most packages plus some convenience functions. This is the recommended way of using the package for interactive use.
+
+See the notebooks/ for (somewhat hacky) example code.
+
+experiment.py and datatypes.py define the data types experiment.Pulling, TrapData, and FretData (these last two may by simplified in the future.)
+
+fec.py fits WLC to Pulling experiments and extracts features.
+
+refolding.py is used for calculating binding curves from refolding time experiments.
+
+db/ is used for storing/retrieving experiments saved in databases. Currently, this only houses mongoDB functions, but in the future, it can be used to create a local SQLlite database for potentially more robust data crunching (if needed.)
+
+fplot.py has the plotting functions for pretty graphs.
+
+fcalc.py calculates the fret from the image data.
+
+## New features
+
+Currently under active development (i.e. expect lots of bugs and caveats if you don't know exactly what's going on) is an interface to a MongoDB instance using pymongo.
+```python
+datadb = db.connect()
+db.find(datadb.tpp, construct='wt2at')
 ```
 ## Experiment Workflow
 
-### Tips
-
-1. Use generically named yet descriptive variables to allow for some automation with IPython macros.
-
-2. The new experiment.List collection object has some useful features demonstrated below. We will continue to add features to make manipulating multiple experiments easier. Requests welcome!
-
 ### Example
 
+First, process the .img files into .fret files for loading. Then load them up, align them, and pick out the different bound states.
 ```python
-pulls = experiment.fromMatch('SJ2UL')
-mol = pulls.matching('s1m1')
+construct = 'WT2at'
+slide_id,mol_id = 2,5
+mol_name = 's%dm%d' % (slide_id,mol_id)
 
-# if you need to remove an experiment
-del mol[0]
-# or add an experiment
-mol.append(pulls[0])
+beta,gamma = 0.13, 1.1
+fcalc.processMatch(construct, mol_name, 'refold', 'up', 
+background='background.img', 
+beta=beta, gamma=gamma,
+roi='roi.txt')
 
-mol.adjustForceOffset()
-mol.adjustExtensionOffset()
+exp = experiment.fromMatch(construct, mol_name, 'refold', 'up')
 
-# or do both at once! Default now pushes force to 0.5
-mol.adjustOffset()
+# Add extra metadata from conditions
+metadata = {'conditions': {
+        'tpp': 10e-6,
+        'mg': 4e-3,
+        'tx': 3e-3,
+        'tq': 0.19,
+        'edta': 0.1e-3},
+    'construct': construct.lower(),
+    'mol': mol_id,
+    'slide': slide_id
+    }
+for p in exp:
+    p.metadata.update(metadata)
 
-figure()
-mol.plotall()
+exp.plot()
 
-mol.fitHandles(x=(830, 980))
-mol.fitRip(1000, 15)
+# Align traces still a little buggy!!
 
-# individual plots--there may be alot! Do this AFTER fitting to get annotations for free.
-# Or just run .plot() again (maybe after clf() to avoid color confusion)
-mol.plot()
+exp.plot('-', show_fret=False)
 
-# Find rips
-rips = mol.findRip()
+align_to=pick_pt()
+align_cutoff,f_cutoff = align_to
+f_range = (f_cutoff,f_cutoff+1)
 
-# and analyze (ext, force, sep)
-mean(rips, axis=0)
-std(rips, axis=0)
-```
+to_align = to_align.has_value(trap_ext_atleast=align_cutoff)
+to_align.adjustOffset(force_x_range=(720,800), ext_f_range=f_range, ext_x_range=align_cutoff)
 
-You can call any method or get any property from experiments in the List using the .call() and .get() API
-```python
-mol.get('info')
-mol.call('savefig')
-```
-returns arrays of the `.info` attribute and runs `.savefig()` on every one and returns the result as a list.
+# Split off strongly bound from the rest
+# Pick ONE POINT on the FEC where strongly bound go ABOVE
+# and weakly bound go BELOW
+strong_pt = pick_pts(1)
+weak_unbound, strong = fec.split(exp, *strong_pt)
 
-IPython macros can also be helpful.
-```python
-hstart = 850  # extension to start fit
-hend = 9      # force to stop fit
-rstart = 1000
-rend = 16
+# split off weakly bound from unbound
+# Here, I'm using TWO POINTS: pick points where unbound go
+# BELOW BOTH POINTS, leaving weakly bound to go above atleast ONE POINT
+weak_pt = pick_pts(2)
+unbound, weak = fec.split(weak_unbound, *weak_pt)
 
-mol.adjustForceOffset()
-mol.plotall('pull')
-mol.fitHandles(hstart, hend)
-mol.fitRip(rstart, rend)
+# Plot them
+fig('TPP binding')
+fplot.fplotall(trap=unbound, style='k-')
+fplot.fplotall(trap=weak, style='y-')
+fplot.fplotall(trap=strong, style='r-')
 
-# make a macro of previous 4 lines
-macro fitmol 4-7
+# Add there binding state to their metadata
+def set_all(list_, key, value):
+    for x in list_:
+        x[key] = value
+set_all(weak, 'bind_tpp', 1)
+set_all(strong, 'bind_tpp', 2)
+set_all(unbound, 'bind_tpp', 0)
 
-# save for next time
-save fitmol
-```
-
-## Advanced Usage
-
-Process images using give roi file and background in the current directory:
-
-```python
-fcalc.processMatch('SJF4', roi='roi.txt', background='SJF_background.img')
-```
-Remember, in IPython, you can change directories with `cd` and list contents with `ls`.
-
-Load a pulling data:
-
-```python
-pull = experiment.fromFile('SJF4_s1m1_4')
-pull.plot()
-
-# or from multiple files
-pulls = experiment.fromMatch('SJF4', 's1m1')
-for a_pull in pulls:
-  figure()
-  a_pull.plot(FEC=True)
-```
-
-Fit to the section before the rip and automatically plot if the figure is open:
-```python
-# x is the MINIMUM extension and f is the MAXIMUM force to fit to
-# can also use x=(min,max) and f=(min,max)
-fit = pull.fitHandles(x=750, f=9)
-# can also get the fit and parameters through
-pull.handles.parameters
-pull.handles['Lc']
-```
-
-Fit the upper portion to get the rip size:
-```python
-pull.fitRip(f=(10,20))
+# More to come!!
 ```
 
 ## Basic Usage

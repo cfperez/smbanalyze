@@ -7,8 +7,40 @@ from collections import Iterable
 from smbanalyze.curvefit import Fit,FitRegions
 from useful import broadcast
 from constants import kT, parameters
+from experiment import List
 
 RIP_NAME_PREFIX = 'Lc'
+
+def _isabove_old(trap, point):
+  X,F = point
+  ext,force = trap.fec
+  f_at = trap.at(ext=X).f
+  return not f_at or f_at>F
+  for n,x in enumerate(ext):
+    if x<X and ext[n+1]>X and F<force[n+1]:
+      return True
+  return False
+
+def isabove(trap, point):
+  '''Return True iff trap data goes above point as an FEC
+  '''
+  x_pt,f_pt = point
+  ext,force = trap.fec
+  for n,x_ in enumerate(ext[:-1]):
+      x1,x2,f1,f2 = ext[n], ext[n+1], force[n], force[n+1]
+      if (x_<x_pt<x2):
+        return (f2-f1)/abs(x2-x1)*(x_pt-x1)+f1 > f_pt
+  return True
+
+def split(exps, *points):
+    '''Return tuple of Lists (below,above) split at point'''
+    high, low = List(), List()
+    for p in exps:
+      if any(map(lambda pt: isabove(p.trap, pt), points)):
+        high.append(p)
+      else:
+        low.append(p)
+    return low,high
 
 def findrips(trap, min_rip_ext):
     handle_data = trap.select(x=(None,min_rip_ext))
@@ -156,8 +188,8 @@ def fit_masks(x, f, masks, **fitOptions):
     1) the handle (1st element)
     2) the rips (following elements)
   '''
-  assert isinstance(x, Iterable)
-  assert isinstance(f, Iterable)
+  assert isinstance(x, Iterable) and len(x)>0
+  assert isinstance(f, Iterable) and len(f)==len(x)
   assert map(lambda m: isinstance(m, np.ndarray), masks)
   assert map(lambda m: m.dtype is np.dtype('bool'), masks)
 
@@ -167,6 +199,18 @@ def fit_masks(x, f, masks, **fitOptions):
   fit = FitRegions(x, f, fitfunc=MMS_rip_region_maker,
     regions=masks,
     **fitOptions)
+  return fit
+
+def fit_wlc(trap, mask=None, fitfunc='MMS', **fitOptions):
+  "Fit stretching data to WLC model with MMS default fitfunc"
+  assert mask is None or len(mask) == len(trap)
+  fitOptions.setdefault('Lc', max(trap.ext)*1.05)
+  if isinstance(fitfunc, str):
+    fitfunc = eval(fitfunc)
+    fixed = getattr(fitfunc, 'fixed', None)
+    if fixed:
+      fitOptions.setdefault('fixed', fixed)
+  fit = Fit(trap.ext, trap.f, mask=mask, fitfunc=fitfunc, **fitOptions)
   return fit
 
 @broadcast
@@ -179,10 +223,14 @@ def MMS(F, Lp, Lc, F0, K):
   return Lc * (1 - root_of_inverted_MS + (F-F0)/float(K))
 MMS.default = {'Lp':30., 'Lc':1150., 'F0':0.1, 'K': 1200.}
 MMS.inverted = True
+MMS.fixed = 'K'
 
 def moroz_nelson(F, Lp, Lc, F0, K):
   F_ = np.asarray(F)-F0
   return Lc * (1 - 0.5*pow(F_*Lp/kT(parameters['T'])-1/32.,-.5) + F_/K)
+moroz_nelson.default = {'Lp':30., 'Lc':1150., 'F0':0.1, 'K': 1200.}
+moroz_nelson.inverted = True
+moroz_nelson.fixed = 'K'
 
 def MMS_rip(F, Lp, Lc, F0, K, Lp1, Lc1, K1):
   return MMS(F, Lp, Lc, F0, K) + MMS(F, Lp1, Lc1, F0, K1)

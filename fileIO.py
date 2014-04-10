@@ -5,10 +5,12 @@ import os
 import glob
 import ast
 from inspect import isfunction
+from operator import itemgetter
 
 import numpy as np
 
 from useful import toNum, toInt, isInt
+from date import date_tuple
 
 IMAGE_FILE = '.img'
 CAMERA_FILE = '.cam'
@@ -47,9 +49,9 @@ def files_matching(globs, with_ext=(), keep_ext=False, unique=False):
   files = flist(*globs)
   if with_ext:
     files = filter_extensions(files, with_ext)
-  if keep_ext:
+  if not keep_ext:
     files = [splitext(name)[0] for name in files]
-  if unique or keep_ext:
+  if unique or not keep_ext:
     files = uniquify(files)
   return files
   
@@ -137,7 +139,6 @@ def loadstr(fname, **loadOptions):
   filecomments,fileheader,data = loaddat(fname, **loadOptions)
   if fileheader != ['extension','force','trapdistance']:
     raise fileIOError("Stretch file must contain extension, force, and separation")
-
   return filecomments, fileheader, data
 loadstr.extension=PULL_FILE
 
@@ -284,25 +285,45 @@ def savesettings(filename, file_mode, **settings):
   with open(filename, file_mode) as f:
     f.write(fromSettings(settings))
 
+def sort_by_type(d, type_, key=lambda x:x):
+  return sorted(d, key=lambda x: isinstance(key(x), type_))
+
 ## !! Skipping datetime key when saving because parseSettingFromLine()
 ## !! doesn't handle it yet
 def fromSettings(settings):
   output = []
   HEADING_FMT = '[%s]\n'
   SETTING_FMT = '%s=%s\n'
-  for header,subHead in settings.iteritems():
-    try:
-      settingsInHeading = subHead.iteritems()
-      output += HEADING_FMT % header
-      for setting,value in settingsInHeading:
-        # UPDATE ME!
-        if setting == 'datetime': continue
-        output += SETTING_FMT % (setting,value)
-    except AttributeError:
-      # UPDATE ME!
-      if header == 'datetime': continue
-      output += SETTING_FMT % (header, subHead)
+
+  for key, setting in sort_by_type(settings.items(), dict, itemgetter(1)):
+    if isinstance(setting, dict):
+      # Skip if it is an empty dict
+      if setting:
+        output += HEADING_FMT % key
+        output += fromSettings(setting) # recursively
+      continue
+    elif key.startswith('date') and isinstance(setting, datetime):
+      setting = repr(date_tuple(setting))
+    elif isinstance(setting, basestring):
+      setting = repr(str(setting))
+    output += SETTING_FMT % (key,setting)
   return ''.join(output)
+      
+  # for header,subHead in sort_by_type(settings.items(), dict, itemgetter(1)):
+  #   if isinstance(subHead, dict):
+  #     output += HEADING_FMT % header
+  #     for setting,value in subHead.iteritems():
+  #       if setting.startswith('date'):
+  #         value = repr(date_tuple(value))
+  #       if isinstance(value, str):
+  #         value = repr(value)
+  #       output += SETTING_FMT % (setting,value)
+  #   else:
+  #     # UPDATE ME!
+  #     if header.startswith('datetime'):
+  #       continue
+  #     output += SETTING_FMT % (header, subHead)
+  # return ''.join(output)
 
 ##################################################
 ## Filename Parsing
