@@ -5,7 +5,7 @@ parameters = {'T':293.2}
 kT = lambda T: 0.0138965*T
 
 beta = 0.13
-gamma = 1.16
+gamma = 1.11
 
 sumOfBeadRadii = 715
 stiffness = (1.475, 0.21)
