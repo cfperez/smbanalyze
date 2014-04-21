@@ -254,7 +254,7 @@ class TrapData(AbstractData):
         ratio = 1 + min(new_k) / max(new_k)
 
         self.f = displacement * min(new_k)
-        self.ext = self.trap.sep - beadRadii - displacement * ratio
+        self.ext = self.sep - beadRadii - displacement * ratio
         return self
 
 
