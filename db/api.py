@@ -16,7 +16,7 @@ def connect(database='data'):
     global CLIENT
     CLIENT = CLIENT or MongoClient()
     db = getattr(CLIENT, database)
-    db.add_son_manipulator(TransformToPickle())
+    #db.add_son_manipulator(TransformToPickle())
     return db
 
 def copy(from_, to_, **search):
@@ -165,6 +165,9 @@ def set_(**fields):
 
 def in_(vals):
     return {'$in': vals}
+    
+def greaterthan(val):
+    return {'$gt': val}
     
 def lessthan(val):
     return {'$lt': val}
