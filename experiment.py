@@ -210,10 +210,11 @@ class List(list):
     "Plot all experiments overlayed onto same panel. Can plot only trap or fret."
     options.setdefault('legend', None)
     self.figure.show().clear()
-    for p in self:
+    labels = options.pop('labels', self.get('filename'))
+    for p,label in zip(self, labels):
       fplot.plot(p.fret, p.trap, style=style,
         hold=True, 
-        label=p.metadata.get('filename', ''),
+        label=label, #p.metadata.get('filename', ''),
         **options)
     return self.figure
 
@@ -320,9 +321,11 @@ def split_reverse_pull(exp):
   if exp.fret:
     ratio = exp.metadata.get('sampling_ratio', 1)
     fwd_fret, rev_fret = split_reverse_data(exp.fret, split/ratio)
-  return (Pulling(fwd, fwd_fret, **exp.metadata), 
-          Pulling(rev, rev_fret, reverse=True, **exp.metadata)
-  )
+  rev_meta = exp.metadata.copy()
+  rev_meta['reverse'] = True
+  return (Pulling(fwd, fwd_fret, exp.metadata), 
+          Pulling(rev, rev_fret, rev_meta)
+        )
 
 def split_reverse_data(data, split):
   '''Return forward and reverse data on split'''
@@ -382,7 +385,7 @@ class Base(object):
   @property
   def info(self):
     datesort = self.metadata.get('datetime', self.metadata.get('date', None))
-    return (datesort,) + tuple(self['filename'].split('_'))
+    return (datesort,) + fileIO.split_fname(self['filename'])
 
   def __lt__(self, other):
     this, that = self.info, other.info
@@ -593,8 +596,8 @@ class Pulling(Base):
     return self
 
   def plot(self, style=None, **kwargs):
-    FEC = kwargs.setdefault('FEC', 
-      not self.fret or not kwargs.get('show_fret',False))
+    show_fret = kwargs.setdefault('show_fret', True)
+    FEC = kwargs.setdefault('FEC', not (self.fret and show_fret))
     if FEC:
       style = style or {'trap': '-'}
     kwargs.setdefault('legend', None)

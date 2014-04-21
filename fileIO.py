@@ -337,6 +337,17 @@ def splitext(fname):
     basename,ext=fname,''
   return basename,ext
 
+def split_fname(fname):
+  split_ = fname.split('_')
+  for n,s in enumerate(split_):
+    try:
+      int(s)
+    except ValueError:
+      pass
+    else:
+      split_[n] = int(s)
+  return tuple(split_)
+
 change_extension = lambda x,y: os.path.splitext(x)[0]+y
 add_img_ext = lambda x: x+IMAGE_FILE if not x.endswith(IMAGE_FILE) else x
 add_cam_ext = lambda x: x+CAMERA_FILE if not x.endswith(CAMERA_FILE) else x
