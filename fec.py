@@ -158,6 +158,8 @@ def analyze_rips(trap, intervals, stems_lost,
   handle_above=None, na_type=None, **fitOptions):
   assert isinstance(stems_lost, (list, tuple))
   assert isinstance(intervals, (list, tuple))
+  if len(stems_lost) != len(intervals)-1:
+    raise ValueError('# of intervals must equal # of stems_lost')
   na_type = na_type or DEFAULT_NA_TYPE
   if na_type not in HELIX_SIZE:
     raise ValueError('na_type must be one of: {}'.format(HELIX_SIZE.keys()))
@@ -165,6 +167,8 @@ def analyze_rips(trap, intervals, stems_lost,
   if handle_above:
     above = trap.mask_above(handle_above)
     masks[0] = masks[0] & above
+    if len(masks) >= 2:
+      masks[1] = masks[1] & ~above
   fitOptions.setdefault('Lp1', PERSISTENCE_LENGTH[na_type])
   fit = fit_rips(trap, masks, **fitOptions)
   fit.plot()
