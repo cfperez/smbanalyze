@@ -65,8 +65,9 @@ def fromFile(filename, **kwargs):
   img -= bg
 
   if roi is not None:
-    rois = ROI.fromFile(roi)
-    img.addROI(*rois)
+    if isinstance(roi, basestring):
+      roi = ROI.fromFile(roi)
+    img.addROI(*roi)
   return img
 
 def fromBackground(filename, filter='median'):
@@ -293,7 +294,7 @@ class Stack:
     #################################################
     ## Load data from file called filename if string
     #################################################
-    if isinstance(filename, str):
+    if isinstance(filename, basestring):
       self.filename = filename
       self._img = fileIO.loadimg(filename)
       self._roi = {}
@@ -336,19 +337,6 @@ class Stack:
 
     else:
         raise StackError, "Invalid constructor call using %s" % str(filename)
-
-  def calculate(stack, beta=constants.beta, gamma=constants.gamma, minsub=False):
-    """Calculates FRET of a pull from an Image.Stack
-
-    calculate( Image.Stack, beta = constants.beta, gamma = constants.gamma)
-
-    RETURNS array of calculated FRET for each frame
-    """
-    donor = stack.donor - (minsub and min(stack.donor))
-    acceptor = stack.acceptor - donor*beta
-    acceptor = acceptor - (minsub and min(acceptor))
-    stack.fret = acceptor/(acceptor+gamma*donor)
-    return FretData(stack.time, donor, acceptor, stack.fret)
 
   @property
   def frames(self):
