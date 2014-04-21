@@ -7,9 +7,9 @@ from matplotlib.pyplot import figure,errorbar,ylim,xlim,gca
 FILENAME_TOKEN = 'refold'
 REFOLD_FILENAME_INFO = ('refold_time', 'series')
 
-def by_time(exps):
-    return experiment.group_by(exps, 
-        experiment.on_metadata('trap.refolding_time'))
+def by_time(exps, key='trap.refolding_time'):
+    keyfunc = experiment.on_metadata(key)
+    return experiment.group_by(sorted(exps, key=keyfunc), keyfunc)
 
 def prettyprint(time_dict):
     outstr = ''
@@ -29,6 +29,15 @@ def avg_time_until_f(exps, force):
 
 def adjust_refold_time(by_times, until_force):
     return {t+avg_time_until_f(exps, until_force):exps for t,exps in by_times.items()}
+
+def count_bind_tpp(exps):
+    return sum(p['bind_tpp']>0 for p in exps), len(exps)
+
+def count_bind_strong(exps):
+    return sum(p['bind_tpp']==2 for p in exps), len(exps)
+
+def count(by_times, using=count_bind_tpp):
+    return {t:using(exps) for t,exps in by_times.items()}
 
 def count_bound(by_times, split_pt):
     return {t:map(len, experiment.split_pulls_at_point(exps,split_pt)) for t,exps in by_times.items()}
@@ -55,8 +64,7 @@ wilson_score = wilson_score_z(1.0)
 
 def calc_bound_prob(num_bound, confidence=.683, error_func=binomial_error):
     rtimes,prob,errors = [],[],[]
-    for rtime,(unbound,bound) in num_bound.items():
-        total = float(unbound+bound)
+    for rtime,(bound,total) in num_bound.items():
         frac = bound/float(total)
         l,u = error_func(bound, total, confidence=confidence)
         if isnan(l):
@@ -71,8 +79,8 @@ def calc_bound_prob(num_bound, confidence=.683, error_func=binomial_error):
 def transposed(iterable):
     return [[y[n] for y in iterable] for n in range(len(iterable[0]))]
 
-def plot(rtimes, prob, errors):
-    errorbar(rtimes, prob, ecolor='b', fmt='o', yerr=transposed(errors))
+def plot(rtimes, prob, errors, color='b'):
+    errorbar(rtimes, prob, ecolor=color, fmt='o', yerr=transposed(errors))
     gca().set_xscale('log')
     ylim(-.05,1.05)
     xlim(0.1,40)
