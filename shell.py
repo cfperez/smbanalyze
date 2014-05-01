@@ -28,7 +28,7 @@ fec_names = ['fec', 'nm_to_nt', 'Rips']
 __all__ = _modules_ + _names_ + fec_names + _date_ \
     + [ "fig", "pretty_rip_sizes", "pick_pts", "pick_pt", "pick_line",
     "pick_intervals", "Interval", "group_by", "to_date", "transposed",
-    "savefig", "plot_segmented", "reload_all"]
+    "savefig", "plot_segmented", "reload_all", "getitems"]
 
 Interval = namedtuple('Interval', 'start end')
 
@@ -39,6 +39,9 @@ def reload_all():
     reload(fec)
     reload(db)
 
+def getitems(arr, *keys):
+    return map(operator.itemgetter(*keys), arr)
+
 def group_by(iterable, keyfunc):
     return {key: List(p) for key,p in groupby(iterable, keyfunc)}
 
@@ -46,10 +49,10 @@ def savefig(fname=None, **kwargs):
     fname = fname or plt.gca().get_title()
     plt.savefig(fname, transparent=True, **kwargs)
 
-def fig(title_):
+def fig(name, title_=''):
     fig_ = fplot.Figure(title_).new()
     fig_.clear()
-    plt.title(title_)
+    plt.title(title_ or name)
     return fig_
 
 def hspan(start, stop, color=None, alpha=.2):
