@@ -486,16 +486,16 @@ class Pulling(Base):
     if sampling_time and step_size:
       self['trap'].setdefault('pulling_rate', step_size/sampling_time)
     if fret:
+      trap_rate = trap.metadata.get('sampling_time',constants.default_pulling_sampling_time)*1000
       fret_rate = fret.metadata.pop('exposurems',
         constants.default_fret_exposure_time_ms)
-      if (fret_rate / (sampling_time*1000)).is_integer():
-        print 'Trap and FRET collection rates are not even multiples! {} (trap) vs {} (fret)'.format(
-              sampling_time, fret_rate)
+      # if (fret_rate / (sampling_time*1000)).is_integer():
+        # print 'Trap and FRET collection rates may not be even multiples! {} (trap) vs {} (fret)'.format(
+              # sampling_time, fret_rate)
       self.metadata['fret.exposure_time'] = fret_rate/1000.
       self.metadata['fret.exposurems'] = fret_rate
       self.metadata['sampling_ratio'] = int(fret_rate / sampling_time /1000.)
 
-  # TODO Delete this 
   @classmethod
   def parse_filename(self, basename):
     info, the_rest = fileIO.parse_mol_info(basename)
