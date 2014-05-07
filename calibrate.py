@@ -166,12 +166,10 @@ def P_hydro_params(param_dict):
         raise ValueError('Missing required parameters: %s' % list(required-keys))
 
 def P_hydro_fit(height, viscosity, bead_radius, bead_density, filter_3db, f_sample, aliasing=False, filter_order=4):
-    P_func = filtered(P_hydro, filter_3db, filter_order)
-    if aliasing:
-        P_alias = aliased(P_func, f_sample)
-        return lambda f,fc,D: P_alias(f, fc, D, height, viscosity, bead_radius, bead_density)
-    else:
-        return lambda f,fc,D: P_func(f, fc, D, height, viscosity, bead_radius, bead_density)
+    P_filtered = filtered(P_hydro, filter_3db, filter_order)
+    P_func = aliased(P_filtered, f_sample) if aliasing else P_filtered
+    return lambda f,fc,D: P_func(f, fc, D, height, viscosity, bead_radius, bead_density)
+
         
 def P_lorentz(f, fc, D):
     return D/(2*pi**2)/(fc**2 + f**2)
