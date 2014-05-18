@@ -1,215 +1,167 @@
 
 
-__all__ = ['Figure', 'fplot', 'fplotall', 'plot_counts']
+__all__ = ['fec','fecs','fretfec','segmented','stack','stackall','fret']
 
-import os.path as path
-from itertools import cycle,izip
+from itertools import cycle
 import matplotlib.pyplot as plt
 from collections import OrderedDict
+from experiment import to_fret_ext
+from datatypes import hasTrapData, TrapData
 
-from datatypes import TrapData,hasTrapData
-import constants
+## Define some pretty colors
+baby_blue = '#8ac7e6'
+blue = '#17a0e6'
+lightpink = '#f27474'
+pink = '#f29d9d'
+red = '#d92b2b'
+salmon = '#f77254'
+lightsalmon = '#f29f8d'
+lightersalmon = '#fabdaf'
+steel_blue = '#3296d2'
+green = '#0b9e28'
+lightgreen = '#2cde50'
 
-def toFile(filename, figure_id=None, **kwargs):
-  figure = figure_id and Figure(figure_id) or Figure.fromCurrent()
-  figure.toFile(filename, **kwargs)
+COLOR_CYCLE = plt.rcParams['axes.color_cycle']
+COLOR = (color for color in cycle(COLOR_CYCLE))
+next_color_in_cycle = lambda : next(COLOR)
 
-def plot_counts(time, donor, acceptor, fret):
+# def toFile(filename, figure_id=None, **kwargs):
+#   figure = figure_id and Figure(figure_id) or Figure.fromCurrent()
+#   figure.toFile(filename, **kwargs)
+
+def save(fname=None, **kwargs):
+    fname = fname or plt.gca().get_title()
+    plt.savefig(fname, transparent=True, **kwargs)
+
+def stack(p, style=None, **kwargs):
+  trap = p.trap
+  fret = p.fret
+  plot(fret, pull=trap, style=style, **kwargs)
+
+def stackall(pulls, style=None, **options):
+  options.setdefault('legend', None)
+  for p in pulls:
+    # label = labels.pop(0) if len(labels)>0 else ''
+    stack(p, style=style, hold=True, label=p.filename, **options)
+
+def counts_from_fret(fretdata, rows=2):
+  time, donor, acceptor, fret = fretdata
   plt.hold(True)
-  plt.subplot(211)
+  plt.subplot(rows,1,1)
   plt.plot(time, donor, 'b', label='Donor')
   plt.plot(time, acceptor, 'r', label='Acceptor')
   plt.plot(time, acceptor+donor, 'g--', label='Total')
   plt.ylabel("Counts")
   plt.ylim(-100, max(acceptor+donor+100))
-  plt.xlim(xmax=time[-1])
-  # plt.legend(loc='upper left')
-  plt.subplot(212)
+  plt.subplot(rows,1,2)
   plt.ylabel('FRET')
   plt.plot(time, fret, 'k')
   plt.xlabel('Time')
-  plt.xlim(xmax=time[-1])
+  plt.xlim(xmin=time[0],xmax=time[-1])
   plt.ylim(-0.05,1.05)
+  return plt.gcf().get_axes()
 
-class Figure(object):
-  def __init__(self, fig_id=None):
-    self.figure_id = fig_id
-    self._figure = None
-    self.reversed = False
+def fret(p, rows=2):
+  return counts_from_fret(p.fret, rows)
 
-  def __getstate__(self):
-    ''' Return __dict__ for pickling with _figure attribute removed (can't be pickled)
-    '''
-    state = self.__dict__.copy()
-    state['_figure'] = None
-    return state
+def fec(p, style=':', *args, **options):
+  options.setdefault('label', p.filename)
+  out = plt.plot(p.trap.ext, p.trap.f, style, *args, **options)
+  plt.xlabel('Extension (nm)')
+  plt.ylabel('Force (pn)')
+  plt.gca().autoscale_view(tight=True)
+  return out
 
-  @classmethod
-  def fromCurrent(cls):
-    gcf = plt.gcf()
-    current = cls(gcf.number)
-    current._figure = gcf
-    return current
+def fecs(exps, style=':', *args, **options):
+  plt.hold(True)
+  return [fec(p, style, *args, **options) for p in exps]
 
-  def show(self):
-    self.exists or self.new()
-    self.makeCurrent()
-    #plt.figure(self.figure_id)
-    return self.figure
+def fretfec(p, stylefec='-', stylefret='o:', axes=(), fec_opts={}, fret_opts={}):
+  axfret, axforce = axes or (plt.gca(), plt.gca().twinx())
+  fret,ext = to_fret_ext(p)
+  plt.hold(True)
+  fec_opts.setdefault('axes', axforce)
+  fec(p, stylefec, **fec_opts)
+  axfret.plot(ext, fret, stylefret, **fret_opts)
+  plt.xlabel('Extension (nm)')
+  plt.ylabel('FRET efficiency')
+  axforce.autoscale_view(tight=True)
+  return axfret, axforce
 
-  def new(self):
-    self._figure = plt.figure(self.figure_id)
-    self.figure_id = self._figure.get_label() or self._figure.number
-    return self
+def segmented(p, stylefec='-', stylefret='o:', boundaries=[], colors=[], axes=(), exps=[], **options):
+  # axfret,axforce = axes or plt.subplots(2, sharex=True)[1]
+  if axes:
+    axfret,axforce = axes
+  else:
+    axfret = plt.subplot(211)
+    axforce = plt.subplot(212)
+  stylefret=stylefret or stylefec
+  linewidth = options.pop('linewidth', 3)
+  ratio = p['sampling_ratio']
+  trap = p.trap
+  fret, ext = to_fret_ext(p)
+  for x in exps:
+    axforce.plot(x.trap.ext, x.trap.f, 'k:', lw=1.5)
+  for start_n in range(len(fret)):
+    if start_n == 0 or start_n in boundaries or not boundaries:
+      color = colors.pop(0) if colors else next_color_in_cycle()
+    fret_segment = fret[start_n:start_n+2]
+    ext_segment = ext[start_n:start_n+2]
+    axfret.plot(ext_segment, fret_segment, stylefret, color=color, markeredgewidth=0, **options)
+    fecext,fecf = trap[start_n*ratio:(start_n+1)*ratio+1].fec
+    axforce.plot(fecext, fecf, stylefec, color=color, markeredgewidth=0, lw=linewidth, **options)
+  axfret.set_ylim(-0.05,1.05)
+  axfret.autoscale_view(tight=True)
+  axforce.autoscale_view(tight=True)
+  axforce.set_ylabel('Force (pN)')
+  axfret.set_ylabel('FRET efficiency')
+  axfret.set_xlabel('Extension (nm)')
 
-  @property
-  def visible(self):
-    return self.exists and plt.fignum_exists(self._figure.number)
-
-  @property
-  def exists(self):
-    return self._figure is not None
-
-  @property
-  def figure(self):
-    if not self.exists:
-      self.new()
-    return self._figure
-
-  def pickPoints(self, num_of_pts=2):
-  	return self.figure.ginput(num_of_pts)
-
-  def pickRegions(self, num=1):
-    points = sorted(x for x,f in self.pickPoints(num*2))
-    return [(points[i],points[i+1]) for i in range(0,len(points),2)]   
-    
-  def makeCurrent(self):
-    if not self.exists:
-      raise RuntimeError('Figure is not visible')
-    plt.figure(self.figure_id)
-    return self
-
-  def xlim(self, xmin=None, xmax=None, reverse=False):
-    assert not reverse or not (xmin or xmax)
-    if reverse and not self.reversed:
-      xmax, xmin = plt.xlim()
-      self.reversed = True
-    return plt.xlim(xmin, xmax)
-
-  def plot(self, *args, **kwargs):
-    self.show()
-    try:
-      # Treat the first argument as an object that can plot itself...
-      return args[0].plot(*args[1:], **kwargs)
-    except AttributeError,ValueError:
-      # ...unless it can't
-      return plot(*args, **kwargs)
-
-  def plotall(self, *args, **kwargs):
-    self.show()
-    plotall(*args, **kwargs)
-
-  def clear(self):
-    if self.visible:
-      self._figure.clf()
-      self.reverse = False
-      plt.draw()
-    return self
-      
-  def close(self):
-    if self.exists:
-      plt.close(self.figure_id)
-    return self
-
-  def annotate(self, text, location):
-    "Annotate figure with text at location (x,y)"
-    x,y = location
-    return plt.text(x, y, text)
-
-  IMAGE_OUTPUT_FORMATS = ('emf', 'eps', 'pdf', 'png', 'ps',
-      'raw', 'rgba', 'svg', 'svgz') 
-
-  DEFAULT_FILE_DIMENSIONS = (9, 7.5)
-
-  def toFile(self, filename=None, size=None):
-    size = size or Figure.DEFAULT_FILE_DIMENSIONS
-    if filename:
-      ext = path.splitext(filename)[1]
-      if ext[1:] not in Figure.IMAGE_OUTPUT_FORMATS:
-        filename += constants.DEFAULT_FIGURE_EXT
-    else:
-      filename = 'Figure {0}{1}'.format(self.figure.number, constants.DEFAULT_FIGURE_EXT)
-    self._figure.set_size_inches(*size)
-    self._figure.savefig(filename, bbox_inches='tight', pad_inches=0.1)
-
-def fplotall(trap=None, fret=None, style=None, **options):
-  if fret is None:
-    fret = [None]*len(trap)
-  elif trap is None:
-    trap = [None]*len(fret)
-  if hasattr(trap, 'get'):
-    trap = trap.get('trap')
-  if hasattr(fret, 'get'):
-    fret = fret.get('fret')
-  for t,f in izip(trap,fret):
-    fplot(t, f, hold=True, style=style, **options)
-
-def plotall(fret, pull=None,  **kwargs):
-  assert isinstance(fret, (list, tuple, type(None)))
-  if pull is not None and len(fret) != len(pull):
-    raise ValueError('Number of pull ({}) must match number of FRET objects')
-  elif pull is None:
-    pull = [None]*len(fret)
-
-  labels = kwargs.pop('labels', [])
-  for obj in fret:
-    label = labels.pop(0) if len(labels)>0 else ''
-    plot(obj, pull=pull.pop(0), label=label, **kwargs)
 
 def _has_color(style_string):
   return style_string and len(style_string) > 0 and style_string[0].isalnum()
 
-class PlotStyle(dict):
+class Style(dict):
   """Dictionary-like class for setting styles on fplots
 
-PlotStyle constructor will only allow setting styles on things that
-fplot.plot() is going to plot: check PlotStyle.ITEMS
+  Style constructor will only allow setting styles on things that
+  fplot.plot() is going to plot: check Style.ITEMS
 
-    style = PlotStyle(donor='r--', fret='.')
-    fplot.plot(fret_data_object, style=style)
+      style = Style(donor='r--', fret='.')
+      fplot.plot(fret_data_object, style=style)
 
-    # donor is dots with default color scheme
-    plot( ... , ... , style=PlotStyle(donor='.') )
-    
-    # donor is blue line, acceptor is red line, rest is black
-    plot( ... , ... , style=PlotStyle(color='k', donor='b-', acceptor='r-') )
-    
-    # all plots are lines
-    plot( ... , ... , style='-' )
-    
-    # all plots are green
-    plot( ... , ... , style=PlotStyle(color='g') )
-    
-    # color cycles for every line drawn (like matplotlib default)
-    plot( ... , ... , style=PlotStyle(color='auto') )
-"""
-
+      # donor is dots with default color scheme
+      plot( ... , ... , style=Style(donor='.') )
+      
+      # donor is blue line, acceptor is red line, rest is black
+      plot( ... , ... , style=Style(color='k', donor='b-', acceptor='r-') )
+      
+      # all plots are lines
+      plot( ... , ... , style='-' )
+      
+      # all plots are green
+      plot( ... , ... , style=Style(color='g') )
+      
+      # color cycles for every line drawn (like matplotlib default)
+      plot( ... , ... , style=Style(color='auto') )
+  """
   ITEMS = ('donor', 'acceptor', 'fret', 'trap')
-  STYLES = (':','-','-','.')
+  STYLES = (':','-','-',':')
 
   TRAP_STYLE_NAME = 'trap'
 
-  def __init__(self, color=None, **styles):
+  def __init__(self, **styles):
+    color = styles.pop('color', None)
     if color is None:
       color = next_color_in_cycle()
     elif color == 'auto':
       color = '' # lets matplotlib decide
-    default_style = [color+linestyle for linestyle in PlotStyle.STYLES]
+    default_style = [color+linestyle for linestyle in Style.STYLES]
     for item,style in styles.items():
       if style and not _has_color(style):
         styles[item] = color + style
-    super(PlotStyle, self).__init__(
-      zip(PlotStyle.ITEMS, default_style),
+    super(Style, self).__init__(
+      zip(Style.ITEMS, default_style),
       **styles)
 
   @classmethod
@@ -218,18 +170,10 @@ fplot.plot() is going to plot: check PlotStyle.ITEMS
     return cls(**style_dict)
     
   def __setitem__(self, key, value):
-    if key not in PlotStyle.ITEMS:
+    if key not in Style.ITEMS:
       raise ValueError('Item "{}" is not plotted and has no style')
-    super(PlotStyle, self).__setitem__(key, value)
+    super(Style, self).__setitem__(key, value)
 
-COLOR_CYCLE = plt.rcParams['axes.color_cycle']
-COLOR = (color for color in cycle(COLOR_CYCLE))
-next_color_in_cycle = lambda : next(COLOR)
-
-def fplot(trap=None, fret=None, style=None, **kwargs):
-  if not fret and not trap:
-    raise ValueError()
-  plot(fret, pull=trap, style=style, **kwargs)
 
 def plot(data, pull=None, style=None, **kwargs):
   """Plot FretData and/or TrapData as stacked subplots of counts, FRET, and FEC/FDC
@@ -238,9 +182,11 @@ def plot(data, pull=None, style=None, **kwargs):
   @style: dict or str
   """
   if isinstance(style, str):
-    style = PlotStyle.with_default_style(style)
-  elif style is None:
-    style = PlotStyle()
+    style = Style.with_default_style(style)
+  elif isinstance(style, dict):
+    style = Style(**style)
+  else:
+    style = Style()
   loc = kwargs.pop('legend', 'best')
   title = kwargs.pop('title','')
   label = kwargs.pop('label', '')
@@ -255,8 +201,6 @@ def plot(data, pull=None, style=None, **kwargs):
     pull = TrapData.fromObject(data)
 
   num = 0
-  # if displayFRET and hasattr(data, 'donor'): num += 1
-  # if displayFRET and hasFretData(data): num += 1
   if displayFRET:
     num += 2
   if pull:
@@ -280,18 +224,18 @@ def plot(data, pull=None, style=None, **kwargs):
     not hold and plt.cla()
     plt.hold(True)
     ax1 = subplot(data.time, data.donor, style[donor], label=donor, **kwargs)
-    subplot(data.time, data.acceptor, style[acceptor], label=acceptor, axes=('','counts'), **kwargs)
+    subplot(data.time, data.acceptor, style[acceptor], label=acceptor, axes=('Time (s)','Counts'), **kwargs)
     plt.hold(hold)
     if loc is not None:
       plt.legend(loc=loc,ncol=2,prop={'size':'small'})
   if displayFRET:
     subplot(data.time, data.fret, style['fret'], layout=next(layout), 
-              axes=('Seconds','FRET'))
+              axes=('Time (s)','FRET'), **kwargs)
     plt.ylim(-0.1, 1.1)
 
   ax2 = None
   if pull:
-    trap_style = PlotStyle.TRAP_STYLE_NAME
+    trap_style = Style.TRAP_STYLE_NAME
     x_coord,x_label = (pull.ext,'Extension (nm)') if FEC else (pull.sep,'Separation (nm)')
     ax2 = subplot(x_coord, pull.f, style[trap_style], layout=next(layout), axes=(x_label,'Force (pN)'), label=label, **kwargs)
     if loc is not None:
@@ -381,9 +325,9 @@ def subplot(*args, **kwargs):
       raise ValueError('subplot expects labels for BOTH axes')
   return ax
 
-def hist(data, bins=50, plot='fret', hold=False, **kwargs):
+def hist(data, bins=50, hold=False, **kwargs):
   plt.hold(hold)
-  counts,bins,patches = plt.hist( getattr(data, plot), bins )
+  counts,bins,patches = plt.hist(data, bins=bins, **kwargs)
   delta = bins[1]-bins[0]
   bins = (bins-delta/2)[1:]
   return bins,counts

@@ -2,14 +2,21 @@
 '''
 
 import numpy as np
-from numpy import NAN
+from scipy import integrate
+from matplotlib.mlab import find
+from numpy import NAN, linspace
 from collections import Iterable
 from smbanalyze.curvefit import Fit,FitRegions
 from useful import broadcast
 from constants import kT, parameters
-from experiment import List
+from experiment import ExpList
 
 RIP_NAME_PREFIX = 'Lc'
+DEFAULT_NA_TYPE = 'RNA'
+RISE_PER_BASE = {'RNA': 0.59, 'ssDNA': 0.58, 'DNA': 0.34}
+HELIX_SIZE = {'RNA': 2.2, 'ssDNA': 2.0, 'DNA': 2.0}
+PERSISTENCE_LENGTH = dict(RNA=1.0, ssDNA=1.2, DNA=30)
+STRETCH_MODULUS = dict(RNA=1600, ssDNA=1600, DNA=1200)
 
 def _isabove_old(trap, point):
   X,F = point
@@ -33,14 +40,14 @@ def isabove(trap, point):
   return True
 
 def split(exps, *points):
-    '''Return tuple of Lists (below,above) split at point'''
-    high, low = List(), List()
+    '''Return tuple of Lists (above,below) split at point'''
+    high, low = ExpList(), ExpList()
     for p in exps:
       if any(map(lambda pt: isabove(p.trap, pt), points)):
         high.append(p)
       else:
         low.append(p)
-    return low,high
+    return high,low
 
 def findrips(trap, min_rip_ext):
     handle_data = trap.select(x=(None,min_rip_ext))
@@ -51,15 +58,25 @@ def findrips(trap, min_rip_ext):
     
     # where the derivative first exceeds the minimum derivative found in
     # the handle region, call that the rip
-    rip_location = np.find(np.diff(trap.f) < min(handle_deriv))
+    rip_location = find(np.diff(trap.f) < min(handle_deriv))
     if len(rip_location)==0:
         return np.asarray([NAN,NAN,NAN])
     rip_location = rip_location[0]
     return trap[rip_location]
 
-# TODO: Currently redundant with TrapData.make_masks, which to use??
-def make_masks(trap, intervals):
-  return map(trap.mask_from_interval, intervals)
+def calc_work(force, ext):
+    return integrate.trapz(force, ext)
+
+def wlc_work(fit, force=None):
+    if force is None:
+        force = linspace(0.1, max(fit.x), 250)
+    return calc_work(force, MMS_rip(force, **fit.parameters))
+
+## Currently broken: only works when data and fit are coincident at the endpoints
+# def work(trap, fit, ext_range, maxf=None):
+    # selected = trap.select(ext=ext_range, f=maxf)
+    # f_wlc = linspace(selected[0].f, min(maxf,max(selected.f)), 250)
+    # return calc_work(selected.f, selected.ext) - wlc_work(fit, selected.f)
 
 def rip_sizes(fit):
   assert isinstance(fit, Fit)
@@ -76,11 +93,6 @@ def rip_errors(fit):
     if p.startswith(RIP_NAME_PREFIX) and p!=RIP_NAME_PREFIX]
   return lc_err[:1] + [np.sqrt(lc_err[n]**2+lc_err[n+1]**2)
     for n in range(len(lc_err)-1)]
-
-DEFAULT_NA_TYPE = 'RNA'
-RISE_PER_BASE = {'RNA': 0.59, 'DNA': 0.58}
-HELIX_SIZE = {'RNA': 2.2, 'DNA': 2.0}
-PERSISTENCE_LENGTH = dict(RNA=1.0, DNA=1.2)
 
 def nm_to_nt(nm, stems_lost=1, helix_size=None, na_type='RNA'):
     '''Return basepairs from contour length change in nm assuming RNA
@@ -108,6 +120,19 @@ class Rips(object):
   @classmethod
   def from_fit(cls, fit, stems_lost, na_type):
     return cls(rip_sizes(fit), stems_lost, na_type, rip_errors(fit))
+
+  @classmethod
+  def single(cls, rip, na_type, error=None):
+    error = [] if error is None else [error]
+    return cls([rip], [1], na_type, error)
+
+  @classmethod
+  def rna(cls, rips, stems_lost, error=[]):
+    return cls(rips, stems_lost, 'RNA', error)
+
+  @classmethod
+  def ssdna(cls, rips, stems_lost, error=[]):
+    return cls(rips, stems_lost, 'ssDNA', error)
 
   @property
   def size_nm(self):
@@ -156,6 +181,9 @@ class Rips(object):
 
 def analyze_rips(trap, intervals, stems_lost, 
   handle_above=None, na_type=None, **fitOptions):
+  '''Return Rip, Fit objects to trap data over given intervals, using
+  stems_lost to convert nm to nucleotides
+  '''
   assert isinstance(stems_lost, (list, tuple))
   assert isinstance(intervals, (list, tuple))
   if len(stems_lost) != len(intervals)-1:
@@ -174,14 +202,6 @@ def analyze_rips(trap, intervals, stems_lost,
   fit.plot()
   return Rips.from_fit(fit, stems_lost, na_type), fit
 
-def analyze(exp, intervals, stems_lost,
-  handle_above=None, na_type=None, **fitOptions):
-  rips,fit = analyze_rips(exp.trap, intervals,
-       stems_lost, handle_above, na_type, **fitOptions)
-  exp.rips = rips
-  exp.fit = fit
-  return rips
-
 def fit_rips(trap, masks, **fitOptions):
   return fit_masks(trap.ext, trap.f, masks, **fitOptions)
 
@@ -197,6 +217,9 @@ def fit_masks(x, f, masks, **fitOptions):
   assert map(lambda m: isinstance(m, np.ndarray), masks)
   assert map(lambda m: m.dtype is np.dtype('bool'), masks)
 
+  for n,m in enumerate(masks):
+    if not any(m):
+      raise ValueError('Mask at index %d is empty' % n)
   fitOptions.setdefault('Lc', max(x[masks[-1]]))
   fitOptions.setdefault('fixed', tuple())
   fitOptions['fixed'] += ('K', 'K1', 'Lp1')
@@ -218,6 +241,14 @@ def fit_wlc(trap, mask=None, fitfunc='MMS', **fitOptions):
   return fit
 
 @broadcast
+def MS(x,Lp,Lc,F0):
+  "Marko-Siggia model of worm-like chain"
+  x_ = x/float(Lc)
+  A = kT(parameters['T'])/Lp
+  return A * (0.25/(1-x_)**2 - 0.25 +x_) - F0
+MS.default = {'Lp':20.,'Lc':1150.,'F0':0.1}
+
+@broadcast
 def MMS(F, Lp, Lc, F0, K):
   "Modified Marko-Siggia model as a function of force"
   f = float(F-F0)* Lp / kT(parameters['T'])
@@ -235,6 +266,23 @@ def moroz_nelson(F, Lp, Lc, F0, K):
 moroz_nelson.default = {'Lp':30., 'Lc':1150., 'F0':0.1, 'K': 1200.}
 moroz_nelson.inverted = True
 moroz_nelson.fixed = 'K'
+
+def inverted(f, isinvert=True):
+  'Sets decorated function "inverted" attribute to True (default) or False'
+  f.inverted=isinvert
+  return f
+
+@inverted
+def fjc(F, b, Lc, F0=0., K=800.):
+  '''Returns calculated extension scalar/ndarray of freely jointed chain
+  b = Kuhn length (0.75 - 1.5 nm in ssDNA [Smith 1996, Woodside 2006])
+  Lc = contour length (~0.59 per nts)
+  F0 = force offset
+  K = stretch modulus (800 pN for ssDNA [Smith 1996])
+  '''
+  T = parameters['T']
+  F_ = kT(T)/((F-F0)*b)
+  return Lc*( np.tanh(1/F_)**(-1) - F_)*(1+F/K)
 
 def MMS_rip(F, Lp, Lc, F0, K, Lp1, Lc1, K1):
   return MMS(F, Lp, Lc, F0, K) + MMS(F, Lp1, Lc1, F0, K1)

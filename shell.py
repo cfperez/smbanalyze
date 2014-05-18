@@ -2,19 +2,20 @@ from matplotlib.cbook import flatten
 import matplotlib.pyplot as plt
 from numpy import linspace, append, diff
 from collections import namedtuple
+from itertools import groupby
 import fplot, experiment, curvefit, fec, fcalc, db, fileIO, refolding
 import os
 import datetime
 
 _modules_ = ["fplot", "fileIO", "experiment", "curvefit", "refolding",
          "fec", "fcalc", "db", "os"]
-# from importlib import import_module
-# _imported_ = map(import_module, _modules_)
+ # from importlib import import_module
+ # _imported_ = map(import_module, _modules_)
 
 # for modname in _modules_:
     # mod = import_module(modname)
     # _all_ = mod.__all__
-from fplot import Figure
+from figure import Figure
 from experiment import *
 from fec import nm_to_nt, Rips
 from date import today, date, to_date
@@ -28,9 +29,11 @@ fec_names = ['fec', 'nm_to_nt', 'Rips']
 __all__ = _modules_ + _names_ + fec_names + _date_ \
     + [ "fig", "pretty_rip_sizes", "pick_pts", "pick_pt", "pick_line",
     "pick_intervals", "Interval", "group_by", "to_date", "transposed",
-    "savefig", "plot_segmented", "reload_all", "getitems"]
+    "savefig", "plot_segmented", "reload_all", "getitems", "flatten_"]
 
 Interval = namedtuple('Interval', 'start end')
+
+fplot.all = fplot.stackall
 
 def reload_all():
     reload(fplot)
@@ -42,17 +45,20 @@ def reload_all():
 def getitems(arr, *keys):
     return map(operator.itemgetter(*keys), arr)
 
-def group_by(iterable, keyfunc):
-    return {key: List(p) for key,p in groupby(iterable, keyfunc)}
-
 def savefig(fname=None, **kwargs):
-    fname = fname or plt.gca().get_title()
-    plt.savefig(fname, transparent=True, **kwargs)
+    fplot.save(fname, **kwargs)
 
-def fig(name, title_=''):
-    fig_ = fplot.Figure(title_).new()
+def fig(name, title=''):
+    '''Create and return new Figure window with internal @name
+    If @title is True, automatically set to @name (default no title)
+    Set window title to @title if string.
+    '''
+    fig_ = Figure(name).new()
     fig_.clear()
-    plt.title(title_ or name)
+    if title is True:
+        title = name
+    if title:
+        plt.title(title)
     return fig_
 
 def hspan(start, stop, color=None, alpha=.2):

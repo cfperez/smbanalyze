@@ -17,6 +17,7 @@ CAMERA_FILE = '.cam'
 FRET_FILE = '.fret'
 PULL_FILE = '.str'
 OFC_FILE = '.dat'
+DEFAULT_FIGURE_EXT = '.eps'
 
 REGISTERED_EXT = (IMAGE_FILE,CAMERA_FILE,FRET_FILE,PULL_FILE)
 
@@ -309,29 +310,13 @@ def fromSettings(settings):
     output += SETTING_FMT % (key,setting)
   return ''.join(output)
       
-  # for header,subHead in sort_by_type(settings.items(), dict, itemgetter(1)):
-  #   if isinstance(subHead, dict):
-  #     output += HEADING_FMT % header
-  #     for setting,value in subHead.iteritems():
-  #       if setting.startswith('date'):
-  #         value = repr(date_tuple(value))
-  #       if isinstance(value, str):
-  #         value = repr(value)
-  #       output += SETTING_FMT % (setting,value)
-  #   else:
-  #     # UPDATE ME!
-  #     if header.startswith('datetime'):
-  #       continue
-  #     output += SETTING_FMT % (header, subHead)
-  # return ''.join(output)
-
 ##################################################
 ## Filename Parsing
 ##################################################
 def splitext(fname):
   if not fname:
     return None, None
-  fname = os.path.basename(fname)
+  # fname = os.path.basename(fname)
   basename,ext=os.path.splitext(fname)
   if ext not in REGISTERED_EXT:
     basename,ext=fname,''
@@ -348,7 +333,11 @@ def split_fname(fname):
       split_[n] = int(s)
   return tuple(split_)
 
-change_extension = lambda x,y: os.path.splitext(x)[0]+y
+def change_extension(filename, ext):
+  if not ext.startswith('.'):
+    ext = '.'+ext
+  return os.path.splitext(filename)[0]+ext
+
 add_img_ext = lambda x: x+IMAGE_FILE if not x.endswith(IMAGE_FILE) else x
 add_cam_ext = lambda x: x+CAMERA_FILE if not x.endswith(CAMERA_FILE) else x
 add_fret_ext = lambda x: x+FRET_FILE if not x.endswith(FRET_FILE) else x

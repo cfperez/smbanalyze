@@ -1,5 +1,6 @@
 import logging
 from numpy import all, asarray, sign, vstack, ndarray, arange
+from operator import and_
 from operator import isSequenceType, attrgetter
 from collections import Iterable
 from fileIO import load, toSettings, fileIOError
@@ -97,7 +98,10 @@ class AbstractData(object):
         return len(self.data)
 
     def __eq__(self, other):
-        return all(self.data == other.data) and self.metadata == other.metadata
+        if hasattr(other, 'data'):
+            return all(self.data == other.data) and self.metadata == other.metadata
+        else:
+            return self.data == other
 
     def __ne__(self, other):
         return not self == other
@@ -109,6 +113,11 @@ class AbstractData(object):
         # if self.meta != other.meta:
             # logger.warning('M')
         return type(self)(vstack((self.data, other.data)))
+
+    def where(self, *conditions):
+        '''Returns data where ALL conditions are true
+        '''
+        return self[reduce(and_, conditions)]
 
     def at(self, **kwargs):
         if len(kwargs) > 1:
@@ -247,7 +256,7 @@ class TrapData(AbstractData):
             raise ValueError('Stiffness must be 2-tuple')
         current_k = self.metadata.get('stiffness', stiffness)
         new_k = stiffness or current_k
-        self.metadata['stiffness'] = new_k
+        self.metadata['stiffness'] = tuple(new_k)
         beadRadii = self.metadata.get('bead_radii', constants.sumOfBeadRadii)
 
         displacement = self.f / min(current_k)

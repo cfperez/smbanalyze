@@ -1,16 +1,16 @@
 from __future__ import with_statement
-from operator import methodcaller,itemgetter
+from operator import methodcaller,itemgetter,add as opadd
 import os.path
+from itertools import cycle, dropwhile
 import copy
-import operator
 
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
 
 import fileIO
-from fplot import Figure
+from figure import Figure
 import useful
-import constants
 
 ################################################################################
 ## EXCEPTIONS
@@ -56,12 +56,10 @@ def fromFile(filename, **kwargs):
     bg = Stack(bg)
     bg.toBackground()
     if bg.metadata['exposurems'] != img.metadata['exposurems']:
-      raise StackError(
-        '''Trying to subtract background with exposure time {} 
+      print '''WARNING Trying to subtract background with exposure time {} 
         from image with exposure time {}'''.format(
           bg.metadata['exposurems'],
           img.metadata['exposurems'])
-        )
   img -= bg
 
   if roi is not None:
@@ -162,7 +160,7 @@ Convert between 'absolute' and 'relative' coordinates:
     return tuple(temp)
 
   @classmethod
-  def copy(cls, roi, name='', origin=''):
+  def copy(cls, roi, name='', origin=None):
     try:
       name = name or roi.name
       origin = origin or roi.origin or 'relative'
@@ -194,11 +192,15 @@ Convert between 'absolute' and 'relative' coordinates:
     self.clear()
 
     self.lines = [
-      plt.axvline(self.left,color=color),
-      plt.axvline(self.right,color=color),
-      plt.axhline(self.bottom,color=color),
-      plt.axhline(self.top,color=color)
-      ]
+      # plt.axvline(self.left,color=color),
+      # plt.axvline(self.right,color=color),
+      # plt.axhline(self.bottom,color=color),
+      # plt.axhline(self.top,color=color)
+      plt.gca().add_patch( 
+        Rectangle( (self.left,self.bottom), self.width, self.height, 
+          fill=False, lw=1, color=color)
+      )
+    ]
 
   def clear(self):
     if self.lines:
@@ -221,11 +223,16 @@ Convert between 'absolute' and 'relative' coordinates:
       **{self.name: self.toDict()} )
 
   def _convert(self, origin):
-    corners = map(operator.add,
+    corners = map(opadd,
       (self.left,self.bottom,self.right,self.top), origin*2)
     return corners[0], corners[2], corners[1], corners[3]
     
   def toAbsolute(self, origin_coord):
+    # if self.origin:
+    #   corners = self._convert(self.origin)
+    #   return ROI.fromCorners(*corners, name=self.name, origin=None)
+    # else:
+    #   return self
     if self.origin != 'absolute':
       corners = self._convert(origin_coord)
       return ROI.fromCorners(*corners, name=self.name, origin='absolute')
@@ -260,8 +267,16 @@ Convert between 'absolute' and 'relative' coordinates:
   def size(self):
     return self.height*self.width
 
+  @property
+  def edges(self):
+    return self.left, self.right, self.bottom, self.top
+
+  @property
+  def corners(self):
+    return ((x,y) for x in (self.left,self.right) for y in (self.bottom,self.top))
+
   def __repr__(self):
-    if None in (self.left, self.right, self.bottom, self.top):
+    if None in self.edges:
         name = self.name or 'Undefined'
         return "<ROI '%s' = uninitialized>" % self.name
     else:
@@ -337,6 +352,8 @@ class Stack:
 
     else:
         raise StackError, "Invalid constructor call using %s" % str(filename)
+    self._frame_iter = cycle(range(self.frames))
+
 
   @property
   def frames(self):
@@ -371,6 +388,9 @@ class Stack:
 
     return self.counts(self._roi[self._acceptorROIName])
     
+  @property
+  def roi(self):
+    return self._roi
 
   @classmethod
   def setDefaultROI(cls, *args):
@@ -398,11 +418,11 @@ class Stack:
         # recast to relative origin
         roi = roi.toRelative(self.origin)
 
-        if roi.right >= self.width:
+        if roi.right > self.width:
           raise StackError(
             "ROI 'right' {0} is outside right edge of image {1}: \n {2}".format(roi.right,self.width,roi)
           )
-        if roi.top >= self.height:
+        if roi.top > self.height:
           raise StackError, "ROI 'top' is outside top edge of image: {0}\n {1}".format(roi.top,roi)
 
         self._roi[key] = roi
@@ -415,10 +435,19 @@ class Stack:
     for roi in args:
       self._roi[roi].draw()
 
-  def show(self, frame=0, **kwargs):
+  def show(self, frame=None, **kwargs):
+    if not isinstance(frame, int) and frame is not None:
+      raise ValueError('First argument frame must be an integer')
+    self._figure = kwargs.pop('figure', self._figure)
+    if frame is None:
+      frame = next(self._frame_iter)
+    else:
+      self._frame_iter = dropwhile(lambda n: n<=frame, cycle(range(self.frames)))
     self._figure.show()
     self._figure.makeCurrent()
-    return self[frame].show(**kwargs)
+    plt.title('Frame %d' % frame)
+    self[frame].show(**kwargs)
+    return frame
  
   def setDonorROI(self, roi_name):
     if not self._roi.has_key(roi_name):
@@ -434,15 +463,14 @@ class Stack:
     self._acceptorROIName = roi_name
     return self
     
-  def counts(self, roi=None, bg_pixel=0):
+  def counts(self, roi=None):
     if roi:
       if self._roi.has_key(str(roi)):
         roi = self._roi[roi]
       roi = roi.toRelative(self.origin)
       return self[:,roi.bottom:roi.top,roi.left:roi.right].counts()
     else:
-      bg_ = bg_pixel or self.bg_pixel
-      return np.sum( np.sum(self._img-bg_,axis=1), axis=1 )
+      return np.sum( np.sum(self._img,axis=1), axis=1 )
 
   def attime(self,time):
       if isinstance(time,slice):

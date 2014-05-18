@@ -60,8 +60,8 @@ def count_blinking(exp, acc_threshold, donor_threshold):
 
 Lifetime = namedtuple('Lifetime', 'on off')
 
-def single(threshold):
-    return StateFinder(threshold)
+def single(threshold, filter_=None):
+    return StateFinder(threshold, filter_)
 
 class StateFinder(object):
 
@@ -83,9 +83,11 @@ class StateFinder(object):
     sf( any_1D_array )
     """
 
-    def __init__(self, threshold):
+    def __init__(self, threshold, filter_=None):
+        if filter_ is not None or isCallable(filter_):
+            raise ValueError('"filter_" arg must be callable')
         self.threshold = threshold
-        self.filter = None
+        self.filter = filter_
 
     @classmethod
     def fromThreshold(cls, threshold=None, **thresholds):
@@ -116,9 +118,8 @@ class StateFinder(object):
         self.states = find_states(data, self.threshold)
         return self.states
 
-    def lifetimes(self, state_array=None):
-        if state_array is None:
-            state_array = self.states
+    def lifetimes(self, input_data): # state_array=None):
+        state_array = self.findStates(input_data)
         on = state_lifetime(state_array, ON_STATE)
         off = state_lifetime(state_array, OFF_STATE)
         return Lifetime(on, off)
@@ -129,11 +130,20 @@ class StateFinder(object):
 
 class StateFinderMultipleThreshold(StateFinder):
 
-    def __init__(self, **thresholds):
-        self.threshold = thresholds
+    def __init__(self, *thresholds):
+        self.thresholds = thresholds
+        self.filter = None
 
-    def findStates(self, data):
-        self.states = dotdict()
+    @classmethod
+    def with_filter(cls, filter_, *thresholds):
+        filtered = cls(*thresholds)
+        filtered.filter = filter_
+        return filtered
+
+    def findStates(self, input_data, thresholds=[]):
+        thresholds = thresholds or self.thresholds
+        return tuple(find_states(input_data, threshold) for threshold in thresholds)
+
         for attr in self.threshold:
             self.states[attr] = find_states(
                 getattr(data, attr), self.threshold[attr])
@@ -158,14 +168,21 @@ class StateFinderMultipleThreshold(StateFinder):
 
 class StateFinderFretData(StateFinderMultipleThreshold):
 
+    def __init__(self, **thresholds): #donor=[], acceptor=[], fret=[]):
+        self.thresholds = {attr:val if iterable(val) else [val] for attr,val in thresholds.items()} #dict(donor=donor, acceptor=acceptor, fret=fret)
+
     def findStates(self, fret_data):
         self._meta_data = fret_data.metadata
         self._frame_time = fret_data.metadata['exposurems'] / 1000.
+        return {attr: super(StateFinderFretData, self).findStates(getattr(fret_data,attr), thresholds) 
+            for attr,thresholds in self.thresholds.items()}
         return super(StateFinderFretData, self).findStates(fret_data)
 
-    def lifetimes(self, state_dict=None, attr=None):
-        assert isinstance(state_dict, (dict, type(None)))
-        t = self._frame_time
+    def lifetimes(self, fret_data): #state_dict=None, attr=None):
+        # assert isinstance(state_dict, (dict, type(None)))
+        # t = self._frame_time
+        states = self.findStates(fret_data)
+        # lifetimes = super(StateFinder, self).lifetimes() for state_array in 
         lifetime = super(StateFinderFretData, self).lifetimes(state_dict, attr)
         for key, val in lifetime.iteritems():
             lifetime[key] = Lifetime(*(v * t for v in val))

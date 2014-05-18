@@ -1,44 +1,19 @@
 import inspect
-
-from numpy import roots, real
 import numpy as np 
-from functools import wraps
 
 try:
   from scipy.optimize import curve_fit
 except ImportError:
   from curve_fit import curve_fit
 
-import progressbar as pbar #import AutoProgressBar, progress_on_call
-
-from constants import parameters,kT
+import progressbar as pbar
 from fplot import subplot
-from useful import fix_args, broadcast
+from useful import fix_args
 from collections import OrderedDict, Iterable
 from operator import or_
 
 class FitError(Exception):
   pass
-
-def fitWLC_masks(x, y, masks, **fitOptions):
-  '''
-  Return Fit using MMS_rip_region fit function on data in x and y.
-  masks: list of boolean arrays which indicate:
-    1) the handle (1st element)
-    2) the rips (following elements)
-  '''
-  assert isinstance(x, Iterable)
-  assert isinstance(y, Iterable)
-  assert map(lambda m: isinstance(m, np.ndarray), masks)
-  assert map(lambda m: m.dtype is np.dtype('bool'), masks)
-
-  fitOptions.setdefault('Lc', max(x[masks[-1]]))
-  fitOptions.setdefault('fixed', tuple())
-  fitOptions['fixed'] += ('K', 'K1', 'Lp1')
-  fit = FitRegions(x, y, fitfunc=MMS_rip_region_maker,
-    regions=masks,
-    **fitOptions)
-  return fit
 
 def fitWLCrip(x_handle, f_handle, x_upper, f_upper, mask=None, **fitOptions):
   fitOptions.setdefault('Lc', max(x_upper))
@@ -61,21 +36,6 @@ def combine_masks_with_or(masks):
     return masks[0]
   return np.array(reduce(or_, masks))
 
-def fitWLC(x, f, mask=None, **fitOptions):
-  "Fit stretching data to WLC model"
-  assert len(x) > 0
-  assert len(x) == len(f)
-  assert mask is None or len(mask) == len(x)
-  fitOptions.setdefault('fitfunc', 'MMS')
-  fitOptions.setdefault('Lc', max(x)*1.05)
-  try:
-    if fitOptions['fitfunc'].startswith('MMS'):
-      fitOptions.setdefault('fixed', 'K')
-  except AttributeError: pass
-
-  fit = Fit(x, f, mask=mask, **fitOptions)
-  return fit
-
 ############################################################
 ## Fitting Functions
 ############################################################
@@ -85,43 +45,6 @@ gauss.default = {'mu': 1500, 'sigma':500, 'A': 500}
 
 def doublegauss(x,mu,sigma,A,mu2,sigma2,A2):
   return gauss(x,mu,sigma,A)+gauss(x,mu2,sigma2,A2)
-
-@broadcast
-def MS(x,Lp,Lc,F0):
-  "Marko-Siggia model of worm-like chain"
-  x_ = x/float(Lc)
-  A = kT(parameters['T'])/Lp
-  return A * (0.25/(1-x_)**2 - 0.25 +x_) - F0
-MS.default = {'Lp':20.,'Lc':1150.,'F0':0.1}
-
-# def MMS(F, Lp, Lc, F0, K):
-#     "Modified Marko-Siggia model as a function of force"
-#     F = np.array(F, ndmin=1)
-#     f = (F-float(F0)) * Lp / 4
-#     inv_roots = np.array(map(lambda f_: roots([1, f_-.75, 0, -.25]), f))
-#     good_roots = np.max(real(inv_roots[:,::2]), axis=1)
-#     return Lc * (1 - good_roots + (F-F0)/float(K))
-
-@broadcast
-def MMS(F, Lp, Lc, F0, K):
-  "Modified Marko-Siggia model as a function of force"
-  f = float(F-F0)* Lp / kT(parameters['T'])
-  inverted_roots = roots([1.0, f-0.75, 0.0, -0.25])
-  root_index = int(f>=0.75)*2
-  root_of_inverted_MS = real(inverted_roots[root_index])
-  return Lc * (1 - root_of_inverted_MS + (F-F0)/float(K))
-MMS.default = {'Lp':30., 'Lc':1150., 'F0':0.1, 'K': 1200.}
-MMS.inverted = True
-
-def MMS_rip(F, Lp, Lc, F0, K, Lp1, Lc1, K1):
-  return MMS(F, Lp, Lc, F0, K) + MMS(F, Lp1, Lc1, F0, K1)
-MMS_rip.default = dict(MMS.default, Lp1=1.0, Lc1=0., K1=1600.)
-MMS_rip.inverted = True
-
-def MMS_rip2(F, Lp, Lc, F0, K, Lp1, Lc1, K1, helix):
-  return MMS_rip(F, Lp, Lc-helix, F0, K, Lp1, Lc1, K1)
-MMS_rip2.default = dict(MMS_rip.default, helix=2)
-MMS_rip.inverted = True
 
 def _is_between(val, range_):
   assert len(range_) == 2
@@ -149,42 +72,6 @@ def MMS_rip_maker(handle_limits, upper_limits, split_point=None):
   MMS_rip_global.inverted = True
 
   return MMS_rip_global
-
-def MMS_rip_region_maker(masks):
-  '''Creates a fitting function for an arbitrary number of fit regions from masks
-  that allows simultaneous fitting of each as MMS rips.
-  '''
-  assert isinstance(masks, (tuple,list))
-  assert len(masks) > 1
-  assert map(lambda e: isinstance(e, np.ndarray), masks)
-  assert map(lambda e: e.dtype == np.dtype('bool'), masks)
-
-  handle = masks.pop(0)
-
-  def MMS_rip_region(F, Lp, Lc, F0, K, Lp1, Lc1, K1, **rips):
-    rips['Lc1'] = Lc1
-    handle_force = F[handle]
-    rip_forces = [F[mask] for mask in masks]
-    rip_sizes = map(lambda r: rips[r], sorted(rips))
-    rip_items = zip(rip_forces, rip_sizes)
-
-    handle_ext = MMS(handle_force, Lp, Lc, F0, K)
-    rip_ext = [MMS_rip(force, Lp, Lc, F0, K, Lp1, Lc_rip, K1)
-                for force,Lc_rip in rip_items]
-
-    if len(rip_ext) > 1:
-      rip_ext = np.concatenate(rip_ext)
-    return np.append(handle_ext, rip_ext)
-  
-  addl_rips = ['Lc{}'.format(n) for n in range(2,1+len(masks))]
-  MMS_rip_region.default = MMS_rip.default.copy()
-  MMS_rip_region.default.update([(rip,10) for rip in addl_rips])
-  MMS_rip_region.arglist = ['F', 'Lp', 'Lc', 'F0', 'K', 'Lp1', 'Lc1', 'K1'] + addl_rips
-  MMS_rip_region.inverted = True
-  lowest = ['Lp', 'Lc', 'F0', 'K']
-  MMS_rip_region.args_by_region = [lowest] + [lowest+['Lp1', Lc, 'K1'] for Lc in ['Lc1']+addl_rips]
-
-  return MMS_rip_region
 
 
 class Fit(object):
@@ -285,6 +172,11 @@ class Fit(object):
   def __getitem__(self, key):
     return self.parameters[key]
 
+  @property
+  def reduced_chisquared(self):
+    DOF = len(self.fitOutput)-len(self.free_parameters)-1
+    return sum(self.residual**2)/np.var(self.residual)/DOF
+
   def _to_plot(self, **kwargs):
     x = sorted(self.x)
     y = self(x)
@@ -292,14 +184,12 @@ class Fit(object):
       x,y = y,x
     return (x,y), kwargs
 
-  def plot(self, style='-', **kwargs):
-    args = (self.x, self.fitOutput)
-    if self.inverted:
-      args = reversed(args)
-    kwargs.setdefault('marker', '.')
+  def plot(self, style='.', **kwargs):
+    x,y = (self.x,self.fitOutput) if not self.inverted else (self.fitOutput,self.x)
+    #kwargs.setdefault('marker', '.')
     kwargs.setdefault('markersize', 3)
-    kwargs.setdefault('linestyle', '')
-    return subplot(*args, **kwargs)
+    #kwargs.setdefault('linestyle', '')
+    return subplot(x, y, style, **kwargs)
 
   def __getstate__(self):
     state = self.__dict__.copy()

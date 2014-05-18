@@ -2,7 +2,7 @@
 '''
 from pymongo import MongoClient
 from operator import itemgetter
-from smbanalyze.experiment import List, Pulling
+from smbanalyze.experiment import ExpList, Pulling
 from smbanalyze.datatypes import TrapData, FretData
 from bson.binary import Binary
 from cPickle import dumps, loads
@@ -68,20 +68,6 @@ from pymongo.son_manipulator import SONManipulator
 def fix_dict_keys(dict_):
     return {key.replace('.','_'): val for key,val in dict_.iteritems()}
 
-class TransformDate(SONManipulator):
-    def transform_incoming(self, son, collection):
-        for (key,val) in son.items():
-            if isinstance(val, datetime.date):
-                son[key] = ('date', val.year,val.month,val.day)
-        return son
-
-    def transform_outgoing(self, son, collection):
-        for (key,val) in son.items():
-            pass
-
-class TransformExperiment(SONManipulator):
-    pass
-
 class TransformToPickle(SONManipulator):
     def transform_incoming(self, son, collection):
         for (key,val) in son.items():
@@ -116,6 +102,10 @@ class FindResults(object):
     def all(self):
         return self._list
 
+    def has(self, **conditions):
+        # (p for p in self if )
+        pass
+
     def select(self, *fields):
         def getter(p):
             return tuple(p.get(field,None) for field in fields)
@@ -137,7 +127,7 @@ def find_one(db, **search):
     return db.find_one(**search)
 
 def get_exp(db, **search):
-    return List(db_to_exp(p) for p in find(db, **search))
+    return ExpList(db_to_exp(p) for p in find(db, **search))
 
 def exp_to_dict(exp):
     to_insert = {key.replace('.','_'): val for key,val in exp.metadata.iteritems()}
@@ -145,9 +135,9 @@ def exp_to_dict(exp):
     return to_insert
 
 def save_exp(db, exp, extra={}, **extra_):
+    exp.metadata.update(extra, **extra_)
     to_insert = exp_to_db(exp)
-    to_insert.update(extra)
-    to_insert.update(extra_)
+    # to_insert.update(extra, **extra_)
     db.save(to_insert)
     
 def save_all(db, exps, extra={}, **extra_):
