@@ -33,8 +33,6 @@ __all__ = _modules_ + _names_ + fec_names + _date_ \
 
 Interval = namedtuple('Interval', 'start end')
 
-fplot.all = fplot.stackall
-
 def reload_all():
     reload(fplot)
     reload(fileIO)

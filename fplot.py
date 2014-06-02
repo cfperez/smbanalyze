@@ -1,6 +1,6 @@
 
 
-__all__ = ['fec','fecs','fretfec','segmented','stack','stackall','fret']
+__all__ = ['fec','fecs','fretfec','segmented','stack','stacks','fret','twinxaxis']
 
 from itertools import cycle
 import matplotlib.pyplot as plt
@@ -25,10 +25,6 @@ COLOR_CYCLE = plt.rcParams['axes.color_cycle']
 COLOR = (color for color in cycle(COLOR_CYCLE))
 next_color_in_cycle = lambda : next(COLOR)
 
-# def toFile(filename, figure_id=None, **kwargs):
-#   figure = figure_id and Figure(figure_id) or Figure.fromCurrent()
-#   figure.toFile(filename, **kwargs)
-
 def save(fname=None, **kwargs):
     fname = fname or plt.gca().get_title()
     plt.savefig(fname, transparent=True, **kwargs)
@@ -38,7 +34,7 @@ def stack(p, style=None, **kwargs):
   fret = p.fret
   plot(fret, pull=trap, style=style, **kwargs)
 
-def stackall(pulls, style=None, **options):
+def stacks(pulls, style=None, **options):
   options.setdefault('legend', None)
   for p in pulls:
     # label = labels.pop(0) if len(labels)>0 else ''
@@ -53,6 +49,8 @@ def counts_from_fret(fretdata, rows=2):
   plt.plot(time, acceptor+donor, 'g--', label='Total')
   plt.ylabel("Counts")
   plt.ylim(-100, max(acceptor+donor+100))
+  plt.xlim(xmin=time[0],xmax=time[-1])
+
   plt.subplot(rows,1,2)
   plt.ylabel('FRET')
   plt.plot(time, fret, 'k')
@@ -64,6 +62,11 @@ def counts_from_fret(fretdata, rows=2):
 def fret(p, rows=2):
   return counts_from_fret(p.fret, rows)
 
+def frets(exps, rows=2):
+  plt.hold(True)
+  for p in exps:
+    fret(p, rows=rows)
+
 def fec(p, style=':', *args, **options):
   options.setdefault('label', p.filename)
   out = plt.plot(p.trap.ext, p.trap.f, style, *args, **options)
@@ -74,36 +77,55 @@ def fec(p, style=':', *args, **options):
 
 def fecs(exps, style=':', *args, **options):
   plt.hold(True)
-  return [fec(p, style, *args, **options) for p in exps]
+  for p in exps:
+    fec(p, style, *args, **options)
+
+def setdefaults(dict_, **defaults):
+  for name,default in defaults.iteritems():
+    dict_.setdefault(name, default)
+  return dict_
+
+def subplots(nrows=1):
+  return [plt.subplot(nrows,1,row) for row in range(1,nrows+1)]
+
+def twinxaxis():
+  return plt.gca(), plt.gca().twinx()
 
 def fretfec(p, stylefec='-', stylefret='o:', axes=(), fec_opts={}, fret_opts={}):
-  axfret, axforce = axes or (plt.gca(), plt.gca().twinx())
+  if any(axes):
+    axfret,axforce = axes
+  else:
+    axfret, axforce = twinxaxis()
   fret,ext = to_fret_ext(p)
   plt.hold(True)
   fec_opts.setdefault('axes', axforce)
+  setdefaults(fret_opts, **fretfec.fret_opts)
+  setdefaults(fec_opts, **fretfec.fec_opts)
   fec(p, stylefec, **fec_opts)
   axfret.plot(ext, fret, stylefret, **fret_opts)
   plt.xlabel('Extension (nm)')
   plt.ylabel('FRET efficiency')
   axforce.autoscale_view(tight=True)
   return axfret, axforce
+fretfec.fret_opts = {
+  'markersize': 9
+}
+fretfec.fec_opts = {
+  'linewidth': 2.5
+}
 
-def segmented(p, stylefec='-', stylefret='o:', boundaries=[], colors=[], axes=(), exps=[], **options):
-  # axfret,axforce = axes or plt.subplots(2, sharex=True)[1]
-  if axes:
-    axfret,axforce = axes
-  else:
-    axfret = plt.subplot(211)
-    axforce = plt.subplot(212)
+def segmented(p, stylefec='-', stylefret='o:', every=1, boundaries=[], colors=[], axes=(), exps=[], **options):
+  axfret, axforce = axes if any(axes) else subplots(2)
   stylefret=stylefret or stylefec
   linewidth = options.pop('linewidth', 3)
   ratio = p['sampling_ratio']
   trap = p.trap
   fret, ext = to_fret_ext(p)
+  plt.hold(True)
   for x in exps:
     axforce.plot(x.trap.ext, x.trap.f, 'k:', lw=1.5)
   for start_n in range(len(fret)):
-    if start_n == 0 or start_n in boundaries or not boundaries:
+    if start_n == 0 or start_n in boundaries or (not boundaries and start_n%every==0):
       color = colors.pop(0) if colors else next_color_in_cycle()
     fret_segment = fret[start_n:start_n+2]
     ext_segment = ext[start_n:start_n+2]
@@ -111,12 +133,11 @@ def segmented(p, stylefec='-', stylefret='o:', boundaries=[], colors=[], axes=()
     fecext,fecf = trap[start_n*ratio:(start_n+1)*ratio+1].fec
     axforce.plot(fecext, fecf, stylefec, color=color, markeredgewidth=0, lw=linewidth, **options)
   axfret.set_ylim(-0.05,1.05)
-  axfret.autoscale_view(tight=True)
   axforce.autoscale_view(tight=True)
+  axfret.set_xlim(axforce.get_xlim())
   axforce.set_ylabel('Force (pN)')
   axfret.set_ylabel('FRET efficiency')
   axfret.set_xlabel('Extension (nm)')
-
 
 def _has_color(style_string):
   return style_string and len(style_string) > 0 and style_string[0].isalnum()
