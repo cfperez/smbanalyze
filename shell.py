@@ -3,7 +3,11 @@ import matplotlib.pyplot as plt
 from numpy import linspace, append, diff
 from collections import namedtuple
 from itertools import groupby
-import fplot, experiment, curvefit, fec, fcalc, db, fileIO, refolding
+import fplot, experiment, curvefit, fec, fcalc, fileIO, refolding
+try:
+    import db
+except ImportError:
+    print "Please install pymongo"
 import os
 import datetime
 

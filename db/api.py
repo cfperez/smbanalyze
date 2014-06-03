@@ -12,12 +12,19 @@ __all__ = ['_id', 'set_', 'lessthan', 'lessorequal', 'get_exp', 'greaterthan',
  'connect', 'close', 'select', 'find', 'save_exp', 'save_all', 'copy', 'update']
 
 CLIENT = None
-def connect(database='data'):
+DATABASE = 'forcefret'
+
+def connect(host='', port=27017, database=DATABASE, **kwargs):
     global CLIENT
-    CLIENT = CLIENT or MongoClient()
+    CLIENT = CLIENT or MongoClient(host, port, **kwargs)
     db = getattr(CLIENT, database)
-    #db.add_son_manipulator(TransformToPickle())
     return db
+
+def close(database=None):
+    if database:
+        database.connection.close()
+    else:
+        CLIENT.close()
 
 def copy(from_, to_, **search):
     '''Insert every item in collection from_ into to_'''
@@ -33,7 +40,6 @@ def data_to_db(p, dtype):
 def exp_to_db(p):
     to_save = p.metadata.copy()
     if p.trap:
-        # to_save['trap']['data'] = p.trap.data.tolist()
         to_save['trap'] = data_to_db(p, 'trap')
     if p.fret:
         to_save['fret'] = data_to_db(p, 'fret')
@@ -63,34 +69,9 @@ def to_binary(nparray, subtype=128):
 def from_binary(binary):
     return loads(binary)
 
-from pymongo.son_manipulator import SONManipulator
-
 def fix_dict_keys(dict_):
     return {key.replace('.','_'): val for key,val in dict_.iteritems()}
 
-class TransformToPickle(SONManipulator):
-    def transform_incoming(self, son, collection):
-        for (key,val) in son.items():
-            if isinstance(val, Pulling):
-                son[key] = [to_binary(val.trap), to_binary(val.fret), to_binary(val.metadata)]
-            elif isinstance(val, dict):
-                son[key] = self.transform_incoming(val, collection)
-        return son
-    
-    def transform_outgoing(self, son, collection):
-        for (key,val) in son.items():
-            if isinstance(val,list) and getattr(val[0], 'subtype', 0) == 128:
-                son[key] = Pulling(
-                    trap=from_binary(val[0]),
-                    fret=from_binary(val[1]),
-                    **from_binary(val[2]))
-            elif isinstance(val,dict):
-                son[key] = self.transform_outgoing(val, collection)
-        return son
-
-
-def closedb(db):
-    db.connection.close()
 
 class FindResults(object):
     def __init__(self, cursor):
@@ -113,6 +94,7 @@ class FindResults(object):
 
     def __iter__(self):
         return iter(self._list)
+
 
 def select(cursor, *fields):
     return (itemgetter(*fields)(p) for p in cursor)
@@ -137,7 +119,6 @@ def exp_to_dict(exp):
 def save_exp(db, exp, extra={}, **extra_):
     exp.metadata.update(extra, **extra_)
     to_insert = exp_to_db(exp)
-    # to_insert.update(extra, **extra_)
     db.save(to_insert)
     
 def save_all(db, exps, extra={}, **extra_):

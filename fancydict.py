@@ -55,8 +55,16 @@ class nesteddict(dict):
   def __setitem__(self, key, val):
     key,_,more = key.partition('.')
     if more:
-      context = self[key]
+      context = self.setdefault(key, nesteddict())
       if isinstance(context,dict):
         context[more] = val
         return
     super(nesteddict,self).__setitem__(key, val) 
+
+  def update(self, E={}, **F):
+    d=dict(E)
+    d.update(F)
+    super(nesteddict,self).update(nesteddict.from_dict(d))
+
+  def copy(self):
+    return nesteddict.from_dict(self)
