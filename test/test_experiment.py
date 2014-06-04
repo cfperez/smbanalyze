@@ -11,15 +11,15 @@ from smbanalyze.datatypes import FretData, TrapData
 def setup():
 	global meta, trap, fret
 	meta = dict(field1=1, field2='test')
-	trap = TrapData([[1,2,3],[2,3,4],[3,4,5],[4,5,6]], **meta)
-	fret = FretData([[1,2,3,4],[2,3,4,5]], **meta)
+	trap = TrapData([[1,2,3],[2,3,4],[3,4,5],[4,5,6]], meta)
+	fret = FretData([[1,2,3,4],[2,3,4,5]], meta)
 
 def test_pulling_trapdata():
 	p = Pulling(trap)
 	eq_(p.trap, trap)
 	eq_(p.metadata['trap'], meta)
-	# These fields have not been set and shouldn't be
-	# specified
+	# These fields have not been set and 
+	# shouldn't be specified
 	assert_not_in('fret.exposurems', p.metadata)
 	assert_not_in('sampling_ratio', p.metadata)
 	assert_is(p.fret, None)

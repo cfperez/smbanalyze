@@ -85,7 +85,7 @@ def group_by(iterable, keyfunc):
 
 def on_metadata(key):
   return lambda p: p[key]
-  
+
 def split_pulls_at_point(exps, point):
   '''Return tuple (below,above) distinguished by their relative position above/below "point"''' 
   ext_cutoff, force_cutoff = point
@@ -98,23 +98,23 @@ def split_pulls_at_point(exps, point):
       low += [p]
   return low, high
 
+from image import ROI
 def loadimg(p, directory='.', **kwargs):
-  '''Return the original image as a Stack. Must be in correct directory or specify it!
+  '''Return the Stack image using ROI and background stored in experiment metadata.
+  Must be in current or specified directory.
   '''
   filename = p.filename if directory=='.' else opath.join(directory, p.filename)
+  meta = p.fret.metadata
   if 'roi' not in kwargs:
-    meta = p.fret.metadata
+    # If keyword roi= is not specified,
+    # get the ROIs from the experiment metadata
     rois = [ meta[roi_key] 
       for roi_key in ('roi_donor', 'roi_acceptor')
       if roi_key in meta
       ]
-  else:
-    kwargs['roi'] = map(op.methodcaller('toDict'), rois)
-
-  try:
-    return image.fromFile(fileIO.add_img_ext(filename), **kwargs)
-  except IOError:
-    raise ExperimentError('IOError loading file: check image file location!')
+    kwargs['roi'] = map(ROI.fromDict, rois)
+  kwargs.setdefault('background', meta.get('background', '') )
+  return image.fromFile(fileIO.add_img_ext(filename), **kwargs)
 
 
 class ExpList(numlist):

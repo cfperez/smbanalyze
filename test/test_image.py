@@ -1,5 +1,6 @@
 import unittest
-from nose.tools import raises
+from nose.tools import *
+from smbanalyze import image
 from smbanalyze.image import ROI, ROIError
 
 class ROItests(unittest.TestCase):
@@ -32,3 +33,23 @@ class ROItests(unittest.TestCase):
     origin = (30, 32)
     absROI = self.roi.toAbsolute(origin)
     assert str(absROI) == str(self.roi)
+
+IMGFILE = 'test/background.img'
+def test_fromFile_returns_stack():
+  img = image.fromFile(IMGFILE)
+  assert_is_instance(img, image.Stack)
+
+def test_images_should_equal():
+  img = image.fromFile(IMGFILE)
+  ok_(img==img)
+
+def test_images_shoud_not_equal():
+  img = image.fromFile(IMGFILE)
+  img2 = img.copy()
+  img2._img[0,0,0] = 999999
+  ok_(img!=img2)
+
+def test_fromFile_subtracts_background():
+  img_bg = image.fromFile(IMGFILE, IMGFILE)
+  img = image.fromFile(IMGFILE)
+  bg = image.fromFile(IMGFILE).toBackground()

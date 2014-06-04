@@ -261,7 +261,6 @@ def loadcam(filename):
   "Return dictionary of camera settings as contained in .cam file"
   # Can be replaced by loadsettings and a handle for the DateTime key value
   # once the old-style .cam setting is supplanted
-
   settings = {}
   with open(filename, 'rU') as f:
     for line in f.readlines():
@@ -313,6 +312,8 @@ def fromSettings(settings):
 ##################################################
 ## Filename Parsing
 ##################################################
+
+## TODO should be renamed => split_known_ext
 def splitext(fname):
   if not fname:
     return None, None
@@ -321,6 +322,9 @@ def splitext(fname):
   if ext not in REGISTERED_EXT:
     basename,ext=fname,''
   return basename,ext
+
+def hasext(fname):
+  return os.path.splitext(fname)[-1] != ''
 
 def split_fname(fname):
   split_ = fname.split('_')
@@ -337,6 +341,9 @@ def change_extension(filename, ext):
   if not ext.startswith('.'):
     ext = '.'+ext
   return os.path.splitext(filename)[0]+ext
+
+def to_cam_filename(filename):
+  return change_extension(filename, CAMERA_FILE)
 
 add_img_ext = lambda x: x+IMAGE_FILE if not x.endswith(IMAGE_FILE) else x
 add_cam_ext = lambda x: x+CAMERA_FILE if not x.endswith(CAMERA_FILE) else x

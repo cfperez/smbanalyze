@@ -1,6 +1,6 @@
 from __future__ import with_statement
 from operator import methodcaller,itemgetter,add as opadd
-import os.path
+from collections import defaultdict
 from itertools import cycle, dropwhile
 import copy
 
@@ -11,6 +11,7 @@ from matplotlib.patches import Rectangle
 import fileIO
 from figure import Figure
 import useful
+import constants
 
 ################################################################################
 ## EXCEPTIONS
@@ -27,40 +28,29 @@ class ROIOutofBounds(ROIError):
 class ROIInvalid(ROIError):
   pass
 
-################################################################################
-## MODULE LEVEL FUNCTIONS
-################################################################################
 def setDefaultROI(*args):
   Stack.setDefaultROI(*args)
 
-def fromFile(filename, **kwargs):
+def fromFile(filename, background=None, **kwargs):
   """fromFile(filename, [background='' or True]): 
   
   Load Image from filename with optional background file or constant to subtract.
 
   fromFile('image.img', background = 'filename') => load background file and subtract (SLOW!)
-  fromFile('background.img', background=True, [filter='median']) => load background.img as background file
   fromFile('image.img', background=100) => subtract 100 from image as background level
 """ 
-
-  bg = kwargs.pop('background', False)
   roi = kwargs.pop('roi', None)
-  try:
-    img = Stack(fileIO.add_img_ext(filename), deepcopy=True, **kwargs)
-  except IOError:
-    raise IOError("File %s can't be found/loaded" % filename)
+  img = Stack.fromfile(fileIO.add_img_ext(filename))
 
-  if bg is True:
-    return fromBackground(filename, **kwargs)
-  elif isinstance(bg,str):
-    bg = Stack(bg)
-    bg.toBackground()
-    if bg.metadata['exposurems'] != img.metadata['exposurems']:
-      print '''WARNING Trying to subtract background with exposure time {} 
-        from image with exposure time {}'''.format(
-          bg.metadata['exposurems'],
-          img.metadata['exposurems'])
-  img -= bg
+  bgimg = fromBackground(background)
+  bg_exposure = bgimg.metadata['exposurems']
+  if not isinstance(bgimg, ConstantStack) and bg_exposure != img.metadata['exposurems']:
+    print '''WARNING Trying to subtract background with exposure time {} 
+      from image with exposure time {}'''.format(
+        bg_exposure,
+        img.metadata['exposurems'])
+  img.metadata['background'] = bgimg.metadata['filename'] or background
+  img -= bgimg
 
   if roi is not None:
     if isinstance(roi, basestring):
@@ -68,30 +58,18 @@ def fromFile(filename, **kwargs):
     img.addROI(*roi)
   return img
 
-def fromBackground(filename, filter='median'):
-  try:
-    bg = Stack(filename)
-  except IOError:
-    raise IOError("Can't load background file")
-
-  width, height = bg.width, bg.height
-  if filter == 'median':
-    bg._img = np.median( bg._img, axis=0, overwrite_input=True ).reshape((1,height,width))
-  elif filter == 'mean':
-    bg._img = np.mean( bg._img, axis=0 ).reshape((1,height,width))
-  elif filter == 'min':
-    bg._img = np.min( bg._img, axis=0 ).reshape((1,height,width))
+def fromBackground(name=None, zfilter='median'):
+  if isinstance(name, str):
+    bg = Stack.fromfile(name)
+  elif isinstance(name, Stack):
+    bg = name
+  elif isinstance(name, int) or name is None:
+    return ConstantStack(name or constants.default_background_subtract)
   else:
-    raise ValueError, "Filter type can only be median, mean, or min"
-  
-  return bg
+    raise ValueError('@name must be either a string, stack, int, or None')
+  return bg.toBackground(zfilter)
     
-################################################################################
-##
-## Class ROI => Region of Interest for extracting data from images
-##
-## 
-################################################################################
+
 class ROI:
   """Region of Interest
 
@@ -156,7 +134,6 @@ Convert between 'absolute' and 'relative' coordinates:
       temp.append(
         cls.fromCorners(*corners_int, name=name, origin=origin)
       )
-
     return tuple(temp)
 
   @classmethod
@@ -173,6 +150,11 @@ Convert between 'absolute' and 'relative' coordinates:
       return cls( (left,bottom), (right,top), **kwargs )
 
   @classmethod
+  def fromDict(cls, d):
+    return cls.fromCorners(d['left'],d['right'],d['bottom'],d['top'],
+      name=d.get('name',''),origin=d.get('origin','relative'))
+
+  @classmethod
   def save(cls, filename, *ROIs):
     "save(filename, *ROIs): Save ROI(s) to a LabView config file format"
     mode = 'w'
@@ -180,7 +162,7 @@ Convert between 'absolute' and 'relative' coordinates:
       roi.toFile(filename, mode)
       mode = 'a'
 
-  Colors = ('r','y')
+  Colors = ('r','r')
   _lastColor = 0
 
   def draw(self, color=None):
@@ -192,10 +174,6 @@ Convert between 'absolute' and 'relative' coordinates:
     self.clear()
 
     self.lines = [
-      # plt.axvline(self.left,color=color),
-      # plt.axvline(self.right,color=color),
-      # plt.axhline(self.bottom,color=color),
-      # plt.axhline(self.top,color=color)
       plt.gca().add_patch( 
         Rectangle( (self.left,self.bottom), self.width, self.height, 
           fill=False, lw=1, color=color)
@@ -228,15 +206,11 @@ Convert between 'absolute' and 'relative' coordinates:
     return corners[0], corners[2], corners[1], corners[3]
     
   def toAbsolute(self, origin_coord):
-    # if self.origin:
-    #   corners = self._convert(self.origin)
-    #   return ROI.fromCorners(*corners, name=self.name, origin=None)
-    # else:
-    #   return self
     if self.origin != 'absolute':
       corners = self._convert(origin_coord)
       return ROI.fromCorners(*corners, name=self.name, origin='absolute')
-    else: return ROI.copy(self)
+    else: 
+      return ROI.copy(self)
 
   def toRelative(self, origin_coord):
     if self.origin == 'relative':
@@ -278,19 +252,14 @@ Convert between 'absolute' and 'relative' coordinates:
   def __repr__(self):
     if None in self.edges:
         name = self.name or 'Undefined'
-        return "<ROI '%s' = uninitialized>" % self.name
+        return "<ROI '%s' = uninitialized>" % name
     else:
         return ROI.REPR(self)
 
   REPR = lambda self: "<%s ROI '%s' = L: %d, R: %d, B: %d, T: %d>" % \
     (self.origin,self.name,self.left,self.right,self.bottom,self.top) 
 
-################################################################################
-##
-## Class Stack
-##
-## 
-################################################################################
+
 class Stack:
   "A class to load and manipulate images generated during single molecule experiments"
 
@@ -298,73 +267,50 @@ class Stack:
   defaultDonorROI = 'donor'
   defaultAcceptorROI = 'acceptor'
 
-  def __init__(self, filename, filetype="img", camFile='', bg_pixel=0, deepcopy=False):
-    if filetype != 'img':
-      raise ValueError, "Only filetype 'img' is supported!"
+  @classmethod
+  def fromfile(cls, imgfile, camfile=''):
+    img = fileIO.loadimg(imgfile)
+    camfile = camfile or fileIO.to_cam_filename(imgfile)
+    metadata = fileIO.loadcam(camfile)
+    metadata['filename'] = imgfile
+    stack = cls(img, metadata)
+    # Keeping the .filename attribute for backward compatibility, but should move to
+    # metadata lookup
+    stack.filename = metadata['filename']
+    return stack
 
-    self.bg_pixel = bg_pixel
-    self._showROI = False
+  # def __init__(self, filename, camFile='', deepcopy=False):
+  def __init__(self, data, metadata={}, roi={}):
+    self._img = copy.copy(data)
+    self.metadata = dict(metadata)
+    self._donorROIName = Stack.defaultDonorROI
+    self._acceptorROIName = Stack.defaultAcceptorROI
     self._figure = Figure()
-
-    #################################################
-    ## Load data from file called filename if string
-    #################################################
-    if isinstance(filename, basestring):
-      self.filename = filename
-      self._img = fileIO.loadimg(filename)
-      self._roi = {}
-      self._donorROIName = Stack.defaultDonorROI
-      self._acceptorROIName = Stack.defaultAcceptorROI
-
-
-      camFile = camFile or fileIO.change_extension(filename, '.cam')
-      settings = fileIO.loadcam(camFile)
-      self.metadata = {}
-      for setting,value in settings.iteritems():
-        self.metadata[setting] = value
-        if not hasattr(self, setting):
-          setattr(self, setting, value)
-
-      # check cam and img file correspondence
-      if self._img.shape != (settings['frames'],settings['height'],settings['width']):
+    self._roi = roi
+    if not roi:
+      self.addROI(*self.defaultROI.values())
+    self._frame_iter = cycle(range(self.frames))
+    if metadata:
+      self.origin = (self.metadata['roileft'],self.metadata['roibottom'])
+      if self._img.shape != (self.metadata['frames'],self.metadata['height'],self.metadata['width']):
         raise StackError, ".img file and .cam file dimensions do not agree"
 
-      self.origin = (self.roileft,self.roibottom)
-      self.addROI(*self.__class__.defaultROI.values())
-
-    #################################################
-    ## Make a copy of filename if actually another Stack
-    #################################################
-    elif isinstance(filename, Stack):
-      if deepcopy:
-        self._img=filename._img.copy()
-      else:
-        self._img=filename._img
-
-      self._roi=filename._roi
-      self._donorROIName = filename._donorROIName
-      self._acceptorROIName = filename._acceptorROIName
-      self.origin = filename.origin
-      self.metadata = filename.metadata
-      for setting in self.metadata:
-        if not hasattr(self,setting.lower()):
-          setattr(self, setting, getattr(filename,setting))
-
-    else:
-        raise StackError, "Invalid constructor call using %s" % str(filename)
-    self._frame_iter = cycle(range(self.frames))
-
+  def copy(self, deep=True):
+    newstack = copy.copy(self)
+    if deep:
+      newstack._img = copy.copy(self._img)
+    return newstack
 
   @property
   def frames(self):
     return self._img.shape[0]
 
   def __len__(self):
-    return self.frames()
+    return self.frames
 
   @property
   def time(self):
-      return np.arange(1,self.frames+1)*self.exposurems/1000.
+      return np.arange(1,self.frames+1)*self.metadata['exposurems']/1000.
 
   @property
   def height(self):
@@ -378,14 +324,12 @@ class Stack:
   def donor(self):
     if not self._roi.has_key(self._donorROIName):
         raise StackError, "ROI called %s hasn't been defined yet" % self._donorROIName
-
     return self.counts(self._roi[self._donorROIName])
 
   @property
   def acceptor(self):
     if not self._roi.has_key(self._acceptorROIName):
         raise StackError, "ROI called %s hasn't been defined yet" % self._acceptorROIName
-
     return self.counts(self._roi[self._acceptorROIName])
     
   @property
@@ -397,13 +341,13 @@ class Stack:
     for _roi in args:
         cls.defaultROI[_roi.name]=_roi
 
-  def toBackground(self,filter='median'):
+  def toBackground(self,zfilter='median'):
     width, height = self.width, self.height
-    if filter == 'median':
+    if zfilter == 'median':
       self._img = np.median( self._img, axis=0, overwrite_input=True ).reshape((1,height,width))
-    elif filter == 'mean':
+    elif zfilter == 'mean':
       self._img = np.mean( self._img, axis=0 ).reshape((1,height,width))
-    elif filter == 'min':
+    elif zfilter == 'min':
       self._img = np.min( self._img, axis=0 ).reshape((1,height,width))
     else:
       raise ValueError, "Filter type can only be median, mean, or min"
@@ -414,24 +358,18 @@ class Stack:
       try:
         roi = ROI.copy(roi)
         key = roi.name
-
-        # recast to relative origin
         roi = roi.toRelative(self.origin)
-
         if roi.right > self.width:
           raise StackError(
             "ROI 'right' {0} is outside right edge of image {1}: \n {2}".format(roi.right,self.width,roi)
           )
         if roi.top > self.height:
           raise StackError, "ROI 'top' is outside top edge of image: {0}\n {1}".format(roi.top,roi)
-
         self._roi[key] = roi
-
       except AttributeError:
         raise TypeError, "Must use objects with ROI interface"
 
   def showROI(self,*args):
-    self._showROI=True
     for roi in args:
       self._roi[roi].draw()
 
@@ -452,14 +390,12 @@ class Stack:
   def setDonorROI(self, roi_name):
     if not self._roi.has_key(roi_name):
         raise KeyError, "Image.Stack does not have an ROI named %s" % roi_name
-
     self._donorROIName = roi_name
     return self
 
   def setAcceptorROI(self, roi_name):
     if not self._roi.has_key(roi_name):
         raise KeyError, "Image.Stack does not have an ROI named %s" % roi_name
-
     self._acceptorROIName = roi_name
     return self
     
@@ -475,24 +411,24 @@ class Stack:
   def attime(self,time):
       if isinstance(time,slice):
         start,step = None,None
+      exposurems = self.metadata['exposurems'] 
       if time.start:
-        start = time.start/self.exposurems
+        start = time.start/exposurems
       if time.step:
-        step = time.step/self.exposurems
-      time = slice(start,time.stop/self.exposurems,step)
-      return self[time/self.exposurems]
+        step = time.step/exposurems
+      time = slice(start,time.stop/exposurems,step)
+      return self[time/exposurems]
       
   def __getitem__(self,key):
-    if isinstance(key,int):
+    if isinstance(key,int): # Single frame
       return Frame(self._img[key], self._roi)
-    else:
-      temp = Stack(self)
+    else: # It's a slice
+      temp = self.copy(deep=False)
       temp._img = temp._img[key]
       if isinstance(temp._img.shape,tuple) and len(temp._img.shape) > 2:
         temp.frames = temp._img.shape[0]
       else:
         temp.frames = 1
-
       return temp
     raise IndexError, "Invalid index: %s" % str(key)
 
@@ -505,7 +441,7 @@ class Stack:
     return self.__add__(stack.__neg__())
 
   def __add__(self, stack):
-    temp = Stack(self)
+    temp = self.copy()
     if hasattr(stack,'_img'):
       try:
         temp._img = temp._img + stack._img
@@ -513,13 +449,18 @@ class Stack:
         raise StackError("Couldn't add images: check sizes are the same")
     else:
       temp._img = temp._img + stack
-
     return temp
 
   def __neg__(self):
-    temp = Stack(self)
+    temp = self.copy()
     temp._img = -temp._img
     return temp
+
+  def __eq__(self, other):
+    return np.all(self._img == other._img)
+
+  def __ne__(self, other):
+    return not self==other
 
   def __repr__(self):
     return "Stack %dx%dx%d" % (self.frames, self.height, self.width)
@@ -528,6 +469,32 @@ class Stack:
     for i in range(self.frames):
       yield self[i]
     
+class ConstantStack(Stack):
+  def __init__(self, constant, metadata={}):
+    Stack.__init__(self, constant, metadata)
+    if not self.metadata:
+      self.metadata = defaultdict(lambda : None)
+    self._constant = constant
+
+  @property
+  def frames(self):
+    return 1
+
+  @property
+  def time(self):
+      return np.array([0])
+
+  @property
+  def height(self):
+    return 0
+
+  @property
+  def width(self):
+    return 0
+
+  def __repr__(self):
+    return "ConstantStack(%d)" % self._constant
+
 class Frame:
     
   def __init__(self, imgarray, roi=None):
@@ -536,9 +503,9 @@ class Frame:
 
   def __getitem__(self,key):
     try:
-        return self._img[ key.bottom:key.top, key.left:key.right ]
+      return self._img[ key.bottom:key.top, key.left:key.right ]
     except AttributeError:
-        return self._img[:,key]
+      return self._img[:,key]
 
   @property
   def height(self):
@@ -553,7 +520,6 @@ class Frame:
 
   def show(self, **kwargs):
     cmap = kwargs.get('cmap')
-
     plt.hold(1)
     plt.cla()
     p = plt.imshow(self._img, cmap=cmap)
@@ -570,4 +536,3 @@ class Frame:
 
   def __repr__(self):
     return "Image %dx%d" % self._img.shape
-
