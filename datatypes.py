@@ -6,6 +6,7 @@ from collections import Iterable
 from fileIO import load, toSettings, fileIOError
 import constants
 import copy
+from fancydict import nesteddict
 
 logger = logging.getLogger(__name__)
 logger.setLevel(constants.logLevel)
@@ -29,14 +30,13 @@ class Mask(ndarray):
 
 class AbstractData(object):
 
-    def __init__(self, data, **meta):
+    def __init__(self, data, meta):
         data = asarray(data)
         if data is not None and not self._is_data_shape_ok(data.shape):
             raise ValueError('TrapData must have fields for {}'.format(self._fields))
         self.data = data
         self._original_data = None
-        self.metadata = {}
-        self.metadata.update(meta)
+        self.metadata = nesteddict.from_dict(meta)
 
     @classmethod
     def _is_data_shape_ok(self, shape):
@@ -46,7 +46,7 @@ class AbstractData(object):
     @classmethod
     def fromObject(cls, obj):
         try:
-            return cls(copy.copy(obj.data), **obj.metadata)
+            return cls(copy.copy(obj.data), obj.metadata)
         except AttributeError:
             raise ValueError(
                 'Constructor method only takes object with AbstractData interface')
@@ -64,7 +64,7 @@ class AbstractData(object):
                 raise
         else:
             meta['filename'] = filename
-        me = cls(data, **meta)
+        me = cls(data, meta)
         return me
 
     @classmethod
@@ -85,7 +85,7 @@ class AbstractData(object):
         if len(args) != len(cls._fields):
             raise ValueError(
                 "Number of arguments to {0} must match _fields".format(cls.__name__))
-        return cls(asarray(args).T, **meta)
+        return cls(asarray(args).T, meta)
 
     def copy(self):
         return self.__class__.fromObject(self)
@@ -155,7 +155,7 @@ class AbstractData(object):
         # items = self.data[key].view()
         # if len(items.shape) == 1:
         #     return items
-        return type(self)(self.data[key].view(), **self.metadata)
+        return type(self)(self.data[key].view(), self.metadata)
 
     def __repr__(self):
         return repr(self.data)

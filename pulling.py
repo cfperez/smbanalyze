@@ -39,9 +39,8 @@ class Base(object):
     self.trap = trap
     self._fret = fret
     self.metadata = nesteddict.from_dict(metadata)
-    self.metadata['trap'] = getattr(trap, 'metadata', {})
-    self.metadata['fret'] = getattr(fret, 'metadata', {})
-    # self._figure = Figure(self.filename)
+    self.metadata['trap'] = getattr(trap, 'metadata', nesteddict())
+    self.metadata['fret'] = getattr(fret, 'metadata', nesteddict())
 
   @abc.abstractmethod
   def filenameMatchesType(cls, filename):
@@ -66,7 +65,7 @@ class Base(object):
     if self.fret:
       for k,v in self.fret.metadata.iteritems():
         meta.setdefault(k, v)
-    self._fret = FretData(data.data, **meta)
+    self._fret = FretData(data.data, meta)
     self.metadata['fret.'] = self._fret.metadata
 
   @fret.deleter
@@ -100,16 +99,12 @@ class Base(object):
   def figure(self):
     return self._figure
 
-  # def __setstate__(self, state):
-  #   self.__dict__ = state
-  #   self._figure = Figure(self.filename)
-
   @classmethod
   def fromFile(cls, strfile, fretfile, metadata):
     assert strfile or fretfile
     assert isinstance(strfile, str)
     assert isinstance(fretfile, (str,type(None)))
-    metadata = metadata.copy()
+    metadata = nesteddict.from_dict(metadata)
 
     trap = TrapData.fromFile(strfile)
     fret = FretData.fromFile(fretfile) if fretfile else None

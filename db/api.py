@@ -1,6 +1,9 @@
 ''' api.py
 '''
-from pymongo import MongoClient
+try:
+    from pymongo import MongoClient
+except ImportError:
+    pass
 from operator import itemgetter
 from smbanalyze.experiment import ExpList, Pulling
 from smbanalyze.datatypes import TrapData, FretData
@@ -47,10 +50,10 @@ def exp_to_db(p):
 
 def db_to_exp(p):
     trap = p['trap'].pop('data')
-    trap_data = TrapData(trap, **p['trap'])
+    trap_data = TrapData(trap, p['trap'])
     if 'fret' in p:
         fret = p['fret'].pop('data', None)
-        fret_data = FretData(fret, **p['fret']) if fret else None
+        fret_data = FretData(fret, p['fret']) if fret else None
     return Pulling(trap_data,fret_data, p)
 
 def _id(d):
@@ -141,7 +144,7 @@ def with_(*fields):
     d= dict.fromkeys(fields, 1)
     d['_id'] = 0
     return d    
-    
+
 def greaterthan(val):
     return {'$gt': val}
     
