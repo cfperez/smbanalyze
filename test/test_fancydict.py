@@ -40,3 +40,6 @@ def test_nesteddict_setitem_creates_nested_key():
 		{'a': 1})
 	d['test.test'] = True
 	ok_(d['test.test'])
+
+def test_nesteddict_from_dict_uses_dot_access():
+	ok_(nesteddict.from_dict({'test.test': True})['test.test'])

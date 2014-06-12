@@ -1,7 +1,6 @@
 from operator import itemgetter, attrgetter, methodcaller
-import re
+from matplotlib.cbook import flatten
 import cPickle as pickle
-from fileIO import makeMatchStrFromArgs
 
 class numlist(list):
   '''
@@ -11,7 +10,7 @@ class numlist(list):
     super(numlist, self).__init__(iterable)
     try:
       self.sort()
-    except AttributeError, KeyError:
+    except (AttributeError, KeyError, ValueError):
       pass
 
   def __getslice__(self, i, j):
@@ -50,17 +49,30 @@ class numlist(list):
     '''
     return cls(map(func, arr, *more))
 
+  def flatten(self):
+    return numlist(flatten(self))
+
+  def __getattr__(self, attr):
+    return self.getattrs(attr)
+
+  def getattrs(self, attr):
+    return self.map(attrgetter(attr), self.has_attr(attr))
+
+  def getitems(self, key):
+    return self.map(itemgetter(key), self)
+
   def filter(self, condition):
     "Returns a numlist with experiments matching condition"
     cls = type(self)
     return cls(filter(condition, self))
 
-  def get(self, name, *more):
+  def get(self, name):
     "Get all attributes of experiments in numlist by name: mol.get('f')"
+    cls = type(self)
     try:
-      return map(attrgetter(name, *more), self)
+      return cls.map(attrgetter(name), self)
     except AttributeError:
-      return map(itemgetter(name, *more), self)
+      return cls.map(itemgetter(name), self)
     else:
       raise AttributeError('Missing attribute {0} in a numlist element'.format(name))
 
@@ -79,4 +91,3 @@ class numlist(list):
   def save(self, filename):
     with open(filename, 'wb') as fh:
       pickle.dump(self, fh, protocol=2)
-

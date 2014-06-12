@@ -2,7 +2,6 @@ import os.path as opath
 from operator import and_
 import logging
 import cPickle as pickle
-import abc
 from functools import total_ordering
 from itertools import ifilter
 from smbanalyze.date import today, to_date
@@ -25,7 +24,6 @@ class ExperimentError(Exception):
 @total_ordering
 class Base(object):
   ".fret .f .ext and other meta-data (sample rate, trap speeds, )"
-  __metaclass__ = abc.ABCMeta
 
   INFO_FIELDS = ()
 
@@ -41,10 +39,10 @@ class Base(object):
     self.metadata = nesteddict.from_dict(metadata)
     self.metadata['trap'] = getattr(trap, 'metadata', nesteddict())
     self.metadata['fret'] = getattr(fret, 'metadata', nesteddict())
-
-  @abc.abstractmethod
-  def filenameMatchesType(cls, filename):
-    pass
+    # Move 'fret' metadata fields found in trap metadata (recorded in .str files)
+    # to the fret.metadata dictionary
+    for key in ifilter(lambda s: s.startswith('fret'), self.metadata['trap'].keys()):
+      self['fret'].update(self.metadata['trap'].pop(key))
 
   @property
   def filename(self):
@@ -80,24 +78,23 @@ class Base(object):
   def __eq__(self, other):
     return self.info == other.info
 
+  def __ne__(self, other):
+    return self.info != other.info
+
   def __getitem__(self, key):
     if isinstance(key, str):
       return self.metadata[key]
     else:
       return self.get(key)
 
+  def __setitem__(self, key, val):
+    self.metadata[key] = val
+
   def get(self, key):
     return self.trap and self.trap[key], self.fret and self.fret[key]
 
   def where(self, *conditions):
     return self[reduce(and_, conditions)]
-
-  def __setitem__(self, key, val):
-    self.metadata[key] = val
-
-  @property
-  def figure(self):
-    return self._figure
 
   @classmethod
   def fromFile(cls, strfile, fretfile, metadata):
@@ -151,10 +148,6 @@ class Pulling(Base):
   def __init__(self, trap, fret=None, metadata={}):
     super(Pulling, self).__init__(trap, fret, metadata)
     self._ext_offset = 0
-
-    for k in ifilter(lambda s: s.startswith('fret.'), trap.metadata.copy()):
-      self.metadata['fret'][k[5:]] = trap.metadata.pop(k)
-
     sampling_time = self['trap'].get('sampling_time', 
       constants.default_pulling_sampling_time)
     step_size = self['trap'].get('step_size', None)
@@ -163,7 +156,6 @@ class Pulling(Base):
     if fret:
       trap_rate = sampling_time*1000
       fret_rate = fret.metadata.pop('exposurems', None)
-        # constants.default_fret_exposure_time_ms)
       if fret_rate:
         if not (fret_rate / trap_rate).is_integer():
           print 'Trap and FRET collection rates may not be even multiples! {} (trap) vs {} (fret)'.format(
@@ -208,7 +200,6 @@ class Pulling(Base):
     return self.metadata.get('reverse', False)
 
   def where(self, *conditions):
-    # self[reduce(and_, conditions)]
     trap,fret = super(Pulling,self).where(*conditions)
     return Pulling(trap,fret,self.metadata)
 
@@ -245,26 +236,6 @@ class Pulling(Base):
     self.trap.ext -= offset
     self._ext_offset = offset
     return offset
-
-  # show_fret_default = False
-
-  # def plot(self, style=None, **kwargs):
-  #   show_fret = kwargs.setdefault('show_fret', Pulling.show_fret_default)
-  #   FEC = kwargs.setdefault('FEC', True)
-  #   if FEC:
-  #     style = style or {'trap': ':'}
-  #   kwargs.setdefault('legend', None)
-  #   kwargs.setdefault('title', self.filename or '')
-  #   kwargs.setdefault('label', self.filename or '')
-  #   loc_x = min(self.trap.ext)+10
-  #   location = list(kwargs.pop('annotate', (loc_x, 15)))
-    # if self.fret:
-  #     self.figure.plot(self.fret, self.trap, style=style, **kwargs)
-  #   else:
-  #     self.figure.plot(self.trap, style=style, **kwargs)
-  #   # tk if reverse pull, reverse the x-axis of the FEC, which is last thing plotted
-  #   self.figure.xlim(reverse=self.isReverse)
-  #   return self.figure
 
   def savefig(self, filename=None, path=''):
     if not self.figure.exists:

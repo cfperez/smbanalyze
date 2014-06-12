@@ -1,4 +1,5 @@
-__all__ = ['split_reverse_pull', 'split_pulls_at_point', 'Pulling', 'ExpList', 'group_by']
+__all__ = ['split_reverse_pull', 'split_pulls_at_point', 
+            'Pulling', 'ExpList', 'group_by']
 
 import os.path as opath
 from operator import itemgetter, attrgetter, methodcaller, and_
@@ -6,7 +7,6 @@ import operator as op
 import logging
 import cPickle as pickle
 from re import search as re_search
-import abc
 from itertools import groupby, ifilter
 from smbanalyze.date import today, date, to_date
 from smbanalyze.sampling import downsample as dsample, down_average
@@ -14,13 +14,13 @@ from smbanalyze.pulling import Pulling
 from smbanalyze.numlist import numlist
 
 from matplotlib.mlab import find
-from numpy import min, max, asarray, insert, sum, mean, all, any, diff, NAN, where, vstack
+from numpy import mean, all, any, diff, where, vstack
 
 import fileIO 
-from useful import groupat
 import constants
 import image
-from datatypes import TrapData, FretData, hasTrapData, hasFretData, AbstractData
+from image import ROI
+from datatypes import TrapData, FretData, Data
 from fancydict import nesteddict
 
 
@@ -98,7 +98,6 @@ def split_pulls_at_point(exps, point):
       low += [p]
   return low, high
 
-from image import ROI
 def loadimg(p, directory='.', **kwargs):
   '''Return the Stack image using ROI and background stored in experiment metadata.
   Must be in current or specified directory.
@@ -156,7 +155,6 @@ class ExpList(numlist):
     pulls.has_value(fret_time_atleast=30)
     '''
     key,value = kwargs.popitem()
-      
     def filter_by_value(to_filter, key, value):
       attr, comparison = key.rsplit('_', 1)
       attr = attr.replace('_','.')
@@ -179,46 +177,19 @@ class ExpList(numlist):
     num_with_fret = len(filtered_by_fret)
     fret_data = None
     if num_with_fret == len(self):
-        fret_data = FretData.aggregate(self.get('fret'), fret_sorted_by)
+        fret_data = FretData.aggregate(self.getattrs('fret'), fret_sorted_by)
     elif num_with_fret > 0:
         logger.warning('Not all experiments have fret: not collapsing fret data!')
-    trap_data = TrapData.aggregate(self.get('trap'), sort_by=trap_sorted_by)
+    trap_data = TrapData.aggregate(self.getattrs('trap'), sort_by=trap_sorted_by)
     fname = self[0].filename or ''
     fname += '_collapsed' if fname else 'collapsed'
     return Pulling(trap_data, fret_data, dict(filename=fname, collapsed=True))
 
   def _all_elements_have_attr(self, attr):
-    filtered_by_attr = self.has_attr(attr)
-    return len(filtered_by_attr) == len(self)
-
-  def _aggregate_data(self, attr, sort_by):
-    filtered_by_attr = self.has_attr(attr)
-    num_with_attr = len(filtered_by_attr)
-    data = None
-    if num_with_attr == len(self):
-      data = AbstractData.aggregate(self.get(attr), sort_by)
-    elif num_with_attr > 0:
-      logger.warning(
-        'Not all experiments have {atrr}: not collapsing {attr} data!'.format(attr=attr))
-    return data
-
-  def plot(self, style=None, **options):
-    "Plot all experiments overlayed onto same panel. Can plot only trap or fret."
-    options.setdefault('legend', None)
-    labels = options.pop('labels', self.get('filename'))
-    for p,label in zip(self, labels):
-      fplot.plot(p.fret, p.trap, style=style,
-        hold=True, 
-        label=label, #p.metadata.get('filename', ''),
-        **options)
-
-  def savefig(self, filename):
-    "Save figure from last plotall()"
-    self.figure.toFile(filename)
-
-  def saveallfig(self, path=''):
-    "Save all individual plots"
-    self.call('savefig', path=path)
+    for x in self:
+      if not hasattr(x, attr):
+        return False
+    return True
 
   def adjustForceOffset(self, baseline=0.0, offset=None, x_range=None):
     return self.call('adjustForceOffset', baseline, offset, x_range)
@@ -261,10 +232,10 @@ class ExpList(numlist):
     return xoffset, foffset
 
   def split_reverse_pull(self):
-    return ExpList(map(split_reverse_pull, self.is_a(Pulling)))
+    return ExpList.map(split_reverse_pull, self.is_a(Pulling))
 
-def split_reverse_from_list(exps):
-  return ExpList(map(split_reverse_pull, exps))
+def split_reverse_pulls(exps):
+  return ExpList.map(split_reverse_pull, exps.is_a(Pulling))
 
 def split_reverse_pull(exp):
   '''
@@ -288,7 +259,7 @@ def split_reverse_pull(exp):
 
 def split_reverse_data(data, split):
   '''Return forward and reverse data on split'''
-  assert isinstance(data, AbstractData)
+  assert isinstance(data, Data)
   if split is None:
     raise ValueError('Split cannot be None')
   cls = type(data)

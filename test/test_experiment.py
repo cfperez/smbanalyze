@@ -7,6 +7,7 @@ Test cases for experiment.py behaviors
 from nose.tools import *
 from smbanalyze.experiment import Pulling, to_fret_ext, ExpList
 from smbanalyze.datatypes import FretData, TrapData
+from numpy import all
 
 def setup():
 	global meta, trap, fret
@@ -17,6 +18,7 @@ def setup():
 def test_pulling_trapdata():
 	p = Pulling(trap)
 	eq_(p.trap, trap)
+	ok_(all(p.trap.data==trap.data))
 	eq_(p.metadata['trap'], meta)
 	# These fields have not been set and 
 	# shouldn't be specified
@@ -27,6 +29,7 @@ def test_pulling_trapdata():
 def test_pulling_fretdata():
 	p = Pulling(trap, fret)
 	eq_(p.fret, fret)
+	ok_(all(p.fret.data==fret.data))
 	eq_(p.metadata['fret'], meta)
 
 def test_pulling_to_fret_ext():
@@ -48,3 +51,12 @@ def test_experiment_list_nofret():
 	has_fret = mol.has_attr('fret')
 	eq_(has_fret, [])
 
+def test_explist_collapses_trap_data():
+	p = Pulling(trap, None, meta)
+	mol = ExpList([p,p])
+	collapsed = mol.collapse().trap
+	aggregated = TrapData.aggregate([trap,trap], 'ext')
+	print "Collapsed using ExpList.collapse():", collapsed.data
+	print "Aggregated using TrapData.aggregate():", aggregated.data
+	ok_(all(collapsed.data==aggregated.data), "Data is stacked and sorted by ext")
+	eq_(aggregated.metadata, {}, "Metadata is ignored when aggregated")

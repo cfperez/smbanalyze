@@ -4,6 +4,7 @@ from numpy import linspace, append, diff
 from collections import namedtuple
 from itertools import groupby
 import fplot, experiment, curvefit, fec, fcalc, fileIO, refolding
+from datatypes import TrapData, FretData
 try:
     import db
 except ImportError:
@@ -31,6 +32,7 @@ _date_ = ['today', 'date', 'to_date']
 fec_names = ['fec', 'nm_to_nt', 'Rips']
 
 __all__ = _modules_ + _names_ + fec_names + _date_ \
+    + ['TrapData', 'FretData'] \
     + [ "fig", "pretty_rip_sizes", "pick_pts", "pick_pt", "pick_line",
     "pick_intervals", "Interval", "group_by", "to_date", "transposed",
     "savefig", "plot_segmented", "reload_all", "getitems", "flatten_"]
