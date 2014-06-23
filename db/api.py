@@ -11,7 +11,7 @@ from bson.binary import Binary
 from cPickle import dumps, loads
 from smbanalyze import date
 
-__all__ = ['_id', 'set_', 'lessthan', 'lessorequal', 'get_exp', 'greaterthan',
+__all__ = ['_id', 'set_', 'in_', 'lessthan', 'lessorequal', 'get_exp', 'greaterthan',
  'connect', 'close', 'select', 'find', 'save_exp', 'save_all', 'copy', 'update']
 
 CLIENT = None
@@ -122,7 +122,10 @@ def exp_to_dict(exp):
 def save_exp(db, exp, extra={}, **extra_):
     exp.metadata.update(extra, **extra_)
     to_insert = exp_to_db(exp)
-    db.save(to_insert)
+    result = db.save(to_insert)
+    # Add ObjectId (in result) to experiment which happens during insert
+    exp.metadata.setdefault('_id', to_insert.get('_id', ''))
+    return result
     
 def save_all(db, exps, extra={}, **extra_):
     for p in exps:
@@ -141,7 +144,7 @@ def in_(vals):
     return {'$in': vals}
 
 def with_(*fields):
-    d= dict.fromkeys(fields, 1)
+    d = dict.fromkeys(fields, 1)
     d['_id'] = 0
     return d    
 
