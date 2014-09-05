@@ -42,7 +42,7 @@ def fromFile(filename, background=None, **kwargs):
   roi = kwargs.pop('roi', None)
   img = Stack.fromfile(fileIO.add_img_ext(filename))
 
-  bgimg = fromBackground(background)
+  bgimg = fromBackground(background) if background else ConstantStack(0)
   bg_exposure = bgimg.metadata['exposurems']
   if not isinstance(bgimg, ConstantStack) and bg_exposure != img.metadata['exposurems']:
     print '''WARNING Trying to subtract background with exposure time {} 
@@ -58,6 +58,9 @@ def fromFile(filename, background=None, **kwargs):
     img.addROI(*roi)
   return img
 
+def is_background(bg):
+  pass
+
 def fromBackground(name=None, zfilter='median'):
   if isinstance(name, str):
     bg = Stack.fromfile(name)
@@ -66,7 +69,7 @@ def fromBackground(name=None, zfilter='median'):
   elif isinstance(name, int) or name is None:
     return ConstantStack(name or constants.default_background_subtract)
   else:
-    raise ValueError('@name must be either a string, stack, int, or None')
+    raise ValueError('Argument "name" must be either a string, stack, int, or None')
   return bg.toBackground(zfilter)
     
 
@@ -105,8 +108,8 @@ Convert between 'absolute' and 'relative' coordinates:
   """
 
   def __init__(self, bottomLeft, topRight, name='', origin='relative'):
-    L, B = bottomLeft
-    R, T = topRight
+    L, B = map(int, bottomLeft)
+    R, T = map(int, topRight)
     if R <= L:
       raise ROIInvalid('Right {0} must be greater than left {1}'.format(R,L))
     if T <= B:
