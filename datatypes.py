@@ -225,7 +225,7 @@ class TrapData(Data):
         return self.maskFromLimits(ext, f)
 
     def mask_above(self, above):
-        '''Return 2 masks: True if above above(ext)'''
+        '''Return mask where force is greater than above(ext)'''
         assert callable(above)
         above = self.f > above(self.ext)
         return above
