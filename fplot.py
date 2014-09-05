@@ -25,6 +25,60 @@ COLOR_CYCLE = plt.rcParams['axes.color_cycle']
 COLOR = (color for color in cycle(COLOR_CYCLE))
 next_color_in_cycle = lambda : next(COLOR)
 
+class Style(dict):
+  """Dictionary-like class for setting styles on fplots
+
+  Style constructor will only allow setting styles on things that
+  fplot.plot() is going to plot: check Style.ITEMS
+
+      style = Style(donor='r--', fret='.')
+      fplot.plot(fret_data_object, style=style)
+
+      # donor is dots with default color scheme
+      plot( ... , ... , style=Style(donor='.') )
+      
+      # donor is blue line, acceptor is red line, rest is black
+      plot( ... , ... , style=Style(color='k', donor='b-', acceptor='r-') )
+      
+      # all plots are lines
+      plot( ... , ... , style='-' )
+      
+      # all plots are green
+      plot( ... , ... , style=Style(color='g') )
+      
+      # color cycles for every line drawn (like matplotlib default)
+      plot( ... , ... , style=Style(color='auto') )
+  """
+  ITEMS = ('donor', 'acceptor', 'fret', 'trap', 'total_counts')
+  STYLES = (':','-','-',':','--')
+
+  TRAP_STYLE_NAME = 'trap'
+
+  def __init__(self, **styles):
+    color = styles.pop('color', None)
+    if color is None:
+      color = next_color_in_cycle()
+    elif color == 'auto':
+      color = '' # lets matplotlib decide
+    default_style = [color+linestyle for linestyle in Style.STYLES]
+    for item,style in styles.items():
+      if style and not _has_color(style):
+        styles[item] = color + style
+    super(Style, self).__init__(
+      zip(Style.ITEMS, default_style),
+      **styles)
+
+  @classmethod
+  def with_default_style(cls, style):
+    style_dict = dict(zip(cls.ITEMS, [style]*len(cls.ITEMS)))
+    return cls(**style_dict)
+    
+  def __setitem__(self, key, value):
+    if key not in Style.ITEMS:
+      raise ValueError('Item "{}" is not plotted and has no style')
+    super(Style, self).__setitem__(key, value)
+
+
 def save(fname=None, **kwargs):
     fname = fname or plt.gca().get_title()
     plt.savefig(fname, transparent=True, **kwargs)
@@ -40,27 +94,29 @@ def stacks(pulls, style=None, **options):
     # label = labels.pop(0) if len(labels)>0 else ''
     stack(p, style=style, hold=True, label=p.filename, **options)
 
-def counts_from_fret(fretdata, rows=2):
+def counts_from_fret(fretdata, style=Style(), rows=2):
   time, donor, acceptor, fret = fretdata
   plt.hold(True)
   plt.subplot(rows,1,1)
-  plt.plot(time, donor, 'b', label='Donor')
-  plt.plot(time, acceptor, 'r', label='Acceptor')
-  plt.plot(time, acceptor+donor, 'g--', label='Total')
+  dstyle = style['donor']
+  plt.plot(time, donor, dstyle, label='Donor')
+  plt.plot(time, acceptor, style['acceptor'], label='Acceptor')
+  plt.plot(time, acceptor+donor, style['total_counts'], label='Total')
   plt.ylabel("Counts")
   plt.ylim(-100, max(acceptor+donor+100))
   plt.xlim(xmin=time[0],xmax=time[-1])
+  plt.xticks([])
 
   plt.subplot(rows,1,2)
   plt.ylabel('FRET')
-  plt.plot(time, fret, 'k')
+  plt.plot(time, fret, style['fret'])
   plt.xlabel('Time')
   plt.xlim(xmin=time[0],xmax=time[-1])
   plt.ylim(-0.05,1.05)
   return plt.gcf().get_axes()
 
-def fret(p, rows=2):
-  return counts_from_fret(p.fret, rows)
+def fret(p, style=Style(), rows=2):
+  return counts_from_fret(p.fret, style=style, rows=rows)
 
 def frets(exps, rows=2):
   plt.hold(True)
@@ -107,12 +163,15 @@ def fretfec(p, stylefec='-', stylefret='o:', axes=(), fec_opts={}, fret_opts={})
   plt.ylabel('FRET efficiency')
   axforce.autoscale_view(tight=True)
   return axfret, axforce
+
 fretfec.fret_opts = {
   'markersize': 9
 }
 fretfec.fec_opts = {
   'linewidth': 2.5
 }
+
+from collections import deque
 
 def segmented(p, stylefec='-', stylefret='o:', every=1, boundaries=[], colors=[], axes=(), exps=[], **options):
   axfret, axforce = axes if any(axes) else subplots(2)
@@ -122,11 +181,12 @@ def segmented(p, stylefec='-', stylefret='o:', every=1, boundaries=[], colors=[]
   trap = p.trap
   fret, ext = to_fret_ext(p)
   plt.hold(True)
+  colors = deque(colors)
   for x in exps:
     axforce.plot(x.trap.ext, x.trap.f, 'k:', lw=1.5)
   for start_n in range(len(fret)):
     if start_n == 0 or start_n in boundaries or (not boundaries and start_n%every==0):
-      color = colors.pop(0) if colors else next_color_in_cycle()
+      color = colors.popleft() if colors else next_color_in_cycle()
     fret_segment = fret[start_n:start_n+2]
     ext_segment = ext[start_n:start_n+2]
     axfret.plot(ext_segment, fret_segment, stylefret, color=color, markeredgewidth=0, **options)
@@ -140,60 +200,7 @@ def segmented(p, stylefec='-', stylefret='o:', every=1, boundaries=[], colors=[]
   axfret.set_xlabel('Extension (nm)')
 
 def _has_color(style_string):
-  return style_string and len(style_string) > 0 and style_string[0].isalnum()
-
-class Style(dict):
-  """Dictionary-like class for setting styles on fplots
-
-  Style constructor will only allow setting styles on things that
-  fplot.plot() is going to plot: check Style.ITEMS
-
-      style = Style(donor='r--', fret='.')
-      fplot.plot(fret_data_object, style=style)
-
-      # donor is dots with default color scheme
-      plot( ... , ... , style=Style(donor='.') )
-      
-      # donor is blue line, acceptor is red line, rest is black
-      plot( ... , ... , style=Style(color='k', donor='b-', acceptor='r-') )
-      
-      # all plots are lines
-      plot( ... , ... , style='-' )
-      
-      # all plots are green
-      plot( ... , ... , style=Style(color='g') )
-      
-      # color cycles for every line drawn (like matplotlib default)
-      plot( ... , ... , style=Style(color='auto') )
-  """
-  ITEMS = ('donor', 'acceptor', 'fret', 'trap')
-  STYLES = (':','-','-',':')
-
-  TRAP_STYLE_NAME = 'trap'
-
-  def __init__(self, **styles):
-    color = styles.pop('color', None)
-    if color is None:
-      color = next_color_in_cycle()
-    elif color == 'auto':
-      color = '' # lets matplotlib decide
-    default_style = [color+linestyle for linestyle in Style.STYLES]
-    for item,style in styles.items():
-      if style and not _has_color(style):
-        styles[item] = color + style
-    super(Style, self).__init__(
-      zip(Style.ITEMS, default_style),
-      **styles)
-
-  @classmethod
-  def with_default_style(cls, style):
-    style_dict = dict(zip(cls.ITEMS, [style]*len(cls.ITEMS)))
-    return cls(**style_dict)
-    
-  def __setitem__(self, key, value):
-    if key not in Style.ITEMS:
-      raise ValueError('Item "{}" is not plotted and has no style')
-    super(Style, self).__setitem__(key, value)
+  return style_string and len(style_string) > 0 and (style_string[0].isalnum() or style_string[0]=='#')
 
 
 def plot(data, pull=None, style=None, **kwargs):
