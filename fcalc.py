@@ -52,7 +52,7 @@ def processFiles(flist, roi='roi.txt', background=None,
   for fname in flist:
     try:
       if verbose: info('Opening %s...' % fname)
-      img = image.fromFile(fname, roi=roi, background=BG)
+      img = image.fromFile(fname, roi=roi, background=background)
       calculated_fret = fret_from_image(img, **calcOptions)
       if verbose:
         info('Saving .fret data to file...')
