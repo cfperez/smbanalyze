@@ -119,7 +119,7 @@ def loadimg(p, directory='.', **kwargs):
 class ExpList(numlist):
   def matching(self, *match):
     "Return ExpList with experiment names matching *match globs"
-    return self.filter(lambda x: re_search(makeMatchStrFromArgs(*match), x.filename))
+    return self.filter(lambda x: re_search(fileIO.makeMatchStrFromArgs(*match), x.filename))
 
   def has_meta(self, key, value=None):
     if value is not None:
