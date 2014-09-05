@@ -34,8 +34,7 @@ def copy(from_, to_, **search):
     for item in from_.find(search):
         to_.insert(item)
 
-def data_to_db(p, dtype):
-    data = getattr(p, dtype)
+def data_to_db(data):
     d = data.metadata.copy()
     d['data'] = data.data.tolist()
     return d
@@ -43,9 +42,9 @@ def data_to_db(p, dtype):
 def exp_to_db(p):
     to_save = p.metadata.copy()
     if p.trap:
-        to_save['trap'] = data_to_db(p, 'trap')
+        to_save['trap'] = data_to_db(p.trap)
     if p.fret:
-        to_save['fret'] = data_to_db(p, 'fret')
+        to_save['fret'] = data_to_db(p.fret)
     return to_save
 
 def db_to_exp(p):
